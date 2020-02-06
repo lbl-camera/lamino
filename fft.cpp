@@ -42,6 +42,8 @@ void ifft2d(fftw_complex * input, dim3_t dims) {
 
 void fftshift1d(complex_t * input, dim3_t dims) {
     int batches = dims.x * dims.y;
+
+    #pragma omp parallel for
     for (int i = 0; i< batches; i++)
         for (int j = 0; j < dims.z; j++) {
             double a = std::pow(-1, j & 1);
@@ -53,6 +55,7 @@ void fftshift1d(complex_t * input, dim3_t dims) {
 void fftshift2d(complex_t * input, dim3_t dims) {
     int ny = dims.y;
     int nz = dims.z;
+    #pragma omp parallel for
     for (int j = 0; j < ny; j++) 
         for (int k = 0; k < nz; k++) {
             double a = std::pow(-1, (j+k)&1);
@@ -63,6 +66,7 @@ void fftshift2d(complex_t * input, dim3_t dims) {
 
 void xfftshift(complex_t * input, dim3_t dims, double shift) {
     int batches = dims.x * dims.y;
+    #pragma omp parallel for
     for (int i = 0; i< batches; i++)
         for (int j = 0; j < dims.z; j++) {
             double d = 2 * M_PI * shift * j /((double) dims.z);
