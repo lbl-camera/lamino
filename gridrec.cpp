@@ -69,11 +69,9 @@ int main(int argc, char **argv) {
     // 1-D fft
     fft1d((fftw_complex *) input, idims);
 
-    // scale
-    int nelem = idims.x * idims.y * idims.z;
     #pragma omp parallel for
-    for (int i = 0; i < nelem; i++) 
-        input[i] /= padded;
+    for (int i = 0; i < idims.y*idims.z; i++)
+        input[i] /= std::pow(idims.z,2);
 
     // center-shift
     xfftshift(input, idims, -center);
