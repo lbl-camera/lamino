@@ -5,6 +5,7 @@ project(Testbed CXX)
 
 set(SRC
     fft.cpp
+    deapod.cpp
     convolve.cpp
     gridrec.cpp
    )

@@ -69,6 +69,12 @@ int main(int argc, char **argv) {
     // 1-D fft
     fft1d((fftw_complex *) input, idims);
 
+    // scale
+    int nelem = idims.x * idims.y * idims.z;
+    #pragma omp parallel for
+    for (int i = 0; i < nelem; i++) 
+        input[i] /= padded;
+
     // center-shift
     xfftshift(input, idims, -center);
 
@@ -85,6 +91,7 @@ int main(int argc, char **argv) {
     fftshift2d(output, odims);
 
     // de-apodize
+    deapod(output, odims);
 
     // write out
     write(output, odims);
