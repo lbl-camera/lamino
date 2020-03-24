@@ -7,7 +7,9 @@ set(SRC
     fft.cpp
     deapod.cpp
     convolve.cpp
-    gridrec.cpp
+    projection.cpp
+    results.cpp
+    main.cpp
    )
 
 # C++11 Stuff
@@ -19,8 +21,5 @@ if(OpenMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif(OpenMP_FOUND)
 
-
-
-
-add_executable(gridrec ${SRC})
-target_link_libraries(gridrec fftw3)
+add_executable(nufft ${SRC})
+target_link_libraries(nufft fftw3f)
