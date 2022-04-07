@@ -9,10 +9,12 @@
 
 const complex_t J1(0, 1);
 
-void fft1(Array < complex_t > &input) {
+Array<complex_t> fft1(const Array <complex_t> &input) {
 
     dim2_t dims = input.dims();
-    fftwf_complex *data = (fftwf_complex *) input.ptr();
+    fftwf_complex *idata = (fftwf_complex *) input.ptr();
+    Array<complex_t> output(dims.x, dims.y);
+    fftwf_complex *odata = (fftwf_complex *) output.ptr();
     int rank = 1;
     int n[] = { dims.y };
     int idist = dims.y;
@@ -22,17 +24,20 @@ void fft1(Array < complex_t > &input) {
     int *inembed = NULL;
     int *onembed = NULL;
     int batches = dims.x;
-    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, data, inembed, istride,
-                                          idist, data, onembed, ostride, odist,
+    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata, inembed, istride,
+                                          idist, odata, onembed, ostride, odist,
                                           FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+    return output;
 }
 
-void ifft1(Array < complex_t > &input) {
+Array<complex_t> ifft1(const Array <complex_t> &input) {
 
     dim2_t dims = input.dims();
-    fftwf_complex *data = (fftwf_complex *) input.ptr();
+    fftwf_complex *idata = (fftwf_complex *) input.ptr();
+    Array<complex_t> output(dims.x, dims.y);
+    fftwf_complex *odata = (fftwf_complex *) output.ptr();
     int rank = 1;
     int n[] = { dims.y };
     int idist = dims.y;
@@ -42,17 +47,20 @@ void ifft1(Array < complex_t > &input) {
     int *inembed = NULL;
     int *onembed = NULL;
     int batches = dims.x;
-    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, data, inembed, istride,
-                                          idist, data, onembed, ostride, odist,
+    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata, inembed, istride,
+                                          idist, odata, onembed, ostride, odist,
                                           FFTW_BACKWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+    return output;
 }
 
-void fft2(Array < complex_t > &input) {
+Array<complex_t> fft2(const Array <complex_t> &input) {
 
     dim2_t dims = input.dims();
-    fftwf_complex *data = (fftwf_complex *) input.ptr();
+    fftwf_complex *idata = (fftwf_complex *) input.ptr();
+    Array<complex_t> output(dims.x, dims.y);
+    fftwf_complex *odata = (fftwf_complex *) output.ptr();
     int rank = 2;
     int n[] = { dims.x, dims.y };
     int idist = dims.x * dims.y;
@@ -62,18 +70,20 @@ void fft2(Array < complex_t > &input) {
     int *inembed = NULL;
     int *onembed = NULL;
     int batches = 1;
-    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, data, inembed, istride,
-                                          idist, data, onembed, ostride, odist,
+    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata, inembed, istride,
+                                          idist, odata, onembed, ostride, odist,
                                           FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+    return output;
 }
 
-void ifft2(Array < complex_t > &input)
-{
+Array<complex_t> ifft2(const Array <complex_t> &input) {
 
     dim2_t dims = input.dims();
-    fftwf_complex *data = (fftwf_complex *) input.ptr();
+    fftwf_complex *idata = (fftwf_complex *) input.ptr();
+    Array<complex_t> output(dims.x, dims.y);
+    fftwf_complex *odata = (fftwf_complex *) output.ptr();
     int rank = 2;
     int n[] = { dims.x, dims.y };
     int idist = dims.x * dims.y;
@@ -83,11 +93,12 @@ void ifft2(Array < complex_t > &input)
     int *inembed = NULL;
     int *onembed = NULL;
     int batches = 1;
-    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, data, inembed, istride,
-                                          idist, data, onembed, ostride, odist,
+    fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata, inembed, istride,
+                                          idist, odata, onembed, ostride, odist,
                                           FFTW_BACKWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+    return output;
 }
 
 void fftshift1(Array < complex_t > &input) {

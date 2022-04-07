@@ -6,7 +6,7 @@ project(Testbed CXX)
 set(SRC
     src/fft.cpp
     src/deapod.cpp
-    src/convolve.cpp
+    src/fftconv.cpp
     src/projection.cpp
     src/results.cpp
    )
@@ -21,12 +21,28 @@ if(OpenMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif(OpenMP_FOUND)
 
+# flat iron nufft
+set(FINUFFT_DIR "/home/dkumar/finufft")
+include_directories(${FINUFFT_DIR}/include)
+link_directories(${FINUFFT_DIR}/lib)
 
 add_library(nufft STATIC ${SRC})
 target_link_libraries(nufft PRIVATE fftw3f)
 
-add_executable(sirt test/main.cpp)
-target_link_libraries(sirt nufft)
+add_executable(backward test/backward.cpp)
+target_link_libraries(backward PRIVATE nufft)
+target_link_libraries(backward PRIVATE finufft)
 
-add_executable(gridrec test/gridrec.cpp)
-target_link_libraries(gridrec nufft)
+add_executable(forward test/forward.cpp)
+target_link_libraries(forward PRIVATE nufft)
+target_link_libraries(forward PRIVATE finufft)
+
+add_executable(sirt test/main.cpp)
+target_link_libraries(sirt PRIVATE nufft)
+target_link_libraries(sirt PRIVATE finufft)
+
+add_executable(ffterr test/transform_error.cpp)
+target_link_libraries(ffterr PRIVATE nufft)
+target_link_libraries(ffterr PRIVATE finufft)
+
+add_executable(test_array test/array.cpp)

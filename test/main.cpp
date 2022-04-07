@@ -2,84 +2,52 @@
 #include <iostream>
 
 #include "array.h"
-#include "convolve.h"
-#include "kernel.h"
+#include "tomocam.h"
+#include "adam.h"
 
-const int dims[] = { 400, 400 };
-
+const int MAX_ITERS = 10;
 const int num_angles = 360;
-int main(int argc, char **argv)
-{
+const int num_pixels = 400;
+const char * infilename = "/home/dkumar/";
+
+int main() {
 
     // read data
-    size_t size = dims[0] * dims[1];
+    size_t size = num_pixels * num_pixels;
     float *data = new float[size];
-
+    float center = 200;
     // read sinogram
-    std::fstream fp("shepp_logan.bin", std::ifstream::in);
-    if (!fp.is_open()) {
-        std::cerr << "error! unable to open data file." << std::endl;
-        exit(1);
-    }
-    fp.read((char *)data, sizeof(float) * size);
-    fp.close();
+    Array<float> sinogram(num_angles, num_pixels);
+    sinogram.fromfile(infilename);
 
     // angles
-    Array < float >angles(1, num_angles);
+    Array <float> angles(1, num_angles);
     for (int i = 0; i < num_angles; i++)
         angles[i] = i * M_PI / (num_angles - 1);
 
     // oversampling
-    float oversample = 1.5;
-    if (argc >= 2) {
-        oversample = atof(argv[1]);
+    float oversample = 2.f;
+
+    // transpose data
+    auto sinoT = backward(sinogram, angles, center);
+    sinoT.tofile("output.bin");
+    std::exit(1);
+
+    // calculate point spread function
+    Array<float> ones(num_angles, num_pixels, 1);
+    auto psf = backward(ones, angles, center);
+
+    // turn the crank  
+    msd::AdamMinimizer adam(num_pixels, num_pixels);
+
+    std::cout << "starting .... " << std::endl;
+    Array<float> recon(num_pixels, num_pixels, 1);
+    for (int iter = 0; iter < MAX_ITERS; iter++) {
+        auto xf = forward(recon, angles, center);
+        auto g = backward(xf - sinogram, angles, center); 
+        auto err = g.norm();
+        std::cout << "step " << iter << ", error:" << err << std::endl;
+        recon -= adam.update(g);
     }
-    // convolution kernel radius
-    float radius = 2.f;
-    if (argc >= 3)
-        radius = atof(argv[2]);
-    // kaiser window scaling  (default 4 * PI)
-    float beta = 12.566371;
-    if (argc >= 4)
-        beta = atof(argv[3]);
-
-    std::cout << "Over-sampling : " << oversample << ", " << std::endl;
-    std::cout << "Kernel radius : " << radius << ", " << std::endl;
-    std::cout << "Kernel scaling: " << beta << "." << std::endl;
-    Kernel kernel(radius, beta);
-
-    // input and output with padding
-    int ipad = (int)((oversample - 1.f) * dims[1] / 2);
-    int padded = dims[1] + 2 * ipad;
-
-    // working arrays
-    Array < complex_t > image(padded, padded);
-    Array < complex_t > sino(num_angles, padded);
-
-    dim2_t idims = image.dims();
-#pragma omp parallel for
-    for (int i = 0; i < dims[0]; i++)
-        for (int j = 0; j < dims[1]; j++)
-            image(i + ipad, j + ipad) = data[i * dims[1] + j];
-
-    float center = 200.f;
-    forward(image, sino, angles, kernel, center);
-
-    // reset zero-padding
-    idims = sino.dims();
-    for (int i = 0; i < idims.x; i++)
-        for (int j = 0; j < idims.y; j++)
-			if ((j < ipad) || (j >= idims.y - ipad))
-				sino(i, j) = 0;
-
-    image.clear();
-    backward(sino, image, angles, kernel, center);
-
-    float * output = new float [size];
-    remove_padding(output, image, ipad, ipad);
-    write_output(output, size);
-
-    delete [] output;
-    delete [] data;
     return 0;
 }

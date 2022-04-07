@@ -1,86 +1,110 @@
 #include <iostream>
 
+#include <finufft.h>
+
 #include "array.h"
-#include "convolve.h"
+#include "tomocam.h"
 #include "dtypes.h"
 #include "fft.h"
 #include "kernel.h"
 
-void backward(Array < complex_t > & input,
-              Array < complex_t > & output,
-              Array < float > & angles, Kernel kernel, float center)
-{
 
-    // fftshift
-    fftshift1(input);
 
-    // 1-D fft
-    fft1(input);
+Array<float> backward(Array <float> & sinogram,
+                      const Array <float> & angles, 
+                      float center) {
 
-	// put zero-frequency in the center
-    //fftshift1(input);
+    dim2_t dims = sinogram.dims();
+    int num_projs = dims.x;
+    int num_pixel = dims.y;
 
-    // correct center offset
-    xfftshift(input, center);
+    // 1-D Fourier transforms
+    fftshift1<float>(sinogram);
+    Array<complex_t> C = fft1(sinogram.cmplx());
+    xfftshift<complex_t>(C, center); 
 
-	// apply ramp-filter
-    ramp_filter(input, 0.65);
+   // create points from [-pi, pi]
+    int64_t M = num_projs * num_pixel;
+    float * x = new float[M];
+    float * y = new float[M];
+    float s = 2 * M_PI / num_pixel;
+    for (int i = 0; i < num_projs; i++)
+        for (int j = 0; j < num_pixel; j++) {
+            float r = s * static_cast<float>(j - center);
+            x[i * num_pixel + j] = r * std::cos(angles[i]);
+            y[i * num_pixel + j] = r * std::sin(angles[i]);
+        } 
 
-    // rescale
-    float nn = std::pow(input.dims().y, 2);
-#pragma omp parallel for
-    for (int i = 0; i < input.size(); i++)
-        input[i] /= nn;
+    // nufft inputs
+    int N1 = num_pixel;
+    int N2 = num_pixel;
+    int iflag = 1;
+    float tol = 1e-06;
+ 
+    nufft_opts *opts = new nufft_opts;
+    finufftf_default_opts(opts);
+    opts->upsampfac = 2.0;
 
-    // convolution
-    convolve_p2c(input, output, angles, kernel, center);
+    // working arrays
+    Array<complex_t> F(num_pixel, num_pixel);
+    
+    // backward FFT
+    int ier = finufftf2d1(M, y, x, C.ptr(), iflag, tol, N1, N2, F.ptr(), opts);
 
-    // fftshift
-    fftshift2(output);
+    delete [] x;
+    delete [] y;
+    delete [] opts;
 
-    // ifft2
-    ifft2(output);
-
-    // fftshift2d
-    fftshift2(output);
-
-    // deconvolve
-    deconvolve(output, kernel);
+    auto rv = F.real() / (float) (num_pixel * num_pixel);
+    return  rv;
 }
 
-void forward(Array < complex_t > & input,
-             Array < complex_t > & output,
-             Array < float > &angles, Kernel kernel, float center)
-{
+Array<float> forward(Array <float> & image, 
+                    const Array <float> &angles, float center) {
 
-    // 2D fft-shift (chess-board)
-    fftshift2(input);
+    
+    int num_projs = angles.dims().y;
+    int num_pixel = image.dims().y;
+    Array<complex_t> C(num_projs, num_pixel);    
+ 
+    // create points from [-pi, pi]
+    int64_t M = num_pixel * num_projs;
+    float * x = new float[M];
+    float * y = new float[M];
+    for (int i = 0; i < num_projs; i++)
+        for (int j = 0; j < num_pixel; j++) {
+            float r = 2 * M_PI * static_cast<float>(j - center) / num_pixel;
+            x[i * num_pixel + j] = r * std::cos(angles[i]);
+            y[i * num_pixel + j] = r * std::sin(angles[i]);
+        } 
 
-    // fft2 on oversampled grid
-    fft2(input);
+    // nufft paramters 
+    int N1 = num_pixel;
+    int N2 = num_pixel;
+    int iflag = -1;
+    float tol = 1e-06;
+    
+    // cast float array to complex
+    Array<complex_t> F = image.cmplx();
 
-    // shift, again
-    fftshift2(input);
+    // execute nufft
+    nufft_opts *opts = new nufft_opts;
+    finufftf_default_opts(opts);
+    opts->upsampfac = 2.0;
+    int ier = finufftf2d2(M, y, x, C.ptr(), iflag, tol, N1, N2, F.ptr(), opts);
 
-    // rescale
-    float nn = std::pow(input.dims().y, 2);
-#pragma omp parallel for
-    for (int i = 0; i < input.size(); i++)
-        input[i] /= nn;
-
-    // NUFFT convolution
-    convolve_c2p(input, output, angles, kernel, center);
-
-    // 1D shift
-    //xfftshift(output, center);
-    fftshift1(output);
+    // axis shift
+    xfftshift(F, -center);
 
     // ifft
-    ifft1(output);
+    ifft1(C);
 
-    // 1D shift
-    fftshift1(output);
+    // shift
+    fftshift1(C);
 
-    // deconvolve
-    deconvolve(output, kernel);
+    delete [] x;
+    delete [] y;
+    delete [] opts;
+
+    return C.real();
 }

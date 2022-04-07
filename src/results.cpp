@@ -1,43 +1,45 @@
-#include "array.h"
 #include <fstream>
 #include <iostream>
 
+#include "array.h"
 
-void remove_padding(float *data, Array < complex_t > &array, int ipad, int jpad) {
-    dim2_t dims = array.dims();
-    int nrow = dims.x - 2 * ipad;
-    int ncol = dims.y - 2 * jpad;
+Array<complex_t> add_padding(const Array<float> &A, float oversample) {
+    dim2_t dims = A.dims();
+    int ipad = (oversample-1) * dims.x / 2;
+    int jpad = (oversample-1) * dims.y / 2;
+    Array<complex_t> B(dims.x + 2 * ipad, dims.y + 2 * jpad);
 
-    for (int i = 0; i < nrow; i++)  
-        for (int j = 0; j < ncol; j++) {
-			int id = i *  ncol + j;
-			data[id] = array(i + ipad, j + jpad).real();
+    for (int i = 0; i < dims.x; i++)
+        for (int j = 0; j < dims.y; j++)
+            B(i+ipad, j+jpad) = A(i,j);
+    return B;
+}
+
+Array<float> remove_padding(const Array <complex_t> &A, float oversample) {
+    dim2_t dims = A.dims();
+    int ipad = dims.x / oversample / 2;
+    int jpad = dims.y / oversample / 2;
+
+    Array<float> B(dims.x - 2*ipad, dims.y - 2*jpad);
+    for (int i = 0; i < B.dims().x; i++)  
+        for (int j = 0; j < B.dims().y; j++) {
+            B(i,j) = A(i+ipad, j+jpad).real();
 		}
+    return B;
 }
 
-void normalize(float * array, int size) {
-    float MAX = 1.0E-10;
-    for (int i = 0; i < size; i++)
-        if (array[i] > MAX) MAX = array[i];
-
-    std::cout << "dividing by " << MAX << std::endl;
-    #pragma omp parallel for   
-    for (int i = 0; i < size; i++)
-        array[i] /= MAX;
-}
-
-float calc_error(float * array, float * data, int size) {
+float calc_error(const Array<float> &array, const Array<float> &data) {
     float err = 0.f;
-    for (int i = 0; i < size; i++)
+
+    for (int i = 0; i < array.size(); i++)
         err += pow(array[i] - data[i], 2);
     return std::sqrt(err);
 }
 
-void write_output(float *array, int size) {
-    size_t bytes = size * sizeof(float);
-    std::ofstream real("output.bin", std::ios::out | std::ios::binary);
-    real.write((char *) array, bytes);
-    real.close();
+void write_output(char * filename, char *buffer, size_t bytes) {
+    std::ofstream out(filename, std::ios::out | std::ios::binary);
+    out.write(buffer, bytes);
+    out.close();
 }
 
 

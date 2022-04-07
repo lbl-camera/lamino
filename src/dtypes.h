@@ -10,5 +10,5 @@ struct dim2_t {
 };
 
 typedef std::complex <float >complex_t;
-
-#endif                          // DTYPES__H
+inline const complex_t I(0, 1);
+#endif // DTYPES__H
