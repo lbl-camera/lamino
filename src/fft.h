@@ -19,7 +19,7 @@ void fftshift1(Array<T> & arr) {
     #pragma omp parallel for
     for (int i = 0; i < dims.x; i++)
         for (int j = 0; j < dims.y; j++)
-            arr(i,j) += std::pow(-1, j & 1);
+            arr(i,j) *= std::pow(-1, j & 1);
 }
 
 template <typename T> 
@@ -28,13 +28,12 @@ void fftshift2(Array<T> & arr) {
     #pragma omp parallel for
     for (int i = 0; i < dims.x; i++)
         for (int j = 0; j < dims.y; j++)
-            arr(i,j) += std::pow(-1, (i + j) & 1);
+            arr(i,j) *= std::pow(-1, (i + j) & 1);
 }
 
-template <typename T> 
-void xfftshift(Array <T> &arr, float d) {
+inline void xfftshift(Array <complex_t> &arr, float d) {
     auto dims = arr.dims();
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for 
     for (int i = 0; i < dims.x; i++)
         for (int j = 0; j < dims.y; j++) {
 			float w = (2 * M_PI * d * j) / (float) dims.y;

@@ -3,12 +3,12 @@
 
 #include "array.h"
 #include "tomocam.h"
-#include "adam.h"
+#include "nesterov.h"
 
-const int MAX_ITERS = 10;
-const int num_angles = 360;
+const int MAX_ITERS = 1000;
+const int num_angles = 400;
 const int num_pixels = 400;
-const char * infilename = "/home/dkumar/";
+const char * FILENAME = "/home/dkumar/data/shepp_logan/sino400.bin";
 
 int main() {
 
@@ -18,7 +18,8 @@ int main() {
     float center = 200;
     // read sinogram
     Array<float> sinogram(num_angles, num_pixels);
-    sinogram.fromfile(infilename);
+    sinogram.fromfile(FILENAME);
+    sinogram /= sinogram.max();
 
     // angles
     Array <float> angles(1, num_angles);
@@ -29,25 +30,25 @@ int main() {
     float oversample = 2.f;
 
     // transpose data
-    auto sinoT = backward(sinogram, angles, center);
-    sinoT.tofile("output.bin");
-    std::exit(1);
+    //auto sinoT = backward(sinogram, angles, center);
 
     // calculate point spread function
-    Array<float> ones(num_angles, num_pixels, 1);
-    auto psf = backward(ones, angles, center);
+    //Array<float> ones(num_angles, num_pixels, 1);
+    //auto psf = backward(ones, angles, center);
 
     // turn the crank  
-    msd::AdamMinimizer adam(num_pixels, num_pixels);
+    opt::NAGoptimizer opt(num_angles, num_pixels, angles, center);
 
     std::cout << "starting .... " << std::endl;
     Array<float> recon(num_pixels, num_pixels, 1);
     for (int iter = 0; iter < MAX_ITERS; iter++) {
         auto xf = forward(recon, angles, center);
-        auto g = backward(xf - sinogram, angles, center); 
+        auto e = xf - sinogram;
+        auto g = backward(e, angles, center); 
         auto err = g.norm();
         std::cout << "step " << iter << ", error:" << err << std::endl;
-        recon -= adam.update(g);
+        opt.update(recon, g);
     }
+    recon.tofile("output.bin");
     return 0;
 }

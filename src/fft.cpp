@@ -100,29 +100,3 @@ Array<complex_t> ifft2(const Array <complex_t> &input) {
     fftwf_destroy_plan(plan);
     return output;
 }
-
-void fftshift1(Array < complex_t > &input) {
-    dim2_t dims = input.dims();
-#pragma omp parallel for collapse(2)
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++)
-			input(i, j) *= std::pow(-1, j & 1);
-}
-
-void fftshift2(Array < complex_t > &input) {
-    dim2_t dims = input.dims();
-#pragma omp parallel for collapse(2)
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++)
-			input(i, j) *= std::pow(-1, (i + j) & 1);
-}
-
-void xfftshift(Array < complex_t > &input, float x) {
-    dim2_t dims = input.dims();
-#pragma omp parallel for collapse(2)
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++) {
-			float w = (2 * M_PI * x * j) / (float) dims.y;
-			input(i, j) *= std::exp(-J1 * w);
-		}
-}

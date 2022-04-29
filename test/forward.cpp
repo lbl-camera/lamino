@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     Array<float> image(num_pixels, num_pixels);
     image.fromfile(FILENAME);
 
-    Array < float >angles(1, num_angles);
+    Array <float> angles(1, num_angles);
     for (int i = 0; i < num_angles; i++)
         angles[i] = i * M_PI / (num_angles - 1);
 

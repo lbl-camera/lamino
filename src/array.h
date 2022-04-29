@@ -17,6 +17,7 @@ class Array {
  public:
     Array(int x, int y): dims_{x, y}, size_(x * y), ptr_(new T[x * y]) {}
     Array(int x, int y, T v): dims_{x, y}, size_(x * y), ptr_(new T[x * y]) {
+        #pragma omp parallel for
         for (int i = 0; i < x*y; i++)
             ptr_[i] = v;
     }
@@ -59,7 +60,7 @@ class Array {
     // convert to complex
     Array<complex_t> cmplx() {
         Array<complex_t> v(dims_.x, dims_.y);
-        #pragma omp parllel for
+        //#pragma omp parllel for
         for (int i = 0; i < size_; i++)
             v[i] = static_cast<complex_t>(ptr_[i]);
         return v;
@@ -148,13 +149,28 @@ class Array {
     // read binary file
     void fromfile(const char *filename) const {
         std::ifstream in(filename, std::ios::binary | std::ios::in);
+        in.seekg(0, in.end);
+        size_t size = in.tellg();
+        in.seekg(0, in.beg);
+
+        if (size != size_ * sizeof(T)) {
+            int nrows, ncols;
+            in.read((char *) &nrows, sizeof(int));
+            in.read((char *) &ncols, sizeof(int));
+            if ((dims_.x == nrows) && (dims_.y == ncols)) {
+                std::cerr << "error: dimension mismatch" << std::endl;
+                std::exit(1);
+            }
+        }
         in.read((char *) ptr_, size_ * sizeof(T));
         in.close();
     }
  
     // write to binary file
     void tofile(const char *filename) const {
-        std::ofstream out(filename, std::ios::binary | std::ios::in);
+        std::ofstream out(filename, std::ios::binary | std::ios::out);
+        out.write((char *) &dims_.x, sizeof(int));
+        out.write((char *) &dims_.y, sizeof(int));
         out.write((char *) ptr_, size_ * sizeof(T));
         out.close();
     }
@@ -201,9 +217,14 @@ template <typename T>
 Array<T>& operator-(Array<T> a, const Array<T> &b) {
     return a -= b;
 }
+
 template <typename T>
-Array<T>& operator-(float a, Array<T> b) {
-    return b -= a;
+Array<T> operator-(float a, Array<T> b) {
+    Array<T> rv(b.dims().x, b.dims().y);
+    #pragma omp parallel for
+    for (int i = 0; i < b.size(); i++)
+        rv[i] = a - b[i];
+    return rv;
 }
 
 // divisions
@@ -216,8 +237,9 @@ Array<T>& operator/(Array<T> a, T b) {
     return a /= b;
 }
 template <typename T>
-Array<T>& operator/(float a, Array<T> b) {
+Array<T> operator/(float a, Array<T> b) {
     Array<T> rv(b.dims().x, b.dims().y);
+    #pragma omp parallel for
     for (int i = 0; i < b.size(); i++)
         rv[i] = a / b[i];
     return rv;

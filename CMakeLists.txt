@@ -6,7 +6,6 @@ project(Testbed CXX)
 set(SRC
     src/fft.cpp
     src/deapod.cpp
-    src/fftconv.cpp
     src/projection.cpp
     src/results.cpp
    )

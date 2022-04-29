@@ -3,31 +3,6 @@
 
 #include "array.h"
 
-Array<complex_t> add_padding(const Array<float> &A, float oversample) {
-    dim2_t dims = A.dims();
-    int ipad = (oversample-1) * dims.x / 2;
-    int jpad = (oversample-1) * dims.y / 2;
-    Array<complex_t> B(dims.x + 2 * ipad, dims.y + 2 * jpad);
-
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++)
-            B(i+ipad, j+jpad) = A(i,j);
-    return B;
-}
-
-Array<float> remove_padding(const Array <complex_t> &A, float oversample) {
-    dim2_t dims = A.dims();
-    int ipad = dims.x / oversample / 2;
-    int jpad = dims.y / oversample / 2;
-
-    Array<float> B(dims.x - 2*ipad, dims.y - 2*jpad);
-    for (int i = 0; i < B.dims().x; i++)  
-        for (int j = 0; j < B.dims().y; j++) {
-            B(i,j) = A(i+ipad, j+jpad).real();
-		}
-    return B;
-}
-
 float calc_error(const Array<float> &array, const Array<float> &data) {
     float err = 0.f;
 
