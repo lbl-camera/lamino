@@ -13,6 +13,9 @@ Array<complex_t> ifft1(const Array <complex_t> &);
 Array<complex_t> fft2(const Array <complex_t> &);
 Array<complex_t> ifft2(const Array <complex_t> &);
 
+Array<complex_t> fft2r2c(Array <float>);
+Array<float> fft2c2r(Array <complex_t>);
+
 template <typename T> 
 void fftshift1(Array<T> & arr) {
     auto dims = arr.dims();

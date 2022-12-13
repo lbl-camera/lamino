@@ -100,3 +100,30 @@ Array<complex_t> ifft2(const Array <complex_t> &input) {
     fftwf_destroy_plan(plan);
     return output;
 }
+
+Array<complex_t> fft2r2c(Array<float> input) {
+    dim2_t dims = input.dims();
+    float *idata = (float *) input.ptr();
+
+    // allocate return array
+    Array<complex_t> output(dims.x, dims.y/2+1);
+    fftwf_complex * odata = (fftwf_complex *) output.ptr();
+
+    fftwf_plan plan = fftwf_plan_dft_r2c_2d(dims.x, dims.y, idata, odata, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
+    return output;
+}
+
+Array<float> fft2c2r(Array<complex_t> input) {
+    dim2_t dims = input.dims();
+    fftwf_complex * idata = (fftwf_complex *) input.ptr();
+
+    // allocate return array
+    Array<float> output(dims.x, 2*(dims.y-1));
+    float * odata = (float *) output.ptr();
+    fftwf_plan plan = fftwf_plan_dft_c2r_2d(dims.x, 2*(dims.y-1), idata, odata, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
+    return output;
+}

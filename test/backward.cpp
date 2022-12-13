@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < num_angles; i++)
         angles[i] = i * M_PI / (num_angles - 1);
 
-    float center = 200;
+    float center = 250;
     auto image = backward(sino, angles, center);
 
 	// write output

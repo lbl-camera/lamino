@@ -63,10 +63,12 @@ Array<T> remove_padding2d(const Array <T> &A, float oversample) {
 
 Array<float> forward(Array <float> &, const Array <float> &, float);
 Array<float> backward(Array <float> &, const Array <float> &, float);
-
+Array<float> calc_psf(const Array<float> &, int);
 void ramp_filter(Array <complex_t> &, float);
 
-Array<float> fftconvolve(const Array <float> &, const Array<float> &);
+Array<float> gradient(const Array<float> &, const Array<float> &, const Array<complex_t> &);
+Array<float> fftconvolve(const Array<float> &, const Array<complex_t> &);
+Array<float> fftconvolve(Array<float>, Array<float>);
 void normalize(Array<float> &, int);
 void write_output(const char *, char *, size_t);
 float calc_error(const Array<float> &, const Array<float> &);

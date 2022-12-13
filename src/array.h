@@ -1,11 +1,11 @@
-
-#ifndef ARRAY3__H
-#define ARRAY3__H
-
+#include <iostream>
 #include <string.h>
 #include <fstream>
 
 #include "dtypes.h"
+
+#ifndef ARRAY3__H
+#define ARRAY3__H
 
 template <typename T>
 class Array {
@@ -58,9 +58,9 @@ class Array {
     const T & operator[](dim2_t i) const { return ptr_[i.x * dims_.y + i.y]; }
 
     // convert to complex
-    Array<complex_t> cmplx() {
+    Array<complex_t> cmplx() const {
         Array<complex_t> v(dims_.x, dims_.y);
-        //#pragma omp parllel for
+        #pragma omp parllel for
         for (int i = 0; i < size_; i++)
             v[i] = static_cast<complex_t>(ptr_[i]);
         return v;
@@ -139,7 +139,7 @@ class Array {
 
     // max
     T max() const {
-        T maxv = 1 << 30;
+        T maxv = 1.0E-20;
         for (int i = 0; i < size_; i++)
             if (ptr_[i] > maxv) 
                 maxv = ptr_[i];

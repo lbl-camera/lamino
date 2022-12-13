@@ -4,51 +4,51 @@
 #include "array.h"
 #include "tomocam.h"
 #include "nesterov.h"
+#include "fft.h"
+#include "reader.h"
 
-const int MAX_ITERS = 1000;
-const int num_angles = 400;
-const int num_pixels = 400;
-const char * FILENAME = "/home/dkumar/data/shepp_logan/sino400.bin";
+const int MAX_ITERS = 4;
+//const char * FILENAME = "/home/dkumar/data/phantom_00016/phantom_00016/phantom_00016.h5";
+const char * FILENAME = "/home/dkumar/data/shepp_logan/shepp_logan.h5";
 
 int main() {
 
     // read data
-    size_t size = num_pixels * num_pixels;
-    float *data = new float[size];
-    float center = 200;
+    float center = 256;
+    //float center = 640;
+
     // read sinogram
-    Array<float> sinogram(num_angles, num_pixels);
-    sinogram.fromfile(FILENAME);
+    tomocam::H5Reader reader(FILENAME);
+    reader.setDataset("projs"); 
+    Array<float> sinogram = reader.read_sinogram(0);
     sinogram /= sinogram.max();
+    int num_pixels = sinogram.dims().y;
+    int num_angles = sinogram.dims().x;
 
     // angles
-    Array <float> angles(1, num_angles);
-    for (int i = 0; i < num_angles; i++)
-        angles[i] = i * M_PI / (num_angles - 1);
-
-    // oversampling
-    float oversample = 2.f;
+    Array <float> angles = reader.read_angles("angs");
+    if (num_angles != angles.dims().x) {
+        std::cerr << "booo!" << std::endl;
+        std::exit(1);
+    }
 
     // transpose data
-    //auto sinoT = backward(sinogram, angles, center);
+    auto sinoT = backward(sinogram, angles, center);
 
-    // calculate point spread function
-    //Array<float> ones(num_angles, num_pixels, 1);
-    //auto psf = backward(ones, angles, center);
-
-    // turn the crank  
-    opt::NAGoptimizer opt(num_angles, num_pixels, angles, center);
-
-    std::cout << "starting .... " << std::endl;
+    // point spread function
+    auto psf = calc_psf(angles, num_pixels);
+   
     Array<float> recon(num_pixels, num_pixels, 1);
-    for (int iter = 0; iter < MAX_ITERS; iter++) {
-        auto xf = forward(recon, angles, center);
-        auto e = xf - sinogram;
-        auto g = backward(e, angles, center); 
-        auto err = g.norm();
-        std::cout << "step " << iter << ", error:" << err << std::endl;
-        opt.update(recon, g);
-    }
-    recon.tofile("output.bin");
+
+    // gradient 1
+    auto t1 = forward(recon, angles, center) - sinogram;
+    //t1.tofile("error.bin");
+    
+    auto g1 = backward(t1, angles, center);
+    g1.tofile("gradient1.bin");
+
+    // gradient 2
+    auto g2 = fftconvolve(recon, psf) - sinoT;
+    g2.tofile("gradient2.bin");
     return 0;
 }

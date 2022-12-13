@@ -8,6 +8,7 @@ set(SRC
     src/deapod.cpp
     src/projection.cpp
     src/results.cpp
+    src/fftconv.cpp
    )
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
@@ -20,10 +21,13 @@ if(OpenMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif(OpenMP_FOUND)
 
+find_package(HDF5 REQUIRED COMPONENTS CXX)
+
 # flat iron nufft
 set(FINUFFT_DIR "/home/dkumar/finufft")
 include_directories(${FINUFFT_DIR}/include)
 link_directories(${FINUFFT_DIR}/lib)
+
 
 add_library(nufft STATIC ${SRC})
 target_link_libraries(nufft PRIVATE fftw3f)
@@ -37,11 +41,10 @@ target_link_libraries(forward PRIVATE nufft)
 target_link_libraries(forward PRIVATE finufft)
 
 add_executable(sirt test/main.cpp)
+target_link_libraries(sirt PRIVATE ${HDF5_LIBRARIES})
 target_link_libraries(sirt PRIVATE nufft)
 target_link_libraries(sirt PRIVATE finufft)
 
 add_executable(ffterr test/transform_error.cpp)
 target_link_libraries(ffterr PRIVATE nufft)
 target_link_libraries(ffterr PRIVATE finufft)
-
-add_executable(test_array test/array.cpp)
