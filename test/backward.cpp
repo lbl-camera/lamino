@@ -3,7 +3,6 @@
 
 #include "tomocam.h"
 #include "array.h"
-#include "kernel.h"
 
 const char * FILENAME = "/home/dkumar/data/shepp_logan/sino400.bin";
 const int num_pixel = 400;

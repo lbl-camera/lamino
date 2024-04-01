@@ -3,8 +3,8 @@
 
 #include "array.h"
 
-float calc_error(const Array<float> &array, const Array<float> &data) {
-    float err = 0.f;
+double calc_error(const Array<double> &array, const Array<double> &data) {
+    double err = 0.f;
 
     for (int i = 0; i < array.size(); i++)
         err += pow(array[i] - data[i], 2);
@@ -18,11 +18,11 @@ void write_output(char * filename, char *buffer, size_t bytes) {
 }
 
 
-void ramp_filter(Array<complex_t> & array, float fmax) {
+void ramp_filter(Array<complex_t> & array, double fmax) {
 
 	dim2_t dims = array.dims();
-	float cen = static_cast<float>(dims.y) / 2.f;
-	float a = static_cast<float>(dims.y) / M_PI;	
+	double cen = static_cast<double>(dims.y) / 2.f;
+	double a = static_cast<double>(dims.y) / M_PI;	
 
 	int jmin = static_cast<int>((1.-fmax) * dims.y) / 2;
 	int jmax = dims.y - jmin;
@@ -31,8 +31,8 @@ void ramp_filter(Array<complex_t> & array, float fmax) {
 			if (j < jmin) array(i, j) = 0.f;
 			else if (j > jmax) array(i,j) = 0.f;
 			else {
-				float t = static_cast<float>(j-cen) / static_cast<float>(dims.y);
-				float w = a * std::abs(std::sin(t * M_PI));
+				double t = static_cast<double>(j-cen) / static_cast<double>(dims.y);
+				double w = a * std::abs(std::sin(t * M_PI));
 				array(i, j) *= w;
 			}
 		}

@@ -44,8 +44,12 @@ class Array {
 
     dim2_t dims() const { return dims_; }
     size_t size() const { return size_; }
+    int nrows() const { return dims_.x; }
+    int ncols() const { return dims_.y; }
     T *ptr() { return ptr_; }
     const T *ptr() const { return ptr_; }
+    T *row(int i) { return ptr_ + i * dims_.x; }
+    const T *row(int i) const { return ptr_ + i * dims_.x; }
 
     // indexing
     T & operator[](int i) { return ptr_[i]; }
@@ -56,6 +60,7 @@ class Array {
 
     T & operator[](dim2_t i) { return ptr_[i.x * dims_.y + i.y]; }
     const T & operator[](dim2_t i) const { return ptr_[i.x * dims_.y + i.y]; }
+
 
     // convert to complex
     Array<complex_t> cmplx() const {
@@ -122,16 +127,16 @@ class Array {
     } 
 
     // get real part
-	Array<float> real() {
-		Array<float> rv(dims_.x, dims_.y);
+	Array<double> real() {
+		Array<double> rv(dims_.x, dims_.y);
 		for (int i = 0; i < size_; i++)
 			rv[i] = ptr_[i].real();
 		return rv;
 	}
 
     // norm2
-    float norm() const {
-        float v = 0;
+    double norm() const {
+        double v = 0;
         for (int i = 0; i < size_; i++)
             v += std::pow(std::abs(ptr_[i]), 2);
         return std::sqrt(v);
@@ -139,12 +144,28 @@ class Array {
 
     // max
     T max() const {
-        T maxv = 1.0E-20;
+        T maxv = 1.0e-20;
         for (int i = 0; i < size_; i++)
             if (ptr_[i] > maxv) 
                 maxv = ptr_[i];
         return maxv;
     } 
+
+    // min
+    T min() const {
+        T minv = 1.0e+20;
+        for (int i = 0; i < size_; i++)
+            if (ptr_[i] < minv) 
+                minv = ptr_[i];
+        return minv;
+    }
+
+    T dot (const Array<T> & rhs) const {
+        T v = 0;
+        for (int i = 0; i < size_; i++)
+            v += ptr_[i] * rhs.ptr_[i];
+        return v;
+    }
         
     // read binary file
     void fromfile(const char *filename) const {
@@ -219,7 +240,7 @@ Array<T>& operator-(Array<T> a, const Array<T> &b) {
 }
 
 template <typename T>
-Array<T> operator-(float a, Array<T> b) {
+Array<T> operator-(double a, Array<T> b) {
     Array<T> rv(b.dims().x, b.dims().y);
     #pragma omp parallel for
     for (int i = 0; i < b.size(); i++)
@@ -237,7 +258,7 @@ Array<T>& operator/(Array<T> a, T b) {
     return a /= b;
 }
 template <typename T>
-Array<T> operator/(float a, Array<T> b) {
+Array<T> operator/(double a, Array<T> b) {
     Array<T> rv(b.dims().x, b.dims().y);
     #pragma omp parallel for
     for (int i = 0; i < b.size(); i++)

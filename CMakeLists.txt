@@ -2,11 +2,12 @@
 cmake_minimum_required(VERSION 3.8)
 
 project(Testbed CXX)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 set(SRC
     src/fft.cpp
-    src/deapod.cpp
     src/projection.cpp
+    src/proj2.cpp
     src/results.cpp
     src/fftconv.cpp
    )
@@ -23,28 +24,19 @@ endif(OpenMP_FOUND)
 
 find_package(HDF5 REQUIRED COMPONENTS CXX)
 
-# flat iron nufft
-set(FINUFFT_DIR "/home/dkumar/finufft")
-include_directories(${FINUFFT_DIR}/include)
-link_directories(${FINUFFT_DIR}/lib)
+# finufft
+find_package(finufft REQUIRED)
 
-
-add_library(nufft STATIC ${SRC})
-target_link_libraries(nufft PRIVATE fftw3f)
-
-add_executable(backward test/backward.cpp)
-target_link_libraries(backward PRIVATE nufft)
-target_link_libraries(backward PRIVATE finufft)
-
-add_executable(forward test/forward.cpp)
-target_link_libraries(forward PRIVATE nufft)
-target_link_libraries(forward PRIVATE finufft)
+add_library(tomocam SHARED ${SRC})
+target_link_libraries(tomocam PRIVATE fftw3)
+target_link_libraries(tomocam PRIVATE finufft::finufft)
 
 add_executable(sirt test/main.cpp)
 target_link_libraries(sirt PRIVATE ${HDF5_LIBRARIES})
-target_link_libraries(sirt PRIVATE nufft)
-target_link_libraries(sirt PRIVATE finufft)
+target_link_libraries(sirt PRIVATE tomocam)
+target_link_libraries(sirt PRIVATE finufft::finufft)
 
-add_executable(ffterr test/transform_error.cpp)
-target_link_libraries(ffterr PRIVATE nufft)
-target_link_libraries(ffterr PRIVATE finufft)
+#add_executable(toeplitz test/toeplitz.cpp)
+#target_link_libraries(toeplitz PRIVATE ${HDF5_LIBRARIES})
+#target_link_libraries(toeplitz PRIVATE tomocam)
+#target_link_libraries(toeplitz PRIVATE finufft::finufft)

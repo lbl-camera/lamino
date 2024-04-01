@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
         C[i] = complex_t(sinogram[i],0);
 
     double tol = 1e-06; // desired accuracy
-    nufft_opts opts; finufftf_default_opts(&opts);
+    finufft_opts opts; finufftf_default_opts(&opts);
     opts.upsampfac = 2;
     
     int ier = finufftf2d1(M, y, x, C.ptr(), -1, tol, num_pixels, num_pixels, F.ptr(), &opts);

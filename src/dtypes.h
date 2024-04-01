@@ -9,6 +9,6 @@ struct dim2_t {
     int y;
 };
 
-typedef std::complex <float>complex_t;
+typedef std::complex <double>complex_t;
 inline const complex_t I(0, 1);
 #endif // DTYPES__H
