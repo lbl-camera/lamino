@@ -19,40 +19,45 @@
  */
 
 #include <cmath>
+#include <vector>
 
 #include "array.h"
+#include "array_ops.h"
+
+using std::vector;
 
 #ifndef NESTEROV_OPTIMIZE__H
 #define NESTEROV_OPTIMIZE__H
 namespace opt {
     class NAGoptimizer {
-      private:
-        double lipschitz_;
-        Array<double> t_;
-        Array<double> z_;
+        private:
+            double lipschitz_;
+            Array<double> t_;
+            Array<double> z_;
 
-      public:
-        NAGoptimizer(int num_pixels, int num_projs, const Array<double> & angles, double cen):
-            t_(num_pixels, num_pixels), z_(num_pixels, num_pixels) {
+        public:
+            NAGoptimizer(int num_pixels, int num_projs,
+                const vector<double> &angles, double cen) :
+                t_(num_pixels, num_pixels), z_(num_pixels, num_pixels) {
 
-            Array<double> x(num_pixels, num_pixels, 1);
-            auto y = forward(x, angles, cen);
-            auto g = backward(y, angles, cen);
-            lipschitz_ = 1./g.max();
-        }
-
-        template <typename T>
-        void update(Array<T> &recon, Array<T> &gradient) {
-            #pragma omp parallel for
-            for (int i = 0; i < recon.size(); i++) {
-                double z_new = recon[i] - lipschitz_ * gradient[i];
-                double t_new = 0.5 * (1 + std::sqrt(1 + 4 * t_[i] * t_[i]));
-                double l = (1 - t_[i]) / t_new;
-                recon[i] = (1 - l) * z_new + l * z_[i];
-                t_[i] = t_new;
-                z_[i] = z_new;
+                Array<double> x(num_pixels, num_pixels, 1);
+                auto y = forward(x, angles);
+                auto g = backward(y, angles);
+                lipschitz_ = 1. / max(g);
             }
-        }
+
+            template <typename T>
+            void update(Array<T> &recon, Array<T> &gradient) {
+                #pragma omp parallel for
+                for (int i = 0; i < recon.size(); i++) {
+                    double z_new = recon[i] - lipschitz_ * gradient[i];
+                    double t_new = 0.5 * (1 + std::sqrt(1 + 4 * t_[i] * t_[i]));
+                    double l = (1 - t_[i]) / t_new;
+                    recon[i] = (1 - l) * z_new + l * z_[i];
+                    t_[i] = t_new;
+                    z_[i] = z_new;
+                }
+            }
     };
 } // namespace opt
 

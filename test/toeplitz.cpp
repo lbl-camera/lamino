@@ -6,90 +6,62 @@
 #include "array.h"
 #include "tomocam.h"
 #include "nesterov.h"
-#include "finufft.h"
 #include "fft.h"
+#include "nufft.h"
 #include "reader.h"
 #include "writer.h"
+#include "timer.h"
 
-const int MAX_ITERS = 4;
-const char * FILENAME = "/home/dkumar/data/shepp_logan/shepp_logan.h5";
-
-
+typedef std::complex<double> complex_t;
 template <typename T>
 T random() {
     auto a = static_cast<T>(rand());
     auto b = static_cast<T>(RAND_MAX);
-    return (a/b);
+    return (a / b);
 }
 
 int main() {
 
-    // read data
-    double center = 256;
-
-    // read sinogram
-    tomocam::H5Reader reader(FILENAME);
+    // Open an hdf5 file
     tomocam::H5Writer writer("toeplitz.h5");
 
-    reader.setDataset("projs"); 
-    auto sinogram = reader.read_sinogram(0);
+    int num_pixels = 2047;
+    int num_angles = 360;
 
-    int num_pixels = sinogram.ncols();
-    int num_angles = sinogram.nrows();
-
-    std::cout << "Num of projs: " << num_angles << std::endl;
+    // set seed
+    srand(101);
 
     // angles
-    auto anglesf = reader.read_angles("angs");
-    if (num_angles != anglesf.dims().x) {
-        std::cerr << "booo!" << std::endl;
-        std::exit(1);
-    }
-    Array<double> angles(anglesf.nrows(), anglesf.ncols());
-    for (int i = 0; i < anglesf.size(); i++)
-        angles[i] = anglesf[i];
+    std::vector<double> angles(num_angles);
+    for (int i = 0; i < num_angles; i++)
+        angles[i] = i * M_PI / static_cast<double>(num_angles);
 
     Array<double> recon(num_pixels, num_pixels);
     for (int i = 0; i < recon.size(); i++)
         recon[i] = random<double>();
 
-    auto psf = calc_psf(angles, num_pixels);
+    auto pg = nufft::polar_grid<double>(angles, num_pixels);
+    auto psf = calc_psf(pg);
     writer.write("psf", psf);
-   
-    const int M = num_angles * num_pixels;
-    int N = num_pixels;
-    double * x = new double[M];
-    double * y = new double[M];
-    double cen = num_pixels / 2.f;
-    double s = 2 * M_PI / num_pixels;
-    for (int i = 0; i < num_angles; i++)
-        for (int j = 0; j < num_pixels; j++) {
-            double r = s * static_cast<double>(j - cen);
-            x[i * num_pixels + j] = r * std::cos(angles[i]);
-            y[i * num_pixels + j] = r * std::sin(angles[i]);
-        } 
 
-    finufft_opts *opts = new finufft_opts;
-    finufftf_default_opts(opts);
-    opts->upsampfac = 2.0;
-    double tol = 6.0E-12; 
-    complex_t *C = new complex_t[M];
-    auto Ft = recon.cmplx();
-    int ier = finufft2d2(M, x, y,  C, -1, tol, N, N, Ft.ptr(), opts);
-    ier = finufft2d1(M, x, y, C, 1, tol, N, N, Ft.ptr(), opts);
-    auto g1 = Ft.real();
+    tomocam::Timer t1;
+    t1.start();
+    auto g1 = gradient(recon, pg);
+    t1.stop();
     writer.write("nufft", g1);
-    delete []x;
-    delete []y;
-    delete []C;
 
     // gradient 2
     auto x2 = recon;
+    tomocam::Timer t2;
+    t2.start();
     auto g2 = fftconvolve(x2, psf);
+    t2.stop();
     writer.write("toeplitz", g2);
-    
+
+    std::cout << "NUFFT time (ms): " << t1.seconds() << " seconds" << std::endl;
+    std::cout << "Toeplitz time (ms): " << t2.seconds() << " seconds" << std::endl;
     // compare
-    auto err = (g1 - g2).norm();
-    std::cout << "Error: " << err/g1.norm() << std::endl;
+    auto err = norm(g1 - g2)/norm(g1);
+    std::cout << "Error: " << err << std::endl;
     return 0;
 }

@@ -1,6 +1,7 @@
-
 #include <complex>
 #include <fftw3.h>
+#include <new>
+#include <type_traits>
 
 #include "array.h"
 #include "dtypes.h"
@@ -8,102 +9,230 @@
 #ifndef FFTDEFS__H
 #define FFTDEFS__H
 
-Array<complex_t> fft1(const Array <complex_t> &);
-Array<complex_t> ifft1(const Array <complex_t> &);
-Array<complex_t> fft2(const Array <complex_t> &);
-Array<complex_t> ifft2(const Array <complex_t> &);
+namespace tomocam {
+    namespace fft {
 
-Array<complex_t> fft2r2c(Array <double>);
-Array<double> fft2c2r(Array <complex_t>);
+        template <typename T>
+        Array<std::complex<T>> fft1(const Array<std::complex<T>> &input) {
 
+            // double or float
+            bool is_double = std::is_same_v<T, double>;
 
-inline int fftwsize(int n) {
-    int primes[] = {3, 5, 7, 11};
-    int pows[] =   {0, 0, 0, 0};
-    int np = 4;
+            // create return array
+            dims_t dims = input.dims();
+            Array<std::complex<T>> output(dims);
 
-    while (true) {
-        auto N = n;
-        for (int i = 0; i < np; i++) {
-            auto a = primes[i];
-            while (N % a == 0) {
-                N /= a;
-                pows[i]++;
+            int rank = 1;
+            int n[] = {dims.z};
+            int idist = dims.z;
+            int odist = dims.z;
+            int istride = 1;
+            int ostride = 1;
+            int *inembed = NULL;
+            int *onembed = NULL;
+            int batches = dims.x * dims.y;
+
+            if (is_double) {
+                fftw_complex *idata = (fftw_complex *)input.begin();
+                fftw_complex *odata = (fftw_complex *)output.begin();
+                fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_FORWARD, FFTW_ESTIMATE);
+                if (!plan) { throw std::bad_alloc(); }
+                fftw_execute(plan);
+                fftw_destroy_plan(plan);
+            } else {
+                fftwf_complex *idata = (fftwf_complex *)input.begin();
+                fftwf_complex *odata = (fftwf_complex *)output.begin();
+                fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_FORWARD, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
-            if (N == 1) break;
+            return output;
         }
-        if (N > 1) {
-             n++;
-             memset(pows, 0, sizeof(int)*np);
-        } else if (pows[np-2] + pows[np-1] > 1) {
-            n++;
-             memset(pows, 0, sizeof(int)*np);
-        } else
-            break;
-    }
-    return n;
-}
 
-template <typename T> 
-void fftshift1(Array<T> & arr) {
-    auto dims = arr.dims();
-    #pragma omp parallel for
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++)
-            arr(i,j) *= std::pow(-1, (j & 1));
-}
+        template <typename T>
+        Array<std::complex<T>> ifft1(const Array<std::complex<T>> &arr) {
 
-template <typename T> 
-void fftshift2(Array<T> & arr) {
-    auto dims = arr.dims();
-    #pragma omp parallel for
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++)
-            arr(i,j) *= std::pow(-1, (i + j) & 1);
-}
+            // double or float
+            bool is_double = std::is_same_v<T, double>;
 
+            // create return array
+            dims_t dims = arr.dims();
+            Array<std::complex<T>> output(arr.dims());
 
-template <typename T>
-Array<T> fftshift(const Array<T> & arr) {
+            int rank = 1;
+            int n[] = {dims.z};
+            int idist = dims.z;
+            int odist = dims.z;
+            int istride = 1;
+            int ostride = 1;
+            int *inembed = NULL;
+            int *onembed = NULL;
+            int batches = dims.x * dims.y;
 
-    auto dims = arr.dims();
-    int dy = dims.y / 2;
-
-    Array<T> out(dims.x, dims.y);
-    #pragma omp parallel for
-    for (int i = 0; i < dims.x; i++) {
-        for (int j = 0; j < dims.y; j++) {
-            int jj = (j + dy) % dims.y;
-            out(i,jj) = arr(i,j);
+            if (is_double) {
+                fftw_complex *idata = (fftw_complex *)arr.begin();
+                fftw_complex *odata = (fftw_complex *)output.begin();
+                fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_BACKWARD, FFTW_ESTIMATE);
+                fftw_execute(plan);
+                fftw_destroy_plan(plan);
+            } else {
+                fftwf_complex *idata = (fftwf_complex *)arr.begin();
+                fftwf_complex *odata = (fftwf_complex *)output.begin();
+                fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_BACKWARD, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+            }
+            return output;
         }
-    }
-    return out;
-}
 
-template <typename T>
-Array<T> ifftshift(const Array<T> & arr) {
+        template <typename T>
+        Array<std::complex<T>> fft2(const Array<std::complex<T>> &input) {
 
-    auto dims = arr.dims();
-    int dy = dims.y / 2;
+            // double or float
+            bool is_double = std::is_same_v<T, double>;
 
-    Array<T> out(dims.x, dims.y);
-    #pragma omp parallel for
-    for (int i = 0; i < dims.x; i++) {
-        for (int j = 0; j < dims.y; j++) {
-            int jj = (j + dy) % dims.y;
-            out(i,j) = arr(i,jj);
+            // create return array
+            dims_t dims = input.dims();
+            Array<std::complex<T>> output(input.dims());
+
+            int rank = 2;
+            int n[] = {dims.y, dims.z};
+            int idist = dims.y * dims.z;
+            int odist = dims.y * dims.z;
+            int istride = 1;
+            int ostride = 1;
+            int *inembed = NULL;
+            int *onembed = NULL;
+            int batches = dims.x;
+
+            if (is_double) {
+                fftw_complex *idata = (fftw_complex *)input.begin();
+                fftw_complex *odata = (fftw_complex *)output.begin();
+                fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_FORWARD, FFTW_ESTIMATE);
+                if (!plan) { throw std::bad_alloc(); }
+                fftw_execute(plan);
+                fftw_destroy_plan(plan);
+            } else {
+                fftwf_complex *idata = (fftwf_complex *)input.begin();
+                fftwf_complex *odata = (fftwf_complex *)output.begin();
+                fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_FORWARD, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+            }
+            return output;
         }
-    }
-    return out;
-}   
 
-inline void xfftshift(Array <complex_t> &arr, double d) {
-    auto dims = arr.dims();
-    #pragma omp parallel for 
-    for (int i = 0; i < dims.x; i++)
-        for (int j = 0; j < dims.y; j++) {
-			double w = (2 * M_PI * d * j) / (double) dims.y;
-			arr(i, j) *= std::exp(I * w);
-		}
-}
+        template <typename T>
+        Array<std::complex<T>> ifft2(const Array<std::complex<T>> &input) {
+            // double or float
+            bool is_double = std::is_same_v<T, double>;
+
+            // create return array
+            dims_t dims = input.dims();
+            Array<std::complex<T>> output(input.dims());
+
+            int rank = 2;
+            int n[] = {dims.y, dims.z};
+            int idist = dims.y * dims.z;
+            int odist = dims.y * dims.z;
+            int istride = 1;
+            int ostride = 1;
+            int *inembed = NULL;
+            int *onembed = NULL;
+            int batches = dims.x;
+
+            if (is_double) {
+                fftw_complex *idata = (fftw_complex *)input.begin();
+                fftw_complex *odata = (fftw_complex *)output.begin();
+                fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_BACKWARD, FFTW_ESTIMATE);
+                fftw_execute(plan);
+                fftw_destroy_plan(plan);
+            } else {
+                fftwf_complex *idata = (fftwf_complex *)input.begin();
+                fftwf_complex *odata = (fftwf_complex *)output.begin();
+                fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
+                    inembed, istride, idist, odata, onembed, ostride, odist,
+                    FFTW_BACKWARD, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+            }
+            return output;
+        }
+
+        template <typename T>
+        Array<std::complex<T>> fft3(const Array<std::complex<T>> &input) {
+
+            // double or float
+            bool is_double = std::is_same_v<T, double>;
+
+            // create return array
+            dims_t dims = input.dims();
+            Array<std::complex<T>> output(input.dims());
+
+            if (is_double) {
+                fftw_complex *idata = (fftw_complex *)input.begin();
+                fftw_complex *odata = (fftw_complex *)output.begin();
+                fftw_plan plan = fftw_plan_dft_3d(dims.x, dims.y, dims.z, idata,
+                    odata, -1, FFTW_ESTIMATE);
+                if (!plan) { throw std::bad_alloc(); }
+                fftw_execute(plan);
+                fftw_destroy_plan(plan);
+            } else {
+                fftwf_complex *idata = (fftwf_complex *)input.begin();
+                fftwf_complex *odata = (fftwf_complex *)output.begin();
+                fftwf_plan plan = fftwf_plan_dft_3d(dims.x, dims.y, dims.z,
+                    idata, odata, -1, FFTW_ESTIMATE);
+                if (!plan) { throw std::bad_alloc(); }
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+            }
+            return output;
+        }
+
+        template <typename T>
+        Array<std::complex<T>> ifft3(const Array<std::complex<T>> &input) {
+
+            // double or float
+            bool is_double = std::is_same_v<T, double>;
+
+            dims_t dims = input.dims();
+            Array<std::complex<T>> output(dims);
+
+            if (is_double) {
+                fftw_complex *idata = (fftw_complex *)input.begin();
+                fftw_complex *odata = (fftw_complex *)output.begin();
+                fftw_plan plan = fftw_plan_dft_3d(dims.x, dims.y, dims.z, idata,
+                    odata, 1, FFTW_ESTIMATE);
+                if (!plan) { throw std::bad_alloc(); }
+                fftw_execute(plan);
+                fftw_destroy_plan(plan);
+            } else {
+                fftwf_complex *idata = (fftwf_complex *)input.begin();
+                fftwf_complex *odata = (fftwf_complex *)output.begin();
+                fftwf_plan plan = fftwf_plan_dft_3d(dims.x, dims.y, dims.z,
+                    idata, odata, 1, FFTW_ESTIMATE);
+                if (!plan) { throw std::bad_alloc(); }
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+            }
+
+            return output;
+        }
+
+    } // namespace fft
+} // namespace tomocam
 #endif // FFTDEFS__H

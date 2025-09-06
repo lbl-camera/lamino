@@ -1,114 +1,102 @@
 #include <iostream>
-
-#include <finufft.h>
+#include <vector>
 
 #include "array.h"
-#include "tomocam.h"
+#include "array_ops.h"
 #include "dtypes.h"
 #include "fft.h"
+#include "fftutils.h"
+#include "nufft.h"
+#include "padding.h"
+#include "polar_grid.h"
+#include "tomocam.h"
 
+constexpr double tol = 1.0E-15;
+constexpr double crop_factor = 0.4142135624;
 
-constexpr double tol = 1.0E-12;
+namespace tomocam {
 
-Array<double> backward(Array <double> & sinogram,
-                      const Array <double> & angles, 
-                      double center) {
+    template <typename T>
+    Array<T> forward(const Array<T> &image, const PolarGrid<T> &pg) {
 
-    // dimensions
-    dim2_t dims = sinogram.dims();
-    int num_projs = dims.x;
-    int num_pixel = dims.y;
-    double cen = (num_pixel-1) / 2.0;
+        int nslcs = image.nslices();
+        int nrows = image.nrows();
+        int ncols = image.ncols();
+        dims_t pad_size;
 
-    // 1-D Fourier transforms
-    auto cz = sinogram.cmplx();
-    cz  = ifftshift(cz);
-    Array<complex_t> C = fft1(cz);
-    //C = C / static_cast<complex_t>(num_pixel);
-    C = fftshift(C);
+        // pad 3d aray
+        pad_size.x = 2 * (static_cast<int>(nrows * crop_factor) / 2);
+        pad_size.y = 2 * (static_cast<int>(nrows * crop_factor) / 2);
+        pad_size.z = 2 * (static_cast<int>(ncols * crop_factor) / 2);
+        auto F = pad3d(image, pad_size, PadType::SYMMETRIC);
 
-   // create points from [-pi, pi]
-    int64_t M = num_projs * num_pixel;
-    double * x = new double[M];
-    double * y = new double[M];
-    double s = 2 * M_PI / num_pixel;
-    for (int i = 0; i < num_projs; i++) {
-        for (int j = 0; j < num_pixel; j++) {
-            double r = s * (j-cen);
-            x[i * num_pixel + j] = r * std::cos(angles[i]);
-            y[i * num_pixel + j] = r * std::sin(angles[i]);
-        } 
+        // cast double array to complex
+        auto Ft = to_complex(F);
+        Array<std::complex<T>> C(pg.dims());
+
+        // call NUFFT3d type-2
+        nufft::nufft3d2<T>(C, Ft, pg);
+
+        // ifft
+        C = fft::ifftshift(C, fft::Axes::two);
+        C = fft::ifft2(C);
+        C = fft::fftshift(C, fft::Axes::two);
+
+        // crop projection
+        pad_size.x = 0;
+        C = crop2d(C, pad_size, PadType::SYMMETRIC);
+        return real<T>(C);
     }
-    // nufft inputs
-    int N1 = num_pixel;
-    int N2 = num_pixel;
-    int iflag = 1;
- 
-    finufft_opts *opts = new finufft_opts;
-    finufft_default_opts(opts);
-    opts->upsampfac = 2.0;
 
-    // working arrays
-    Array<complex_t> F(num_pixel, num_pixel);
-    
-    // backward FFT
-    int ier = finufft2d1(M, x, y, C.ptr(), iflag, tol, N1, N2, F.ptr(), opts);
-    
-    delete [] x;
-    delete [] y;
-    delete [] opts;
+    template <typename T>
+    Array<T> backward(const Array<T> &proj, const PolarGrid<T> &pg) {
 
-    return F.real();
-}
+        // set switch for double or float
+        bool is_double = std::is_same_v<T, double>;
 
-Array<double> forward(Array <double> & image, 
-                    const Array <double> &angles, double center) {
+        // dimensions
+        dims_t dims = proj.dims();
+        int nprojs = dims.x;
+        int nrows = dims.y;
+        int ncols = dims.z;
 
-    auto F = image;
-    int num_projs = angles.dims().x;
-    int num_pixel = F.dims().y;
-    double cen = (num_pixel-1)/2.0;
- 
-    // create points from [-pi, pi]
-    int64_t M = num_pixel * num_projs;
-    double * x = new double[M];
-    double * y = new double[M];
-    double s = 2 * M_PI / num_pixel;
-    for (int i = 0; i < num_projs; i++)
-        for (int j = 0; j < num_pixel; j++) {
-            double r = s * (j - cen);
-            x[i * num_pixel + j] = r * std::cos(angles[i]);
-            y[i * num_pixel + j] = r * std::sin(angles[i]);
-        } 
+        // cast to complex
+        auto C = to_complex(proj);
 
-    // nufft paramters 
-    int N1 = num_pixel;
-    int N2 = num_pixel;
-    int iflag = -1;
-    
-    // cast double array to complex
-    Array<complex_t> Ft = F.cmplx();
-    Array<complex_t> C(num_projs, num_pixel);    
+        // pad each projection by factor of sqrt(2)
+        dims_t pad_size;
+        pad_size.x = 0;
+        pad_size.y = 2 * (static_cast<int>(nrows * crop_factor) / 2);
+        pad_size.z = 2 * (static_cast<int>(ncols * crop_factor) / 2);
+        C = pad2d(C, pad_size, PadType::SYMMETRIC);
 
-    // execute nufft
-    finufft_opts *opts = new finufft_opts;
-    finufft_default_opts(opts);
-    opts->upsampfac = 2.0;
-    opts->modeord = 0;
-    int ier = finufft2d2(M, x, y, C.ptr(), iflag, tol, N1, N2, Ft.ptr(), opts);
-    
-    // axis shift
-    C = ifftshift(C); 
+        // 2-D Fourier transforms
+        C = fft::ifftshift(C, fft::Axes::two);
+        C = fft::fft2(C);
+        C = fft::fftshift(C, fft::Axes::two);
 
-    // ifft
-    Array<complex_t> Ct = ifft1(C) / static_cast<complex_t>(num_pixel);
+        Array<std::complex<T>> F(dims_t{nrows, nrows, ncols});
 
-    // shift
-    Ct = fftshift(Ct);
+        // nufft
+        nufft::nufft3d1<T>(C, F, pg);
 
-    delete [] x;
-    delete [] y;
-    delete [] opts;
+        // crop image
+        pad_size.x = pad_size.y;
+        F = crop3d(F, pad_size, PadType::SYMMETRIC);
 
-    return Ct.real();
-}
+        return to_real<T>(F);
+    }
+
+    // Explicit instantiation forward
+    template Array<float> forward(const Array<float> &,
+        const PolarGrid<float> &);
+    template Array<double> forward(const Array<double> &,
+        const PolarGrid<double> &);
+
+    // Explicit instantiation backward
+    template Array<float> backward(const Array<float> &,
+        const PolarGrid<float> &);
+    template Array<double> backward(const Array<double> &,
+        const PolarGrid<double> &);
+
+} // namespace tomocam

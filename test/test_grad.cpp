@@ -1,49 +1,66 @@
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 #include "array.h"
+#include "array_ops.h"
 #include "tomocam.h"
-#include "nesterov.h"
+#include "nufft.h"
 
-const int MAX_ITERS = 11;
-const int num_angles = 400;
-const int num_pixels = 400;
-const char * FILENAME = "/home/dkumar/data/shepp_logan/sino400.bin";
+const int num_angles = 360;
+const int num_pixels = 511;
+
+template <typename T>
+T radrand() {
+    T rmax = static_cast<T>(RAND_MAX);
+    return static_cast<T>(rand()) / rmax;
+}
 
 int main() {
 
-    // read data
-    size_t size = num_pixels * num_pixels;
-    float *data = new float[size];
-    float center = 200;
-    // read sinogram
-    Array<float> sinogram(num_angles, num_pixels);
-    sinogram.fromfile(FILENAME);
-    sinogram /= sinogram.max();
+    // set seed
+    std::srand(100);
 
     // angles
-    Array <float> angles(1, num_angles);
+    std::vector<double> angles(num_angles);
     for (int i = 0; i < num_angles; i++)
-        angles[i] = i * M_PI / (num_angles - 1);
+        angles[i] = i * M_PI / num_angles;
 
-    // oversampling
-    float oversample = 2.f;
+    Array<double> recon(num_pixels, num_pixels);
+    for (int i = 0; i < recon.size(); i++) recon[i] = 1.0;
 
-    // transpose data
-    auto sinoT = backward(sinogram, angles, center);
+    // sinogram
+    Array<double> sino(num_angles, num_pixels);
+    for (int i = 0; i < sino.size(); i++) sino[i] = radrand<double>();
 
-    // calculate point spread function
-    auto psf = calc_psf(num_pixels, num_angles, angles, center);
-
-    // initalize recon array
-    Array<float> recon(num_pixels, num_pixels, 1);
+    auto pg = nufft::polar_grid(angles, num_pixels);
 
     // calulate gradient normally
-    auto t1 = forward(recon, angles, center);
-    auto g1 = backward(t1-sinogram, angles, center);   
- 
-    // calculate grdient with Toeplitz method
-    auto g2 = fftconvolve(recon, psf) - sinoT;
-    
+    auto t1 = forward(recon, angles);
+    auto t2 = t1 - sino;
+    auto g1 = backward(t2, angles);
+
+    auto sinoT = backward(sino, angles);
+    auto t3 = gradient(recon, pg);
+    auto g2 = t3 - sinoT;
+    std::cout << "g2.norm = " << norm(g2) << std::endl;
+    g2.print();
+    std::exit(1);
+    // check if they match
+    double a = dot(g1, g2) / dot(g1, g1);
+    double e = norm(g2 - a * g1) / g1.size();
+    std::cout << "a = " << a << ", e = " << e << std::endl;
+
+    // error
+    auto e1 = norm(t2);
+    e1 = e1 * e1;
+
+    // using gradient
+    auto p1 = dot(recon, t3);
+    auto p2 = 2 * dot(recon, sinoT);
+    auto p3 = dot(sino, sino);
+    auto e3 = (p1 - p2) / num_pixels + p3;
+    std::cout << "e1 = " << e1 << ", e2 = " << e3
+        << ", (|e2-e3|)/e3 = " << std::abs(e1 - e3) / e3 << std::endl;
     return 0;
 }
