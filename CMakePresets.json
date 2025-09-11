@@ -27,7 +27,18 @@
     "buildPresets": [
         {
             "name": "macos",
-            "configurePreset": "macos"
+            "configurePreset": "macos",
+            "cleanFirst": true
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "macos",
+            "displayName": "Full workflow for macos",
+            "steps": [
+                { "name": "macos", "type": "configure" },
+                { "name": "macos", "type": "build" }
+            ]
         }
     ]
 }
