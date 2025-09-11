@@ -13,6 +13,7 @@ namespace tomocam {
         uint64_t n3;
 
       public:
+        dims_t() : n1(0), n2(0), n3() {}
         explicit dims_t(uint64_t a, uint64_t b, uint64_t c) : n1(a), n2(b), n3(c) {}
 
         std::tuple<uint64_t, uint64_t, uint64_t> unravel_idx(uint64_t idx) const {
