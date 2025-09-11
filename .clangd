@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:
+    - -Wall
+    - -std=c++23
+    - -I./src
+    - -I/opt/homebrew/include
+    - -fexperimental-library
