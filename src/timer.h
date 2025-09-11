@@ -21,7 +21,7 @@
 #include <chrono>
 #include <iostream>
 
-#ifndef TIMERS__H 
+#ifndef TIMERS__H
 #define TIMERS__H
 
 namespace tomocam {
@@ -34,31 +34,23 @@ namespace tomocam {
       public:
         Timer() = default;
 
-        void start() {
-            start_time_ = std::chrono::high_resolution_clock::now();
-        }
+        void start() { start_time_ = std::chrono::high_resolution_clock::now(); }
 
         void stop() {
             end_time_ = std::chrono::high_resolution_clock::now();
-            elapsed_time_ += end_time_ - start_time_;
+            elapsed_time_ = end_time_ - start_time_;
         }
 
         double ms() const {
-            return std::chrono::duration_cast<std::chrono::milliseconds>(
-                elapsed_time_)
-                .count();
+            return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time_).count();
         }
 
         double us() const {
-            return std::chrono::duration_cast<std::chrono::microseconds>(
-                elapsed_time_)
-                .count();
+            return std::chrono::duration_cast<std::chrono::microseconds>(elapsed_time_).count();
         }
 
         double seconds() const {
-            return std::chrono::duration_cast<std::chrono::seconds>(
-                elapsed_time_)
-                .count();
+            return std::chrono::duration_cast<std::chrono::seconds>(elapsed_time_).count();
         }
 
         void reset() { elapsed_time_ = std::chrono::duration<double>(0); }
