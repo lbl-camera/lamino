@@ -1,7 +1,43 @@
 CompileFlags:
   Add:
     - -Wall
+    - -Wpedantic
+    - -Wextra
     - -std=c++23
-    - -I./src
+    - --include=include
+    - --include=include/gpu
+    - --include=include/gpu/device_ptr.cuh
     - -I/opt/homebrew/include
     - -fexperimental-library
+
+Style:
+  QuotedHeaders: "./src/.*"
+
+Diagnostics:
+    ClangTidy:
+      Add:
+        - modernize-*
+        - performance-*
+        - readability-*
+        - bugprone-*
+      Remove:
+        - clang-analyzer-alpha*
+        - modernize-use-trailing-return-type
+        - modernize-avoid-c-arrays
+        - readability-identifier-length
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+
+Index:
+  Background: Build
+  StandardLibrary: Yes
+
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+  Designators: Yes
+
+Hover:
+  ShowAKA: Yes
+

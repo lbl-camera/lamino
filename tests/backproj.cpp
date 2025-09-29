@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -9,16 +10,18 @@ using json = nlohmann::json;
 #include "timer.h"
 #include "tomocam.h"
 
+constexpr double PADDING = 1.4142;
+
 void usage(char **argv) {
-    std::cout << "Usage: " << argv[0] << " JSON input configuration" << std::endl;
+    std::cout << "Usage: " << argv[0] << " JSON input configuration"
+              << std::endl;
     exit(0);
 }
 
 int main(int argc, char **argv) {
 
     // sanity check
-    if (argc < 2)
-        usage(argv);
+    if (argc < 2) usage(argv);
 
     // read data
     std::ifstream json_file(argv[1]);
@@ -31,12 +34,13 @@ int main(int argc, char **argv) {
     json config = json::parse(json_file);
     std::string filename = config["filename"];
     std::string output = config["output"];
+    float gamma = config["gamma"];
 
     tomocam::Timer t0;
     t0.start();
     auto sample = tomocam::tiff::read(filename);
     t0.stop();
-    std::cerr << "Time to read data: " << t0.ms() << std::endl;
+    std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
 
     std::vector<float> theta(141, 0);
     for (int i = 0; i < theta.size(); i++) {
@@ -46,15 +50,17 @@ int main(int argc, char **argv) {
 
     // create a polar grid
     t0.start();
-    tomocam::PolarGrid<float> pgrid(theta, sample.nrows(), sample.ncols());
+    auto nrows = 2 * (static_cast<uint64_t>(PADDING * sample.nrows()) / 2);
+    auto ncols = 2 * (static_cast<uint64_t>(PADDING * sample.nrows()) / 2);
+    tomocam::PolarGrid<float> pgrid(theta, nrows, ncols, gamma);
     t0.stop();
-    std::cerr << "Time to build a polar grid: " << t0.ms() << std::endl;
+    std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
 
     // do the forward projection
     t0.start();
-    auto proj = tomocam::forward(sample, pgrid);
+    auto proj = tomocam::backward(sample, pgrid, gamma);
     t0.stop();
-    std::cerr << "time to do forward projection: " << t0.ms() << std::endl;
+    std::cerr << "time to do back-projection: " << t0.seconds() << "(s)\n";
 
     // save data to tiff-stack
     tomocam::tiff::write(output, proj);

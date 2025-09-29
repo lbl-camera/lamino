@@ -1,7 +1,5 @@
-#include <fstream>
-#include <iostream>
-
 #include "array.h"
+#include <cmath>
 
 namespace tomocam {
 
@@ -13,4 +11,4 @@ namespace tomocam {
             err += std::pow(array[i] - data[i], 2);
         return std::sqrt(err);
     }
-}
+} // namespace tomocam

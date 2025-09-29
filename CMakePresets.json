@@ -4,7 +4,7 @@
         {
             "name": "macos",
             "displayName": "MacOS",
-            "description": "Debug build with debug symbols of MacOS",
+            "description": "Debug build with debug symbols for MacOS",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/debug",
             "cacheVariables": {
@@ -22,14 +22,54 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Darwin"
             }
+        },
+        {
+            "name": "arch",
+            "displayName": "Yoneda",
+            "description": "Debug build with debug symbols for Arch Linux",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "ENABLE_TESTS": {
+                    "type": "BOOL",
+                    "value": "ON"
+                }
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
         }
+
     ],
     "buildPresets": [
         {
             "name": "macos",
             "configurePreset": "macos",
-            "cleanFirst": true
+            "cleanFirst": false
+        },
+        {
+            "name": "arch",
+            "configurePreset": "arch",
+            "jobs": 8
         }
+    ],
+    "testPresets": [
+      {
+          "name": "arch",
+          "displayName": "test-linux",
+          "configurePreset": "arch",
+          "output": {
+              "outputOnFailure" : true,
+              "verbosity": "verbose"
+          },
+          "filter": {
+              "include":  { "name": "test" }
+          }
+      }  
     ],
     "workflowPresets": [
         {
@@ -38,6 +78,15 @@
             "steps": [
                 { "name": "macos", "type": "configure" },
                 { "name": "macos", "type": "build" }
+            ]
+        },
+        {
+            "name": "arch",
+            "displayName": "Full workflow for arch",
+            "steps": [
+                { "name": "arch", "type": "configure" },
+                { "name": "arch", "type": "build" },
+                { "name": "arch", "type": "test"}
             ]
         }
     ]
