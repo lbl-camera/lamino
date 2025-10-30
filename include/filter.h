@@ -17,8 +17,8 @@ namespace tomocam {
 
         // apply filter
         T rmax = static_cast<T>(arr.nrows()) / 2;
-        for (uint64_t i = 0; i < arr.nslices(); ++i) {
-            for (uint64_t j = 0; j < arr.nrows(); ++j) {
+        for (size_t i = 0; i < arr.nslices(); ++i) {
+            for (size_t j = 0; j < arr.nrows(); ++j) {
 
                 T filt = 0;
                 T f = std::abs(static_cast<T>(j) - rmax) / rmax;
@@ -43,7 +43,7 @@ namespace tomocam {
                         "Unknown filter name: " + filter_name);
                 }
 
-                for (uint64_t k = 0; k < arr.ncols(); ++k) {
+                for (size_t k = 0; k < arr.ncols(); ++k) {
                     out[{i, j, k}] = filt * arr[{i, j, k}];
                 }
             }
