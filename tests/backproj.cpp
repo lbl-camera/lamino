@@ -38,32 +38,33 @@ int main(int argc, char **argv) {
 
     tomocam::Timer t0;
     t0.start();
-    auto sample = tomocam::tiff::read(filename);
+    auto projs = tomocam::tiff::read(filename);
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
 
     std::vector<float> theta(141, 0);
     for (int i = 0; i < theta.size(); i++) {
-        int deg = -1 * (theta.size() / 2) + i;
+        int deg = -1 * (theta.size() / 2) + i + 90;
         theta[i] = deg * M_PI / 180.f;
     }
 
     // create a polar grid
     t0.start();
-    auto nrows = 2 * (static_cast<uint64_t>(PADDING * sample.nrows()) / 2);
-    auto ncols = 2 * (static_cast<uint64_t>(PADDING * sample.nrows()) / 2);
-    tomocam::PolarGrid<float> pgrid(theta, nrows, ncols, gamma);
+    auto nrows = 2 * (static_cast<uint64_t>(PADDING * projs.nrows()) / 2);
+    auto ncols = 2 * (static_cast<uint64_t>(PADDING * projs.nrows()) / 2);
+    tomocam::PolarGrid<float> pgrid(theta, nrows, ncols);
     t0.stop();
     std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
 
     // do the forward projection
+    tomocam::dims_t dims = {20, projs.nrows(), projs.ncols()};
     t0.start();
-    auto proj = tomocam::backward(sample, pgrid, gamma);
+    auto img = tomocam::backward(projs, pgrid, gamma, dims, false);
     t0.stop();
     std::cerr << "time to do back-projection: " << t0.seconds() << "(s)\n";
 
     // save data to tiff-stack
-    tomocam::tiff::write(output, proj);
+    tomocam::tiff::write(output, img);
 
     return 0;
 }
