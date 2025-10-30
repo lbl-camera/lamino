@@ -17,10 +17,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SRC
     src/projection.cpp
     src/results.cpp
+    src/gradient.cpp
+    src/conjgrad.cpp
+    src/bregman.cpp
    )
-if (${USE_GPU})
-  list(APPEND SRC src/gpu/polar_grid.cu)
-endif()
+#if (${USE_GPU})
+#  list(APPEND SRC src/gpu/polar_grid.cu)
+#endif()
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 find_package(OpenMP)
@@ -40,7 +43,7 @@ target_link_libraries(tomocam PUBLIC FFTW::double)
 target_link_libraries(tomocam PUBLIC FFTW::float)
 target_link_libraries(tomocam PUBLIC finufft::finufft)
 target_link_libraries(tomocam PUBLIC TBB::tbb)
-set_property(TARGET tomocam PROPERTY CXX_STANDARD 23)
+set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
 
 
 option(ENABLE_TESTS "Enable tests" OFF)
