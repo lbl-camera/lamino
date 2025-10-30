@@ -22,18 +22,17 @@
 #include <cufft.h>
 #include <stdio.h>
 
-#include "common.h"
-#include "types.h"
+#include "dtypes.h"
 
 #ifndef TOMOCAM_UTILS__CUH
 #define TOMOCAM_UTILS__CUH
 
-#define SAFE_CALL(ans){ gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true) {
+#define SAFE_CALL(ans)                                                         \
+    { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line,
+    bool abort = true) {
     if (code != cudaSuccess) {
-        fprintf(stderr, "GPUassert: %s %s %d\n",
-            cudaGetErrorString(code),
-            file,
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
             line);
         if (abort) exit(code);
     }
@@ -53,7 +52,8 @@ namespace tomocam {
 
         inline unsigned int idiv(size_t a, int b) {
             if (a % b) return (a / b + 1);
-            else return (a / b);
+            else
+                return (a / b);
         }
 
         // cuda doesn't like when any thread block has:
@@ -69,17 +69,15 @@ namespace tomocam {
             }
 
             Grid(int3 d) {
-                threads_ = {16, 16, 1};
-                blocks_ = {idiv(d.z, threads_.x),
-                    idiv(d.y, threads_.y),
+                threads_ = {32, 16, 1};
+                blocks_ = {idiv(d.z, threads_.x), idiv(d.y, threads_.y),
                     idiv(d.x, threads_.z)};
             }
 
-            Grid(dim3_t d) {
+            Grid(dims_t d) {
                 threads_ = {16, 16, 1};
-                blocks_ = {idiv(d.z, threads_.x),
-                    idiv(d.y, threads_.y),
-                    idiv(d.x, threads_.z)};
+                blocks_ = {idiv(d.z(), threads_.x), idiv(d.y(), threads_.y),
+                    idiv(d.x(), threads_.z)};
             }
 
             dim3 blocks() { return blocks_; }
@@ -87,23 +85,23 @@ namespace tomocam {
         };
 
 // calculate thread global index
-#    ifdef __NVCC__
+#ifdef __NVCC__
         __deviceI__ int Index1D() {
             return (blockDim.x * blockIdx.x + threadIdx.x);
         }
 
-        __deviceI__ int3 Index3D() {
-            int3 idx;
+        __deviceI__ uint3 Index3D() {
+            uint3 idx;
             idx.x = blockDim.z * blockIdx.z + threadIdx.z;
             idx.y = blockDim.y * blockIdx.y + threadIdx.y;
             idx.z = blockDim.x * blockIdx.x + threadIdx.x;
             return idx;
         }
-#    endif // __NVCC__
+#endif // __NVCC__
 
         // check if indices are in range
-        __deviceI__ bool operator<(int3 i, dim3_t d) {
-            if ((i.x < d.x) && (i.y < d.y) && (i.z < d.z)) return true;
+        __deviceI__ bool operator<(int3 i, dims_t d) {
+            if ((i.x < d.x()) && (i.y < d.y()) && (i.z < d.z())) return true;
             else
                 return false;
         }
