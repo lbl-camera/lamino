@@ -19,8 +19,7 @@
  */
 
 #include <cmath>
-#include <limits>
-#include <tuple>
+#include <iostream>
 
 #include "array.h"
 #include "tomocam.h"
@@ -28,74 +27,83 @@
 #ifndef OPTIMIZE__H
 #define OPTIMIZE__H
 
-namespace opt {
+namespace tomocam::opt {
 
-    template <typename T, template <typename> class Array,
-        typename Gradient, typename Error>
+    template <typename T, template <typename> class Array, typename Gradient,
+        typename Error>
     class Optimizer {
-        private:
-            Gradient gradient_;
-            Error error_;
+      private:
+        Gradient gradient_;
+        Error error_;
+        int max_inner_iters_;
 
-        public:
-            // constructor
-            Optimizer(Gradient gradient, Error error) :
-                gradient_(gradient), error_(error) {}
+      public:
+        // constructor
+        Optimizer(Gradient gradient, Error error) :
+            gradient_(gradient), error_(error), max_inner_iters_(20) {}
 
-            Array<T> run(Array<T> sol, int max_iters, T step_size, T tol, T xtol) {
+        Array<T> run(Array<T> sol, int max_iters, T step_size, T tol, T xtol) {
 
-                // initialize
-                Array<T> x = sol;
-                Array<T> y = sol;
-                T t = 1;
-                T tnew = 1;
-                T step0 = step_size;
+            // initialize
+            Array<T> x = sol;
+            Array<T> y = sol;
+            T t = 1;
+            T tnew = 1;
+            T step0 = step_size;
 
-                for (int iter = 0; iter < max_iters; iter++) {
-                    while (true) {
+            for (int iter = 0; iter < max_iters; iter++) {
 
-                        // update theta
-                        T beta = tnew * (1 / t - 1);
-                        tnew = 0.5 * (std::sqrt(std::pow(t, 4)
-                            + 4 * std::pow(t, 2))
-                            - std::pow(t, 2));
+                int inner_iter = 0;
+                while (true) {
 
-                        // update y
-                        y = sol + (sol - x) * beta;
-                        auto g = gradient_(y);
+                    // update theta
+                    T beta = tnew * (1 / t - 1);
+                    tnew =
+                        0.5 * (std::sqrt(std::pow(t, 4) + 4 * std::pow(t, 2)) -
+                                  std::pow(t, 2));
 
-                        // update x
-                        sol = y - g * step_size;
+                    // update y
+                    y = sol + (sol - x) * beta;
+                    auto g = gradient_(y);
 
-                        // check if step size is small enough
-                        T fx = error_(sol);
-                        T fy = error_(y);
-                        T gy = 0.5 * step_size * g.norm();
-                        if (fx > (fy + gy))
-                            step_size *= 0.9;
-                        else {
-                            step_size = step0;
-                            t = tnew;
-                            x = sol;
-                            break;
-                        }
-                    }
-                    T e = error_(sol);
-                    if (e < tol) {
-                        std::cout << "iter: " << iter << ", error: " << e << std::endl;
+                    // update x
+                    sol = y - g * step_size;
+
+                    // check if step size is small enough
+                    T fx = error_(sol);
+                    T fy = error_(y);
+                    T gy = 0.5 * step_size * g.norm();
+                    if (fx > (fy + gy)) step_size *= 0.9;
+                    else {
+                        step_size = step0;
+                        t = tnew;
+                        x = sol;
                         break;
                     }
-                    T xerr = (sol - x).norm();
-                    if (xerr < xtol) {
-                        std::cout << "iter: " << iter << ", error: " << e << std::endl;
-                        break;
+                    inner_iter += 1;
+                    if (inner_iter >= max_inner_iters_) {
+                        std::runtime_error("meh!");
                     }
-                    std::cout << "iter: " << iter << ", error: " << e << ", xerr: " << xerr << std::endl;
                 }
-                return sol;
+                T e = error_(sol);
+                if (e < tol) {
+                    std::cout << "iter: " << iter << ", error: " << e
+                              << std::endl;
+                    break;
+                }
+                T xerr = (sol - x).norm();
+                if (xerr < xtol) {
+                    std::cout << "iter: " << iter << ", error: " << e
+                              << std::endl;
+                    break;
+                }
+                std::cout << "iter: " << iter << ", error: " << e
+                          << ", xerr: " << xerr << std::endl;
             }
+            return sol;
+        }
     };
 
-} // namespace tomocam
+} // namespace tomocam::opt
 
 #endif // TOMOCAM_OPTIMIZE__H
