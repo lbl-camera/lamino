@@ -1,84 +1,70 @@
-
-#include <iostream>
-
 #include "array.h"
 #include "array_ops.h"
 #include "dtypes.h"
 #include "fft.h"
 #include "fftutils.h"
+#include "filter.h"
 #include "nufft.h"
 #include "padding.h"
 #include "polar_grid.h"
 #include "tomocam.h"
+#include <cstdint>
 
-constexpr double crop_factor = 0.4142135624;
+constexpr double factor = 1.4142135624;
 
 namespace tomocam {
 
     template <typename T>
-    Array<T> forward(const Array<T> &image, const PolarGrid<T> &pg, T gamma) {
+    auto forward(const Array<T> &image, const PolarGrid<T> &pg,
+        T gamma) -> Array<T> {
 
-        auto pad_size = pg.dims() - image.dims();
-        pad_size.set_x(pad_size.y());
-#ifdef DEBUG
-        std::cout << "pad size: " << pad_size << "\n";
-#endif
-
-        auto F = pad3d(image, pad_size, PadType::SYMMETRIC);
+        auto F = pad3d(image, static_cast<T>(factor), PadType::SYMMETRIC);
+        auto crop_size = F.dims() - image.dims();
 
         // cast double array to complex
-        auto Ft = to_complex(F);
+        auto Ft = array::to_complex(F);
         Array<std::complex<T>> C(pg.dims());
 
         // call NUFFT3d type-2
         nufft::nufft3d2<T>(C, Ft, pg);
 
         // ifft
-        C = fft::ifftshift(C, fft::Axes::two);
-        C = fft::ifft2(C);
-        C = fft::fftshift(C, fft::Axes::two);
+        auto C1 = fft::ifftshift(C, fft::Axes::two);
+        auto C2 = fft::ifft2(C1);
+        auto C3 = fft::fftshift(C2, fft::Axes::two);
 
-        // crop projection
-        dims_t crop_size{0, pad_size.y(), pad_size.z()};
-#ifdef DEBUG
-        std::cout << "crop size: " << crop_size << "\n";
-#endif
-        C = crop2d(C, crop_size, PadType::SYMMETRIC);
-        return to_real<T>(C);
+        // don't crop projections, just the image
+        crop_size.n1 = 0;
+        auto C4 = crop2d(C3, crop_size, PadType::SYMMETRIC);
+        return array::to_real<T>(C4);
     }
 
     template <typename T>
-    Array<T> backward(const Array<T> &proj, const PolarGrid<T> &pg, T gamma) {
-
-        //  pad projections
-        auto pad_size = pg.dims() - proj.dims();
-        auto img_dims = dims_t{proj.nrows(), proj.nrows(), proj.ncols()};
-#ifdef DEBUG
-        std::cout << "padding: " << pad_size << "\n";
-        std::cout << "img size: " << img_dims << "\n";
-#endif
+    auto backward(const Array<T> &proj, const PolarGrid<T> &pg, T gamma,
+        dims_t recon_dims, bool use_filter) -> Array<T> {
 
         // cast to complex
-        auto C = to_complex(proj);
-        C = pad2d(C, pad_size, PadType::SYMMETRIC);
+        auto proj2 = pad2d(proj, static_cast<T>(factor), PadType::SYMMETRIC);
+        auto C = array::to_complex(proj2);
 
         // 2-D Fourier transforms
-        C = fft::ifftshift(C, fft::Axes::two);
-        C = fft::fft2(C);
-        C = fft::fftshift(C, fft::Axes::two);
+        auto C1 = fft::ifftshift(C, fft::Axes::two);
+        auto C2 = fft::fft2(C1);
+        if (use_filter) { apply_filter(C2, "ram-lak"); }
+        auto C3 = fft::fftshift(C2, fft::Axes::two);
 
-        Array<std::complex<T>> F(img_dims);
+        size_t n1 = static_cast<size_t>(factor * recon_dims.n1);
+        if (n1 % 2 == 0) { n1 -= 1; }
+        dims_t new_dims{n1, proj2.nrows(), proj2.ncols()};
+        Array<std::complex<T>> F(new_dims);
 
         // nufft
-        nufft::nufft3d1<T>(C, F, pg);
+        nufft::nufft3d1<T>(C3, F, pg);
 
         // crop image
-        dims_t crop_size{pad_size.y(), pad_size.y(), pad_size.z()};
-#ifdef DEBUG
-        std::cout << "crop-factor: " << crop_size << "\n";
-#endif
-        F = crop3d(F, crop_size, PadType::SYMMETRIC);
-        return to_real<T>(F);
+        auto crop_size = new_dims - recon_dims;
+        auto F2 = crop3d(F, crop_size, PadType::SYMMETRIC);
+        return array::to_real<T>(F2);
     }
 
     // Explicit instantiation forward
@@ -89,8 +75,8 @@ namespace tomocam {
 
     // Explicit instantiation backward
     template Array<float> backward(const Array<float> &,
-        const PolarGrid<float> &, float);
+        const PolarGrid<float> &, float, dims_t, bool);
     template Array<double> backward(const Array<double> &,
-        const PolarGrid<double> &, double);
+        const PolarGrid<double> &, double, dims_t, bool);
 
 } // namespace tomocam
