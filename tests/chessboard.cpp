@@ -14,8 +14,8 @@ struct Image {
     std::vector<float> pxl;
     Image(uint64_t n1_, uint64_t n2_) :
         n1(n1_), n2(n2_), pxl(std::vector<float>(n1 * n2, 0)) {}
-    float &operator[](int i, int j) { return pxl[i * n2 + j]; }
-    const float &operator[](int i, int j) const { return pxl[i * n2 + j]; }
+    float &operator()(int i, int j) { return pxl[i * n2 + j]; }
+    const float &operator()(int i, int j) const { return pxl[i * n2 + j]; }
 };
 
 float bilinear(float x, float y, const Image &img) {
@@ -28,14 +28,14 @@ float bilinear(float x, float y, const Image &img) {
     int i1 = i0 + 1;
     int j1 = j0 + 1;
     float val = 0;
-    if ((i1 >= img.n1) && (j1 >= img.n2)) val = img[i0, j0];
+    if ((i1 >= img.n1) && (j1 >= img.n2)) val = img(i0, j0);
     else if ((i1 < img.n1) && (j1 >= img.n2))
-        val = img[i0, j0] * dy + img[i1, j0] * (1 - dy);
+        val = img(i0, j0) * dy + img(i1, j0) * (1 - dy);
     else if ((i1 >= img.n1) && (j1 < img.n2))
-        val = img[i0, j0] * dx + img[i0, j1] * (1 - dx);
+        val = img(i0, j0) * dx + img(i0, j1) * (1 - dx);
     else
-        val = (img[i0, j0] * dy * dx + img[i0, j1] * dy * (1 - dx) +
-               img[i1, j0] * (1 - dy) * dx + img[i1, j1] * (1 - dy) * (1 - dx));
+        val = (img(i0, j0) * dy * dx + img(i0, j1) * dy * (1 - dx) +
+               img(i1, j0) * (1 - dy) * dx + img(i1, j1) * (1 - dy) * (1 - dx));
     return val;
 }
 
@@ -53,7 +53,7 @@ Image rotate(const Image &img, float angle) {
             float dx = x - xcen;
             float dxr = cost * dx - sint * dy;
             float dyr = sint * dx + cost * dy;
-            newimg[y, x] = bilinear(dxr + xcen, dyr + ycen, img);
+            newimg(y, x) = bilinear(dxr + xcen, dyr + ycen, img);
         }
     }
     return newimg;
@@ -61,7 +61,7 @@ Image rotate(const Image &img, float angle) {
 
 int main(int argc, char **argv) {
 
-    int nslcs = 511;
+    int nslcs = 21;
     int nrows = 511;
     int ncols = 511;
     float rot_ang = 0.f;
@@ -80,22 +80,19 @@ int main(int argc, char **argv) {
     }
 
     tomocam::Array<float> data(nslcs, nrows, ncols);
-    data.fill(0.f);
 
-    int ibeg = nslcs / 2 - 10;
-    int iend = nslcs / 2 + 11;
     int nbox = 32;
-    for (int i = ibeg; i < iend; i++) {
+    for (int i = 0; i < nslcs; i++) {
         auto img = Image(nrows, ncols);
         for (int j = 2 * nbox; j < nrows - 2 * nbox; j++) {
             for (int k = 3 * nbox; k < ncols - 3 * nbox; k++) {
                 int m = j / nbox;
                 int n = k / nbox;
                 if ((m + n) & 1) {
-                    img[j, k] = 2.f;
+                    img(j, k) = 2.f;
 
                 } else {
-                    img[j, k] = 1.f;
+                    img(j, k) = 1.f;
                 }
             }
         }
