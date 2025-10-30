@@ -9,15 +9,15 @@
 #define DEVICE_PTR__H
 
 namespace tomocam::gpu {
+    template <class T>
     class DevicePtr {
 
       private:
-        float *dev_ptr_;
+        T *dev_ptr_;
         dims_t dims_;
 
       public:
-        explicit DevicePtr(dims_t dims, float *ptr) :
-            dims_(dims), dev_ptr_(ptr) {}
+        explicit DevicePtr(dims_t dims, T *ptr) : dims_(dims), dev_ptr_(ptr) {}
 
         __host__ __device__ [[nodiscard]] auto dims() const { return dims_; }
         __host__ __device__ [[nodiscard]] uint_fast64_t size() const {
@@ -25,35 +25,35 @@ namespace tomocam::gpu {
         }
 
         // obj indexing
-        __host__ __device__ float &operator[](dims_t idx3) {
+        __host__ __device__ T &operator[](dims_t idx3) {
             auto idx = dims_.flat_idx(idx3.x(), idx3.y(), idx3.z());
             return dev_ptr_[idx];
         }
 
         // const obj indexing
-        __host__ __device__ const float &operator[](dims_t idx3) const {
+        __host__ __device__ const T &operator[](dims_t idx3) const {
             auto idx = dims_.flat_idx(idx3.x(), idx3.y(), idx3.z());
             return dev_ptr_[idx];
         }
 
         // linear indexing
-        __host__ __device__ float &operator[](uint64_t idx) {
+        __host__ __device__ T &operator[](uint64_t idx) {
             return dev_ptr_[idx];
         }
 
         // const linear indexing
-        __host__ __device__ const float &operator[](uint64_t idx) const {
+        __host__ __device__ const T &operator[](uint64_t idx) const {
             return dev_ptr_[idx];
         }
 
         // three-dim indexing
-        __host__ __device__ float &operator()(int i, int j, int k) {
+        __host__ __device__ T &operator()(int i, int j, int k) {
             auto idx = dims_.flat_idx(i, j, k);
             return dev_ptr_[idx];
         }
 
         // const three-dim indexing
-        __host__ __device__ const float &operator()(int i, int j, int k) const {
+        __host__ __device__ const T &operator()(int i, int j, int k) const {
             auto idx = dims_.flat_idx(i, j, k);
             return dev_ptr_[idx];
         }
