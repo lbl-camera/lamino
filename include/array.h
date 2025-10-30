@@ -3,26 +3,27 @@
 #include <cstdint>
 #include <execution>
 #include <memory>
+#include <random>
 #include <tuple>
 #include <type_traits>
 
 #include "dtypes.h"
 
 #ifndef ARRAY3__H
-#define ARRAY3__H
+    #define ARRAY3__H
 
 namespace tomocam {
     template <typename T>
     class Array {
       private:
         dims_t dims_;
-        uint64_t size_;
+        size_t size_;
         std::unique_ptr<T[]> ptr_;
 
       public:
         Array() : dims_(0, 0, 0), size_(0), ptr_(nullptr) {}
 
-        Array(uint64_t x, uint64_t y, uint64_t z) :
+        Array(size_t x, size_t y, size_t z) :
             dims_(x, y, z),
             size_(dims_.size()),
             ptr_(std::make_unique<T[]>(size_)) {}
@@ -30,42 +31,43 @@ namespace tomocam {
         Array(dims_t d) :
             dims_(d), size_(dims_.size()), ptr_(std::make_unique<T[]>(size_)) {}
 
-        Array(const Array &rhs) {
-            dims_ = rhs.dims_;
-            size_ = rhs.size_;
-            ptr_ = std::make_unique<T[]>(size_);
-            std::copy(rhs.begin(), rhs.end(), ptr_.get());
+        Array(const Array<T> &) = delete;
+        Array<T> &operator=(const Array<T> &) = delete;
+        Array(Array<T> &&) noexcept = default;
+        Array<T> &operator=(Array<T> &&) noexcept = default;
+
+        [[nodiscard]] Array<T> clone() const {
+            Array<T> rv(dims_);
+            std::copy(this->begin(), this->end(), rv.begin());
+            return std::move(rv);
         }
 
-        Array &operator=(const Array &rhs) {
-            if (this != &rhs) {
-                dims_ = rhs.dims_;
-                size_ = rhs.size_;
-                ptr_.reset();
-                ptr_ = std::make_unique<T[]>(size_);
-                std::copy(rhs.begin(), rhs.end(), ptr_.get());
-            }
-            return *this;
-        }
-
-        std::tuple<uint64_t, uint64_t, uint64_t> unravel_idx(uint64_t idx) {
+        [[nodiscard]] std::tuple<size_t, size_t, size_t> unravel_idx(
+            size_t idx) {
             return dims_.unravel_idx(idx);
         }
 
-        [[nodiscard]] uint64_t flatIdx(uint64_t i, uint64_t j,
-            uint64_t k) const {
+        [[nodiscard]] size_t flatIdx(size_t i, size_t j, size_t k) const {
             return dims_.flat_idx(i, j, k);
         }
 
-        [[nodiscard]] uint64_t flatIdx(int i0, int j0, int k0) const {
-            auto i1 = static_cast<uint64_t>(i0);
-            auto j1 = static_cast<uint64_t>(j0);
-            auto k1 = static_cast<uint64_t>(k0);
+        [[nodiscard]] size_t flatIdx(int i0, int j0, int k0) const {
+            auto i1 = static_cast<size_t>(i0);
+            auto j1 = static_cast<size_t>(j0);
+            auto k1 = static_cast<size_t>(k0);
             return dims_.flat_idx(i1, j1, k1);
         }
 
         void fill(T v) {
             std::fill(std::execution::par_unseq, this->begin(), this->end(), v);
+        }
+
+        void fill_random() {
+            std::random_device rand_dev;
+            std::mt19937 gen(rand_dev());
+            std::uniform_real_distribution<> dist(0.0, 1.0);
+            std::generate(this->begin(), this->end(),
+                [&]() { return dist(gen); });
         }
 
         T *begin() { return ptr_.get(); }
@@ -74,40 +76,45 @@ namespace tomocam {
         const T *end() const { return ptr_.get() + size_; }
 
         [[nodiscard]] dims_t dims() const { return dims_; }
-        [[nodiscard]] uint64_t size() const { return size_; }
-        [[nodiscard]] uint64_t nslices() const { return dims_.x(); }
-        [[nodiscard]] uint64_t nrows() const { return dims_.y(); }
-        [[nodiscard]] uint64_t ncols() const { return dims_.z(); }
+        [[nodiscard]] size_t size() const { return size_; }
+        [[nodiscard]] size_t nslices() const { return dims_.x(); }
+        [[nodiscard]] size_t nrows() const { return dims_.y(); }
+        [[nodiscard]] size_t ncols() const { return dims_.z(); }
 
         // indexing
-        T &operator[](uint64_t i) { return ptr_[i]; }
-        T operator[](uint64_t i) const { return ptr_[i]; }
+        T &operator[](size_t i) { return ptr_[i]; }
+        const T &operator[](size_t i) const { return ptr_[i]; }
 
-        T &operator[](uint64_t i, uint64_t j, uint64_t k) {
+    #if (__cplusplus == 202302L)
+        T &operator[](size_t i, size_t j, size_t k) {
             return ptr_[flatIdx(i, j, k)];
         }
-        T operator[](uint64_t i, uint64_t j, uint64_t k) const {
+        T operator[](size_t i, size_t j, size_t k) const {
             return ptr_[flatIdx(i, j, k)];
         }
-
+    #else
         T &operator[](dims_t i) { return ptr_[flatIdx(i.x(), i.y(), i.z())]; }
         const T &operator[](dims_t i) const {
             return ptr_[flatIdx(i.x(), i.y(), i.z())];
         }
+    #endif
 
         // get slices
-        T *slice(uint64_t i) {
-            return ptr_.get() + (i * dims_.y() * dims_.z());
-        }
-        const T *slice(uint64_t i) const {
+        T *slice(size_t i) { return ptr_.get() + (i * dims_.y() * dims_.z()); }
+        const T *slice(size_t i) const {
             return ptr_.get() + (i * dims_.y() * dims_.z());
         }
 
         // multiplication operators
         Array<T> &operator*=(T v) {
             std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), ptr_.get(), [v](T x) { return x * v; });
+                this->end(), this->begin(), [v](T x) { return x * v; });
             return *this;
+        }
+        Array<T> operator*(T v) {
+            auto tmp = this->clone();
+            tmp *= v;
+            return tmp;
         }
 
         // division
@@ -131,6 +138,11 @@ namespace tomocam {
                 });
             return *this;
         }
+        Array<T> operator/(T scalar) const {
+            auto rv = this->clone();
+            rv /= scalar;
+            return rv;
+        }
 
         // addition
         Array<T> &operator+=(T v) {
@@ -138,10 +150,22 @@ namespace tomocam {
                 this->end(), ptr_.get(), [v](T x) { return x + v; });
             return *this;
         }
+
         Array<T> &operator+=(const Array<T> &v) {
             std::transform(std::execution::par_unseq, this->begin(),
                 this->end(), v.ptr_.get(), ptr_.get(), std::plus<T>());
             return *this;
+        }
+        Array<T> operator+(const Array<T> &rhs) const {
+            auto tmp = this->clone();
+            tmp += rhs;
+            return tmp;
+        }
+
+        Array<T> &operator+=(const Array<T> &rhs) const {
+            auto tmp = this->clone();
+            tmp += rhs;
+            return tmp;
         }
 
         // subtraction
@@ -155,64 +179,18 @@ namespace tomocam {
                 this->end(), v.ptr_.get(), ptr_.get(), std::minus<T>());
             return *this;
         }
+
+        Array<T> operator-(const Array<T> &rhs) const {
+            auto rv = this->clone();
+            rv -= rhs;
+            return rv;
+        }
+
+        static Array<T> zeros_like(const Array<T> &a) {
+            Array<T> rv(a.dims());
+            rv.fill(static_cast<T>(0));
+            return rv;
+        }
     };
-
-    // multiplications
-    template <typename T>
-    Array<T> &operator*(Array<T> a, const Array<T> &b) {
-        return a *= b;
-    }
-    template <typename T>
-    Array<T> &operator*(T a, Array<T> b) {
-        return b *= a;
-    }
-    template <typename T>
-    Array<T> &operator*(Array<T> b, T a) {
-        return b *= a;
-    }
-    //  addtitions
-    template <typename T>
-    Array<T> &operator+(Array<T> a, const Array<T> &b) {
-        return a += b;
-    }
-    template <typename T>
-    Array<T> &operator+(T a, Array<T> b) {
-        return b += a;
-    }
-    template <typename T>
-    Array<T> &operator+(Array<T> b, T a) {
-        return b += a;
-    }
-    // subtractions
-    template <typename T>
-    Array<T> &operator-(Array<T> a, const Array<T> &b) {
-        return a -= b;
-    }
-
-    template <typename T>
-    Array<T> operator-(double a, Array<T> b) {
-        Array<T> rv(b.dims());
-        std::transform(std::execution::par_unseq, b.begin(), b.end(),
-            rv.begin(), [a](T x) { return a - x; });
-        return rv;
-    }
-
-    // divisions
-    template <typename T>
-    Array<T> &operator/(Array<T> a, const Array<T> &b) {
-        return a /= b;
-    }
-    template <typename T>
-    Array<T> &operator/(Array<T> a, T b) {
-        return a /= b;
-    }
-    template <typename T>
-    Array<T> operator/(double a, Array<T> b) {
-        Array<T> rv(b.dims());
-        std::transform(std::execution::par_unseq, b.begin(), b.end(),
-            rv.begin(), [a](T x) { return a / x; });
-        return rv;
-    }
-
 } // namespace tomocam
 #endif // ARRAY3__H
