@@ -1,34 +1,44 @@
 #include <finufft.h>
-#include <iostream>
-#include <vector>
 
 #include "array.h"
 #include "array_ops.h"
-#include "tomocam.h"
 #include "dtypes.h"
 #include "fft.h"
 #include "nufft.h"
 #include "padding.h"
+#include "tomocam.h"
 
-template <typename Real_t>
-Array<Real_t> gradient(const Array<Real_t> &f,
-    const PolarGrid<Real_t> &pg) {
+namespace tomocam {
 
-    // normlization factor
-    Real_t scale = (Real_t) std::pow(pg.npixel, 3);
+    template <typename T>
+    auto gradient(const Array<T> &f, const PolarGrid<T> &pg) -> Array<T> {
 
-    // cast input to complex
-    auto fz = to_complex(f);
-    Array<complex<Real_t>> cz(pg.nprojs, pg.npixel);
+        // normlization factor
+        T scale = std::pow(static_cast<T>(pg.size()), 3);
 
-    // calculate gradient
-    nufft::nufft2d2<Real_t>(cz, fz, pg);
-    nufft::nufft2d1<Real_t>(cz, fz, pg);
+        // zero pad
+        T factor = static_cast<T>(static_cast<T>(pg.dims().n3)) /
+                   static_cast<T>(f.ncols());
+        auto f2 = pad3d(f, factor, PadType::SYMMETRIC);
 
-    Array<Real_t> g = real(fz) / scale;
-    return g;
-}
+        // cast input to complex
+        auto fz = array::to_complex(f2);
+        Array<std::complex<T>> cz(pg.dims());
 
-// explicit instantiation
-template Array<float> gradient(const Array<float> &, const PolarGrid<float> &);
-template Array<double> gradient(const Array<double> &, const PolarGrid<double> &);
+        // calculate gradient
+        nufft::nufft3d2<T>(cz, fz, pg);
+        nufft::nufft3d1<T>(cz, fz, pg);
+
+        dims_t crop_size = f2.dims() - f.dims();
+        crop3d(fz, crop_size, PadType::SYMMETRIC);
+        fz /= scale;
+
+        return array::to_real(fz);
+    }
+
+    // explicit instantiation
+    template Array<float> gradient(const Array<float> &,
+        const PolarGrid<float> &);
+    template Array<double> gradient(const Array<double> &,
+        const PolarGrid<double> &);
+} // namespace tomocam
