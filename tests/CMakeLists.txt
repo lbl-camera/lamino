@@ -22,6 +22,11 @@ target_link_libraries(test_fft PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(test_fft PUBLIC tomocam)
 
 
+add_executable(test_cg test_cg.cpp)
+target_link_libraries(test_cg PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(test_cg PUBLIC tomocam)
+target_link_libraries(test_cg PUBLIC TIFF::TIFF)
+
 # add tests in order
 add_test(NAME test01 COMMAND chessboard "${CMAKE_SOURCE_DIR}/config/chess01.json")
 add_test(NAME test02 COMMAND chessboard "${CMAKE_SOURCE_DIR}/config/chess02.json")
