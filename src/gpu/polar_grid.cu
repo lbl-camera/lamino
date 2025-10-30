@@ -1,22 +1,23 @@
-#include <__clang_cuda_runtime_wrapper.h>
 #include <cmath>
 #include <cuda_runtime.h>
 
-#include "device_ptr.cuh"
-#include "utils.cuh"
+#include "gpu/device_ptr.cuh"
+#include "gpu/utils.cuh"
 
 namespace tomocam::gpu {
-    __global__ void make_polar_grid(DevicePtr x, DevicePtr y, DevicePtr z,
-        float *angles) {
+
+    template <typename T>
+    __global__ void make_polar_grid(DevicePtr<T> x, DevicePtr<T> y,
+        DevicePtr<T> z, float *angles) {
 
         auto dims = x.dims();
         uint3 idx = Index3D();
         if (idx < dims) {
-            float cos_t = cos(angles[idx.x()]);
-            float sin_t = sin(angles[idx.x()]);
+            T cos_t = cos(angles[idx.x]);
+            T sin_t = sin(angles[idx.x]);
 
-            float dx = (2 * M_PI) / static_cast<float>(dims.x());
-            float dr = (2 * M_PI) / static_cast<float>(dims.y());
+            T dx = (2 * M_PI) / static_cast<T>(dims.x());
+            T dr = (2 * M_PI) / static_cast<T>(dims.y());
 
             x[idx] = dims.z() * dx - M_PI;
             y[idx] = (dims.y() * dr - M_PI) * sin_t;
@@ -24,7 +25,8 @@ namespace tomocam::gpu {
         }
     }
 
-    __global__ void rotate_polar_grid(DevicePtr x, DevicePtr y, float gamma) {
+    template <typename T>
+    __global__ void rotate_polar_grid(DevicePtr<T> x, DevicePtr<T> y, T gamma) {
 
         auto dims = x.dims();
         uint3 idx = Index3D();
