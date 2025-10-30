@@ -4,8 +4,8 @@
 
 #include "array.h"
 
-#ifndef TIFFIO__H
-#define TIFFIO__H
+#ifndef TOMOCAM_TIFF__H
+    #define TOMOCAM_TIFF__H
 
 namespace tomocam {
     namespace tiff {
@@ -27,9 +27,9 @@ namespace tomocam {
             TIFFGetField(tif_, TIFFTAG_SAMPLEFORMAT, &format);
 
             // allocate memory
-            uint64_t nscls = static_cast<uint64_t>(npages);
-            uint64_t nrows = static_cast<uint64_t>(w);
-            uint64_t ncols = static_cast<uint64_t>(h);
+            size_t nscls = static_cast<size_t>(npages);
+            size_t nrows = static_cast<size_t>(w);
+            size_t ncols = static_cast<size_t>(h);
             Array<float> data(nscls, nrows, ncols);
 
             float *buf = (float *)_TIFFmalloc(w * sizeof(float));
@@ -40,16 +40,16 @@ namespace tomocam {
                 exit(1);
             }
 
-            for (uint64_t i = 0; i < nscls; i++) {
+            for (size_t i = 0; i < nscls; i++) {
                 TIFFSetDirectory(tif_, static_cast<tdir_t>(i));
-                for (uint64_t j = 0; j < h; j++) {
+                for (size_t j = 0; j < h; j++) {
                     if (TIFFReadScanline(tif_, buf, static_cast<uint32_t>(j)) <
                         0) {
                         std::cerr << "Error: failed to read scanline: " << i
                                   << std::endl;
                         exit(1);
                     }
-                    for (uint64_t k = 0; k < ncols; k++) data[i, j, k] = buf[k];
+                    for (size_t k = 0; k < ncols; k++) data[{i, j, k}] = buf[k];
                 }
             }
             _TIFFfree(buf);
@@ -81,7 +81,8 @@ namespace tomocam {
                 TIFFSetField(tif_, TIFFTAG_ROWSPERSTRIP, height); // one strip
 
                 for (uint32_t j = 0; j < height; j++) {
-                    for (uint32_t k = 0; k < width; k++) buf[k] = data[i, j, k];
+                    for (uint32_t k = 0; k < width; k++)
+                        buf[k] = data[{i, j, k}];
 
                     if (TIFFWriteScanline(tif_, buf, j) < 0) {
                         std::cerr << "Error wrtiting data to tif file."
@@ -96,4 +97,4 @@ namespace tomocam {
         }
     }; // namespace tiff
 } // namespace tomocam
-#endif // TIFFIO__H
+#endif // TOMOCAM_TIFF__H
