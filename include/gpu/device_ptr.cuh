@@ -6,7 +6,7 @@
 #include "../dtypes.h"
 
 #ifndef DEVICE_PTR__H
-#define DEVICE_PTR__H
+    #define DEVICE_PTR__H
 
 namespace tomocam::gpu {
     template <class T>
@@ -37,12 +37,10 @@ namespace tomocam::gpu {
         }
 
         // linear indexing
-        __host__ __device__ T &operator[](uint64_t idx) {
-            return dev_ptr_[idx];
-        }
+        __host__ __device__ T &operator[](size_t idx) { return dev_ptr_[idx]; }
 
         // const linear indexing
-        __host__ __device__ const T &operator[](uint64_t idx) const {
+        __host__ __device__ const T &operator[](size_t idx) const {
             return dev_ptr_[idx];
         }
 
