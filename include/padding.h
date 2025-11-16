@@ -1,6 +1,28 @@
+// clang-format off
+/* -------------------------------------------------------------------------------
+ * Tomocam Copyright (c) 2018
+ *
+ * The Regents of the University of California, through Lawrence Berkeley
+ * National Laboratory (subject to receipt of any required approvals from the
+ * U.S. Dept. of Energy). All rights reserved.
+ *
+ * If you have questions about your rights to use or distribute this software,
+ * please contact Berkeley Lab's Innovation & Partnerships Office at
+ * IPO@lbl.gov.
+ *
+ * NOTICE. This Software was developed under funding from the U.S. Department of
+ * Energy and the U.S. Government consequently retains certain rights. As such,
+ * the U.S. Government has been granted for itself and others acting on its
+ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+ * to reproduce, distribute copies to the public, prepare derivative works, and
+ * perform publicly and display publicly, and to permit other to do so.
+ *---------------------------------------------------------------------------------
+ */
+ //clang-format on
 
 #include "array.h"
 #include "dtypes.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <system_error>
@@ -32,33 +54,37 @@ namespace tomocam {
             d = pad_size;
         }
 
-        for (size_t i = 0; i < dims.x(); i++)
-            for (size_t j = 0; j < dims.y(); j++)
-                for (size_t k = 0; k < dims.z(); k++)
-                    arr2[{i, j, k + d}] = arr[{i, j, k}];
+        for (size_t i = 0; i < dims.x(); i++) {
+            for (size_t j = 0; j < dims.y(); j++) {
+                std::copy(&arr[{i, j, 0}], &arr[{i, j, 0}] + arr.ncols(),
+                          &arr2[{i, j, d}]);
+            }
+        }
         return arr2;
     }
 
     template <typename T>
     auto crop1d(const Array<T> &arr, size_t crop_size,
-        PadType pad_type) -> Array<T> {
+                PadType pad_type) -> Array<T> {
 
         if (crop_size == 0) { return arr.clone(); }
         auto dims = arr.dims() - dims_t{0, 0, crop_size};
         Array<T> arr2(dims);
 
         // assume symmetric padding by default
-        int d = crop_size / 2;
+        size_t d = crop_size / 2;
         if (pad_type == PadType::RIGHT) {
             d = 0;
         } else if (pad_type == PadType::LEFT) {
             d = crop_size;
         }
 
-        for (size_t i = 0; i < dims.x(); i++)
-            for (size_t j = 0; j < dims.y(); j++)
-                for (size_t k = 0; k < dims.z(); k++)
-                    arr2[{i, j, k}] = arr[{i, j, k + d}];
+        for (size_t i = 0; i < dims.x(); i++) {
+            for (size_t j = 0; j < dims.y(); j++) {
+                std::copy(&arr[{i, j, d}], &arr[{i, j, d}] + dims.z(),
+                          &arr2[{i, j, 0}]);
+            }
+        }
         return arr2;
     }
 
@@ -84,11 +110,10 @@ namespace tomocam {
             d = pad_size;
         }
 
-        for (size_t i = 0; i < dims.x(); i++) {
-            for (size_t j = 0; j < dims.y(); j++) {
-                for (size_t k = 0; k < dims.z(); k++) {
-                    arr2[{i, j + d.y(), k + d.z()}] = arr[{i, j, k}];
-                }
+        for (size_t i = 0; i < arr.nslices(); i++) {
+            for (size_t j = 0; j < arr.nrows(); j++) {
+                std::copy(&arr[{i, j, 0}], &arr[{i, j, 0}] + arr.ncols(),
+                          &arr2[{i, j + d.y(), d.z()}]);
             }
         }
         return arr2;
@@ -96,11 +121,9 @@ namespace tomocam {
 
     template <typename T>
     auto crop2d(const Array<T> &arr, dims_t crop_size,
-        PadType pad_type) -> Array<T> {
+                PadType pad_type) -> Array<T> {
 
-        if ((crop_size.y() == 0) && (crop_size.z() == 0)) {
-            return arr.clone();
-        }
+        if ((crop_size.y() == 0) && (crop_size.z() == 0)) { return arr.clone(); }
 
         auto dims = arr.dims();
         dims_t new_dims = dims - crop_size;
@@ -116,9 +139,9 @@ namespace tomocam {
 
         for (size_t i = 0; i < new_dims.x(); i++) {
             for (size_t j = 0; j < new_dims.y(); j++) {
-                for (size_t k = 0; k < new_dims.z(); k++) {
-                    arr2[{i, j, k}] = arr[{i, j + d.y(), k + d.z()}];
-                }
+                std::copy(&arr[{i, j + d.y(), d.z()}],
+                          &arr[{i, j + d.y(), d.z()}] + new_dims.z(),
+                          &arr2[{i, j, 0}]);
             }
         }
         return arr2;
@@ -151,11 +174,10 @@ namespace tomocam {
             d = pad_size;
         }
 
-        for (size_t i = 0; i < dims.x(); i++) {
-            for (size_t j = 0; j < dims.y(); j++) {
-                for (size_t k = 0; k < dims.z(); k++) {
-                    arr2[{i + d.x(), j + d.y(), k + d.z()}] = arr[{i, j, k}];
-                }
+        for (size_t i = 0; i < arr.nslices(); i++) {
+            for (size_t j = 0; j < arr.nrows(); j++) {
+                std::copy(&arr[{i, j, 0}], &arr[{i, j, 0}] + arr.ncols(),
+                          &arr2[{i + d.x(), j + d.y(), d.z()}]);
             }
         }
         return arr2;
@@ -164,8 +186,7 @@ namespace tomocam {
     template <typename T>
     Array<T> crop3d(const Array<T> &arr, dims_t crop_size, PadType pad_type) {
 
-        if ((crop_size.x() == 0) && (crop_size.y() == 0) &&
-            (crop_size.z() == 0))
+        if ((crop_size.x() == 0) && (crop_size.y() == 0) && (crop_size.z() == 0))
             return arr.clone();
 
         auto dims = arr.dims();
@@ -173,15 +194,16 @@ namespace tomocam {
         Array<T> arr2(new_dims);
 
         dims_t d = crop_size / 2;
-        if (pad_type == PadType::LEFT) d = dims_t(0, 0, 0);
+        if (pad_type == PadType::LEFT)
+            d = dims_t(0, 0, 0);
         else if (pad_type == PadType::RIGHT)
             d = crop_size;
 
         for (size_t i = 0; i < new_dims.x(); i++) {
             for (size_t j = 0; j < new_dims.y(); j++) {
-                for (size_t k = 0; k < new_dims.z(); k++) {
-                    arr2[{i, j, k}] = arr[{i + d.x(), j + d.y(), k + d.z()}];
-                }
+                std::copy(&arr[{i + d.x(), j + d.y(), d.z()}],
+                          &arr[{i + d.x(), j + d.y(), d.z()}] + new_dims.z(),
+                          &arr2[{i, j, 0}]);
             }
         }
         return arr2;
