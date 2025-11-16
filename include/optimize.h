@@ -43,8 +43,8 @@ namespace tomocam::opt {
 
     // conjgrad.cpp
     template <typename T>
-    Array<T> cgsolver(const Function<T> &A, const Array<T> &y, size_t max_iter,
-                      T tol);
+    Array<T> cgsolver(const Function<T> &A, const Array<T> &y, const Array<T> &x,
+                      size_t max_iter, T tol);
 
     // nagopt.cpp
     template <typename T>
