@@ -15,11 +15,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SRC
-    src/projection.cpp
-    src/results.cpp
-    src/gradient.cpp
     src/conjgrad.cpp
-    src/bregman.cpp
+    src/projection.cpp
+    src/gradient.cpp
+    src/lipschitz.cpp
+    src/nagopt.cpp
+    src/qggmrf.cpp
+    src/recon.cpp
    )
 #if (${USE_GPU})
 #  list(APPEND SRC src/gpu/polar_grid.cu)
