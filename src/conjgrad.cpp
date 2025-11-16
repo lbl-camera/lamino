@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,7 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
 #include <execution>
 #include <format>
 #include <functional>
@@ -29,13 +28,12 @@
 #include "optimize.h"
 
 namespace tomocam::opt {
-
     template <typename T>
-    Array<T> cgsolver(const Function<T> &A, const Array<T> &yT, size_t max_iter,
-                      T tol) {
+    Array<T> cgsolver(const Function<T> &A, const Array<T> &yT, const Array<T> &x0,
+                      size_t max_iter, T tol) {
 
         // initialize
-        auto x = yT.clone();
+        auto x = x0.clone();
         auto r = yT - A(x);
         auto p = r.clone();
         auto rs_old = array::dot(r, r);
@@ -52,11 +50,11 @@ namespace tomocam::opt {
             x += p * alpha;
             r -= Ap * alpha;
 
-            auto rs_new = array::norm2(r);
-            std::cout << std::format("iter: {}, residual: {}\n", iter, rs_new);
-            if (rs_new < tol) { break; }
+            auto rs_new = array::dot(r, r);
+            std::cout << std::format("iter: {}, residual: {}\n", iter, std::sqrt(rs_new));
+            if (rs_new < tol * tol) { break; }
 
-            p += r + (p * (rs_new / rs_old));
+            p = r + (p * (rs_new / rs_old));
             rs_old = rs_new;
         }
         return x;
@@ -64,8 +62,10 @@ namespace tomocam::opt {
 
     // template instantiations
     template Array<float> cgsolver<float>(const Function<float> &,
-                                          const Array<float> &, size_t, float);
+                                          const Array<float> &, const Array<float> &,
+                                          size_t, float);
     template Array<double> cgsolver<double>(const Function<double> &,
+                                            const Array<double> &,
                                             const Array<double> &, size_t, double);
 
 } // namespace tomocam::opt
