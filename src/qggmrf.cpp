@@ -20,21 +20,27 @@
 
 #include "array.h"
 
-namespace tomocam {
+namespace tomocam::opt {
 
-    const float weight[3][3][3] = {
-        {{0.0302, 0.037, 0.0302}, {0.037, 0.0523, 0.037}, {0.0302, 0.037, 0.0302}},
-        {{0.037, 0.0523, 0.037}, {0.0532, 0., 0.0523}, {0.037, 0.0523, 0.037}},
-        {{0.0302, 0.037, 0.0302}, {0.037, 0.0523, 0.037}, {0.0302, 0.037, 0.0302}}
-    };
+    constexpr float WEIGHT[27] = {0.0302f, 0.037f, 0.0302f, 0.037f, 0.0523f, 0.037f,
+                                  0.0302f, 0.037f, 0.0302f, 0.037f, 0.0523f, 0.037f,
+                                  0.0532f, 0.f,    0.0523f, 0.037f, 0.0523f, 0.037f,
+                                  0.0302f, 0.037f, 0.0302f, 0.037f, 0.0523f, 0.037f,
+                                  0.0302f, 0.037f, 0.0302f};
 
+    template <typename T>
+    T weight(size_t x, size_t y, size_t z) {
+        return static_cast<T>(WEIGHT[x * 9 + y * 3 + z]);
+    }
     const double MRF_Q = 2;
     const double MRF_C = 0.001;
 
     template <typename T>
     T sign(T x) {
-        if (x < 0.f) return -1;
-        else return 1;
+        if (x < 0.f)
+            return -1;
+        else
+            return 1;
     }
 
     template <typename T>
@@ -43,7 +49,7 @@ namespace tomocam {
         T Q = static_cast<T>(MRF_Q);
         T C = static_cast<T>(MRF_C);
 
-        T sigma_q   = std::pow(sigma, Q);
+        T sigma_q = std::pow(sigma, Q);
         T sigma_q_p = std::pow(sigma, Q - p);
 
         T temp1 = std::pow(std::abs(delta), Q - p) / sigma_q_p;
@@ -51,62 +57,46 @@ namespace tomocam {
         T temp3 = C + temp1;
 
         if (std::abs(delta) > 0.f) {
-            return ((sign(delta) * temp2 / (temp3 * sigma_q)) * (MRF_Q - ((MRF_Q - p) * temp1) /
-                (temp3)));
+            return ((sign(delta) * temp2 / (temp3 * sigma_q)) *
+                    (MRF_Q - ((MRF_Q - p) * temp1) / (temp3)));
         } else {
-            return MRF_Q / (MRF_SIGMA_Q * MRF_C);
+            return MRF_Q / (sigma_q * MRF_C);
         }
     }
 
     template <typename T>
-    void calc_totalvar(Array<T> &input, Array<T> &output, T p, T sigma) {
+    void qggmrf(const Array<T> &input, Array<T> &output, T sigma, T p) {
 
         // dims
         auto dims = input.dims();
 
         // write out for clarity
-        int nrows = dims.x;
-        int ncols = dims.y;
+        size_t nslices = dims.x();
+        size_t nrows = dims.y();
+        size_t ncols = dims.z();
 
-        #pragma omp parallel for
-        for (int i = 1; i < nrows - 1; i++)
-            for (int j = 1; j < ncols - 1; j++) {
-                float v = 0;
-                float u = input(i, j);
-                for (int x = -1; x < 2; x++)
-                    for (int y = -1; y < 2; y++)
-                        v += d_potential_fcn(input(i + x, j + y) - u, sigma, p);
-                output(i, j) = v;
+#pragma omp parallel for collapse(3)
+        for (size_t i = 1; i < nslices - 1; i++) {
+            for (size_t j = 1; j < nrows - 1; j++) {
+                for (size_t k = 1; k < ncols - 1; k++) {
+                    T sum_du = 0;
+                    T u = input[{i, j, k}];
+                    for (int x = -1; x < 2; x++) {
+                        for (int y = -1; y < 2; y++) {
+                            for (int z = -1; z < 2; z++) {
+                                T v = input.at(i + x, j + y, k + z);
+                                T w = weight<T>(x + 1, y + 1, z + 1);
+                                sum_du += w * d_potential_fcn(v - u, sigma, p);
+                            }
+                        }
+                    }
+                    output[{i, j, k}] = sum_du;
+                }
             }
+        }
     }
-
-    // huber function
-    template <typename T>
-    inline T huber_fcn(T delta, T tau) {
-        if (std::abs(delta) < tau)
-            return 0.5f * delta * delta;
-        else
-            return tau * (std::abs(delta) - 0.5 * tau);
-    }
-
-    // calculate huber constraints on CPU
-    template <typename T>
-    void calc_huber_tv(Array<T> &input, Array<T> &output, T tau, T sigma) {
-
-        // dims
-        auto dims = input.dims();
-
-        // write out for clarity
-        int nrows = dims.x;
-        int ncols = dims.y;
-
-        #pragma omp parallel for
-        for (int i = 1; i < nrows - 1; i++)
-            for (int j = 1; j < ncols - 1; j++) {
-                auto u = input(i, j);
-                auto du = (input(i + 1, j) - input(i - 1, j) +
-                    input(i, j + 1) - input(i, j - 1)) / 4;
-                output(i, j) = sigma * huber_fcn(du, tau);
-            }
-    }
-} // namespace tomocam
+    // template instantiations
+    template void qggmrf<float>(const Array<float> &, Array<float> &, float, float);
+    template void qggmrf<double>(const Array<double> &, Array<double> &, double,
+                                 double);
+} // namespace tomocam::opt
