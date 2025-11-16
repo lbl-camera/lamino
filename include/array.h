@@ -1,3 +1,24 @@
+// clang-format off
+/* -------------------------------------------------------------------------------
+ * Tomocam Copyright (c) 2018
+ *
+ * The Regents of the University of California, through Lawrence Berkeley
+ * National Laboratory (subject to receipt of any required approvals from the
+ * U.S. Dept. of Energy). All rights reserved.
+ *
+ * If you have questions about your rights to use or distribute this software,
+ * please contact Berkeley Lab's Innovation & Partnerships Office at
+ * IPO@lbl.gov.
+ *
+ * NOTICE. This Software was developed under funding from the U.S. Department of
+ * Energy and the U.S. Government consequently retains certain rights. As such,
+ * the U.S. Government has been granted for itself and others acting on its
+ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+ * to reproduce, distribute copies to the public, prepare derivative works, and
+ * perform publicly and display publicly, and to permit other to do so.
+ *---------------------------------------------------------------------------------
+ */
+ //clang-format on
 #include <algorithm>
 #include <complex>
 #include <cstdint>
@@ -20,16 +41,20 @@ namespace tomocam {
         size_t size_;
         std::unique_ptr<T[]> ptr_;
 
+        // get flat index
+        size_t flatIdx(size_t i, size_t j, size_t k) const {
+            return dims_.flat_idx(i, j, k);
+        }
+
       public:
         Array() : dims_(0, 0, 0), size_(0), ptr_(nullptr) {}
 
-        Array(size_t x, size_t y, size_t z) :
-            dims_(x, y, z),
-            size_(dims_.size()),
-            ptr_(std::make_unique<T[]>(size_)) {}
+        Array(size_t x, size_t y, size_t z)
+            : dims_(x, y, z), size_(dims_.size()),
+              ptr_(std::make_unique<T[]>(size_)) {}
 
-        Array(dims_t d) :
-            dims_(d), size_(dims_.size()), ptr_(std::make_unique<T[]>(size_)) {}
+        Array(dims_t d)
+            : dims_(d), size_(dims_.size()), ptr_(std::make_unique<T[]>(size_)) {}
 
         Array(const Array<T> &) = delete;
         Array<T> &operator=(const Array<T> &) = delete;
@@ -40,34 +65,6 @@ namespace tomocam {
             Array<T> rv(dims_);
             std::copy(this->begin(), this->end(), rv.begin());
             return std::move(rv);
-        }
-
-        [[nodiscard]] std::tuple<size_t, size_t, size_t> unravel_idx(
-            size_t idx) {
-            return dims_.unravel_idx(idx);
-        }
-
-        [[nodiscard]] size_t flatIdx(size_t i, size_t j, size_t k) const {
-            return dims_.flat_idx(i, j, k);
-        }
-
-        [[nodiscard]] size_t flatIdx(int i0, int j0, int k0) const {
-            auto i1 = static_cast<size_t>(i0);
-            auto j1 = static_cast<size_t>(j0);
-            auto k1 = static_cast<size_t>(k0);
-            return dims_.flat_idx(i1, j1, k1);
-        }
-
-        void fill(T v) {
-            std::fill(std::execution::par_unseq, this->begin(), this->end(), v);
-        }
-
-        void fill_random() {
-            std::random_device rand_dev;
-            std::mt19937 gen(rand_dev());
-            std::uniform_real_distribution<> dist(0.0, 1.0);
-            std::generate(this->begin(), this->end(),
-                [&]() { return dist(gen); });
         }
 
         T *begin() { return ptr_.get(); }
@@ -84,6 +81,15 @@ namespace tomocam {
         // indexing
         T &operator[](size_t i) { return ptr_[i]; }
         const T &operator[](size_t i) const { return ptr_[i]; }
+
+        // indexing for total-variation regularization (with OOB handling)
+        T at(size_t i, size_t j, size_t k) const {
+            if (i < 0 || i >= dims_.x() || j < 0 || j >= dims_.y() || k < 0 ||
+                k >= dims_.z()) {
+                return T(0); // for out-of-bounds, return zero
+            }
+            return ptr_[flatIdx(i, j, k)];
+        }
 
     #if (__cplusplus == 202302L)
         T &operator[](size_t i, size_t j, size_t k) {
@@ -107,8 +113,8 @@ namespace tomocam {
 
         // multiplication operators
         Array<T> &operator*=(T v) {
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), this->begin(), [v](T x) { return x * v; });
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           this->begin(), [v](T x) { return x * v; });
             return *this;
         }
         Array<T> operator*(T v) {
@@ -120,22 +126,21 @@ namespace tomocam {
         // division
         Array<T> &operator/=(T v) {
             if (std::abs(v) == 0) {
-                throw std::runtime_error(
-                    "Division by zero in Array<T>::operator/=");
+                throw std::runtime_error("Division by zero in Array<T>::operator/=");
             }
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), ptr_.get(), [v](T x) { return x / v; });
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           ptr_.get(), [v](T x) { return x / v; });
             return *this;
         }
         Array<T> &operator/=(const Array<T> &v) {
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), v.ptr_.get(), ptr_.get(), [](T x, T y) {
-                    if (y == 0) {
-                        throw std::runtime_error(
-                            "Division by zero in Array<T>::operator/=");
-                    }
-                    return x / y;
-                });
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           v.ptr_.get(), ptr_.get(), [](T x, T y) {
+                               if (y == 0) {
+                                   throw std::runtime_error(
+                                       "Division by zero in Array<T>::operator/=");
+                               }
+                               return x / y;
+                           });
             return *this;
         }
         Array<T> operator/(T scalar) const {
@@ -146,14 +151,14 @@ namespace tomocam {
 
         // addition
         Array<T> &operator+=(T v) {
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), ptr_.get(), [v](T x) { return x + v; });
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           ptr_.get(), [v](T x) { return x + v; });
             return *this;
         }
 
         Array<T> &operator+=(const Array<T> &v) {
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), v.ptr_.get(), ptr_.get(), std::plus<T>());
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           v.ptr_.get(), ptr_.get(), std::plus<T>());
             return *this;
         }
         Array<T> operator+(const Array<T> &rhs) const {
@@ -170,13 +175,13 @@ namespace tomocam {
 
         // subtraction
         Array<T> &operator-=(T v) {
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), ptr_.get(), [v](T x) { return x - v; });
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           ptr_.get(), [v](T x) { return x - v; });
             return *this;
         }
         Array<T> &operator-=(const Array<T> &v) {
-            std::transform(std::execution::par_unseq, this->begin(),
-                this->end(), v.ptr_.get(), ptr_.get(), std::minus<T>());
+            std::transform(std::execution::par_unseq, this->begin(), this->end(),
+                           v.ptr_.get(), ptr_.get(), std::minus<T>());
             return *this;
         }
 
@@ -186,9 +191,31 @@ namespace tomocam {
             return rv;
         }
 
-        static Array<T> zeros_like(const Array<T> &a) {
-            Array<T> rv(a.dims());
-            rv.fill(static_cast<T>(0));
+        // factory methods
+        static Array<T> zeros_like(const Array<T> &ref) {
+            Array<T> rv(ref.dims());
+            std::fill(std::execution::par_unseq, rv.begin(), rv.end(), T(0));
+            return rv;
+        }
+        //  new array filled with value v
+        static Array<T> like(const Array<T> &ref, T v) {
+            Array<T> rv(ref.dims());
+            std::fill(std::execution::par_unseq, rv.begin(), rv.end(), v);
+            return rv;
+        }
+        // new array with random values
+        static Array<T> random_like(const Array<T> &ref) {
+            Array<T> rv(ref.dims());
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            if constexpr (std::is_floating_point<T>::value) {
+                std::uniform_real_distribution<T> dis(0.0, 1.0);
+                std::generate(std::execution::par_unseq, rv.begin(), rv.end(),
+                              [&]() { return dis(gen); });
+            } else {
+                static_assert(std::is_floating_point<T>::value,
+                              "Unsupported type for random_like");
+            }
             return rv;
         }
     };
