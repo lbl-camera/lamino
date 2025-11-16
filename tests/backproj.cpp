@@ -13,8 +13,7 @@ using json = nlohmann::json;
 constexpr double PADDING = 1.4142;
 
 void usage(char **argv) {
-    std::cout << "Usage: " << argv[0] << " JSON input configuration"
-              << std::endl;
+    std::cout << "Usage: " << argv[0] << " JSON input configuration" << std::endl;
     exit(0);
 }
 
@@ -59,7 +58,7 @@ int main(int argc, char **argv) {
     // do the forward projection
     tomocam::dims_t dims = {20, projs.nrows(), projs.ncols()};
     t0.start();
-    auto img = tomocam::backward(projs, pgrid, gamma, dims, false);
+    auto img = tomocam::backward(projs, pgrid, dims, gamma, false);
     t0.stop();
     std::cerr << "time to do back-projection: " << t0.seconds() << "(s)\n";
 
