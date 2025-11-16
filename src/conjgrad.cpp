@@ -9,7 +9,7 @@
 namespace tomocam::opt {
 
     template <typename T>
-    Array<T> cgsolver(std::function<Array<T>(const Array<T> &)> A,
+    Array<T> cgsolver(const std::function<Array<T>(const Array<T> &)> &A,
         const Array<T> &yT, size_t max_iter, T tol) {
 
         // initialize
@@ -42,10 +42,10 @@ namespace tomocam::opt {
 
     // template instantiations
     template Array<float> cgsolver<float>(
-        std::function<Array<float>(const Array<float> &)>, const Array<float> &,
-        size_t, float);
+        const std::function<Array<float>(const Array<float> &)> &, 
+        const Array<float> &, size_t, float);
     template Array<double> cgsolver<double>(
-        std::function<Array<double>(const Array<double> &)>,
+        const std::function<Array<double>(const Array<double> &)> &,
         const Array<double> &, size_t, double);
 
 } // namespace tomocam::opt

@@ -159,14 +159,11 @@ int main(int argc, char **argv) {
 
     create_ground_truth(x_true);
     // blur + noise
-    auto tmp = Array(x_true.dims());
-    tmp.fill_random();
+    auto tmp = Array::random_like(x_true);
     tmp += x_true;
     auto x_blur = forward(tmp, kernel);
 
     auto yT = adjoint(x_blur, kernel);
-    Array x0 = Array(x_true.dims());
-    x0.fill(0.f);
 
     auto backfwd = [&kernel](const Array &x) {
         auto tmp = forward(x, kernel);

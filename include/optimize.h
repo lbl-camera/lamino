@@ -18,91 +18,40 @@
  *---------------------------------------------------------------------------------
  */
 
+#ifndef OPTIMIZE__H
+#define OPTIMIZE__H
+
 #include <cmath>
 #include <iostream>
 
 #include "array.h"
 #include "tomocam.h"
 
-#ifndef OPTIMIZE__H
-#define OPTIMIZE__H
-
 namespace tomocam::opt {
 
-    template <typename T, template <typename> class Array, typename Gradient,
-        typename Error>
-    class Optimizer {
-      private:
-        Gradient gradient_;
-        Error error_;
-        int max_inner_iters_;
+    template <typename T>
+    using Function = std::function<Array<T>(const Array<T> &)>;
 
-      public:
-        // constructor
-        Optimizer(Gradient gradient, Error error) :
-            gradient_(gradient), error_(error), max_inner_iters_(20) {}
+    // bregman.cpp
+    template <typename T>
+    Array<T> split_bregman(const Function<T> &A, const Array<T> &y, Array<T> x0,
+                           T lambda, T mu, size_t outer_max, size_t inner_max, T tol,
+                           T xtol);
 
-        Array<T> run(Array<T> sol, int max_iters, T step_size, T tol, T xtol) {
+    // conjgrad.cpp
+    template <typename T>
+    Array<T> cgsolver(const Function<T> &A, const Array<T> &y,
+                      size_t max_iter, T tol);
 
-            // initialize
-            Array<T> x = sol;
-            Array<T> y = sol;
-            T t = 1;
-            T tnew = 1;
-            T step0 = step_size;
+    // nagopt.cpp
+    template <typename T>
+    Array<T> nagopt(const Function<T> &grad, const Function<T> &loss, Array<T> &x,
+                    size_t max_iters, T lipschitz, T tol, T xtol,
+                    size_t max_inner_iters);
 
-            for (int iter = 0; iter < max_iters; iter++) {
-
-                int inner_iter = 0;
-                while (true) {
-
-                    // update theta
-                    T beta = tnew * (1 / t - 1);
-                    tnew =
-                        0.5 * (std::sqrt(std::pow(t, 4) + 4 * std::pow(t, 2)) -
-                                  std::pow(t, 2));
-
-                    // update y
-                    y = sol + (sol - x) * beta;
-                    auto g = gradient_(y);
-
-                    // update x
-                    sol = y - g * step_size;
-
-                    // check if step size is small enough
-                    T fx = error_(sol);
-                    T fy = error_(y);
-                    T gy = 0.5 * step_size * g.norm();
-                    if (fx > (fy + gy)) step_size *= 0.9;
-                    else {
-                        step_size = step0;
-                        t = tnew;
-                        x = sol;
-                        break;
-                    }
-                    inner_iter += 1;
-                    if (inner_iter >= max_inner_iters_) {
-                        std::runtime_error("meh!");
-                    }
-                }
-                T e = error_(sol);
-                if (e < tol) {
-                    std::cout << "iter: " << iter << ", error: " << e
-                              << std::endl;
-                    break;
-                }
-                T xerr = (sol - x).norm();
-                if (xerr < xtol) {
-                    std::cout << "iter: " << iter << ", error: " << e
-                              << std::endl;
-                    break;
-                }
-                std::cout << "iter: " << iter << ", error: " << e
-                          << ", xerr: " << xerr << std::endl;
-            }
-            return sol;
-        }
-    };
+    // results.cpp
+    template <typename T>
+    T xerror(const Array<T> &array, const Array<T> &data);
 
 } // namespace tomocam::opt
 
