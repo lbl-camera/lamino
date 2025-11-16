@@ -32,6 +32,9 @@ namespace tomocam::opt {
     template <typename T>
     using Function = std::function<Array<T>(const Array<T> &)>;
 
+    template <typename T>
+    using Residual = std::function<T(const Array<T> &)>;
+
     // bregman.cpp
     template <typename T>
     Array<T> split_bregman(const Function<T> &A, const Array<T> &y, Array<T> x0,
@@ -40,18 +43,23 @@ namespace tomocam::opt {
 
     // conjgrad.cpp
     template <typename T>
-    Array<T> cgsolver(const Function<T> &A, const Array<T> &y,
-                      size_t max_iter, T tol);
+    Array<T> cgsolver(const Function<T> &A, const Array<T> &y, size_t max_iter,
+                      T tol);
 
     // nagopt.cpp
     template <typename T>
-    Array<T> nagopt(const Function<T> &grad, const Function<T> &loss, Array<T> &x,
+    Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
                     size_t max_iters, T lipschitz, T tol, T xtol,
-                    size_t max_inner_iters);
+                    size_t max_inner_iters = 20);
 
-    // results.cpp
+    // lipschitz.cpp
     template <typename T>
-    T xerror(const Array<T> &array, const Array<T> &data);
+    T lipschitz(const Function<T> &grad, const Array<T> &x0, size_t max_iters = 100,
+                T tol = 1e-5);
+
+    // qggmrf.cpp
+    template <typename T>
+    void qggmrf(const Array<T> &x, Array<T> &g, T sigma, T p);
 
 } // namespace tomocam::opt
 
