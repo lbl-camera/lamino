@@ -1,44 +1,74 @@
-#include <finufft.h>
+// clang-format off
+/* -------------------------------------------------------------------------------
+ * Tomocam Copyright (c) 2018
+ *
+ * The Regents of the University of California, through Lawrence Berkeley
+ * National Laboratory (subject to receipt of any required approvals from the
+ * U.S. Dept. of Energy). All rights reserved.
+ *
+ * If you have questions about your rights to use or distribute this software,
+ * please contact Berkeley Lab's Innovation & Partnerships Office at
+ * IPO@lbl.gov.
+ *
+ * NOTICE. This Software was developed under funding from the U.S. Department of
+ * Energy and the U.S. Government consequently retains certain rights. As such,
+ * the U.S. Government has been granted for itself and others acting on its
+ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+ * to reproduce, distribute copies to the public, prepare derivative works, and
+ * perform publicly and display publicly, and to permit other to do so.
+ *---------------------------------------------------------------------------------
+ */
+ //clang-format on
+#include <complex>
 
 #include "array.h"
 #include "array_ops.h"
 #include "dtypes.h"
-#include "fft.h"
 #include "nufft.h"
-#include "padding.h"
+#include "polar_grid.h"
 #include "tomocam.h"
 
 namespace tomocam {
-
     template <typename T>
-    auto gradient(const Array<T> &f, const PolarGrid<T> &pg) -> Array<T> {
+    Array<T> sysmat(const Array<T> &x, const PolarGrid<T> &grid) {
+        // cast to complex
+        T scale = static_cast<T>(grid.size());
+        auto xcmplx = array::to_complex(x);
+        auto ccmplx = Array<std::complex<T>>(grid.dims());
+        nufft::nufft3d2(ccmplx, xcmplx, grid);
+        nufft::nufft3d1(ccmplx, xcmplx, grid);
+        return array::to_real(xcmplx) / scale;
+    }
+    // Explicit instantiations
+    template Array<float> sysmat(const Array<float> &, const PolarGrid<float> &);
+    template Array<double> sysmat(const Array<double> &, const PolarGrid<double> &);
 
-        // normlization factor
-        T scale = std::pow(static_cast<T>(pg.size()), 3);
+    // Compute gradient of ||R^T R f - yT||^2
+    template <typename T>
+    Array<T> gradient(const Array<T> &f, const Array<T> &yT,
+                      const PolarGrid<T> &grid) {
+        auto AAx = sysmat(f, grid);
+        return (AAx - yT);
+    }
+    // Explicit instantiations
+    template Array<float> gradient(const Array<float> &, const Array<float> &,
+                                   const PolarGrid<float> &);
+    template Array<double> gradient(const Array<double> &, const Array<double> &,
+                                    const PolarGrid<double> &);
 
-        // zero pad
-        T factor = static_cast<T>(static_cast<T>(pg.dims().n3)) /
-                   static_cast<T>(f.ncols());
-        auto f2 = pad3d(f, factor, PadType::SYMMETRIC);
-
-        // cast input to complex
-        auto fz = array::to_complex(f2);
-        Array<std::complex<T>> cz(pg.dims());
-
-        // calculate gradient
-        nufft::nufft3d2<T>(cz, fz, pg);
-        nufft::nufft3d1<T>(cz, fz, pg);
-
-        dims_t crop_size = f2.dims() - f.dims();
-        crop3d(fz, crop_size, PadType::SYMMETRIC);
-        fz /= scale;
-
-        return array::to_real(fz);
+    // Compute residual ||R^T R f - yT||^2
+    template <typename T>
+    T residual(const Array<T> &f, const Array<T> &yT, const PolarGrid<T> &grid,
+               T yTy) {
+        auto AAx = sysmat(f, grid);
+        auto xAAx = array::dot(f, AAx);
+        auto yTx = array::dot(f, yT);
+        return xAAx - 2.0 * yTx + yTy;
     }
 
-    // explicit instantiation
-    template Array<float> gradient(const Array<float> &,
-        const PolarGrid<float> &);
-    template Array<double> gradient(const Array<double> &,
-        const PolarGrid<double> &);
+    // Explicit instantiations
+    template float residual(const Array<float> &, const Array<float> &,
+                            const PolarGrid<float> &, float);
+    template double residual(const Array<double> &, const Array<double> &,
+                             const PolarGrid<double> &, double);
 } // namespace tomocam
