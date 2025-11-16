@@ -1,3 +1,24 @@
+// clang-format off
+/* -------------------------------------------------------------------------------
+ * Tomocam Copyright (c) 2018
+ *
+ * The Regents of the University of California, through Lawrence Berkeley
+ * National Laboratory (subject to receipt of any required approvals from the
+ * U.S. Dept. of Energy). All rights reserved.
+ *
+ * If you have questions about your rights to use or distribute this software,
+ * please contact Berkeley Lab's Innovation & Partnerships Office at
+ * IPO@lbl.gov.
+ *
+ * NOTICE. This Software was developed under funding from the U.S. Department of
+ * Energy and the U.S. Government consequently retains certain rights. As such,
+ * the U.S. Government has been granted for itself and others acting on its
+ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+ * to reproduce, distribute copies to the public, prepare derivative works, and
+ * perform publicly and display publicly, and to permit other to do so.
+ *---------------------------------------------------------------------------------
+ */
+ //clang-format on
 #include "array.h"
 #include "array_ops.h"
 #include "dtypes.h"
@@ -15,68 +36,52 @@ constexpr double factor = 1.4142135624;
 namespace tomocam {
 
     template <typename T>
-    auto forward(const Array<T> &image, const PolarGrid<T> &pg,
-        T gamma) -> Array<T> {
-
-        auto F = pad3d(image, static_cast<T>(factor), PadType::SYMMETRIC);
-        auto crop_size = F.dims() - image.dims();
+    Array<T> forward(const Array<T> &volume, const PolarGrid<T> &pg, T gamma) {
 
         // cast double array to complex
-        auto Ft = array::to_complex(F);
+        auto Ft = array::to_complex(volume);
         Array<std::complex<T>> C(pg.dims());
 
         // call NUFFT3d type-2
         nufft::nufft3d2<T>(C, Ft, pg);
 
         // ifft
-        auto C1 = fft::ifftshift(C, fft::Axes::two);
-        auto C2 = fft::ifft2(C1);
-        auto C3 = fft::fftshift(C2, fft::Axes::two);
+        C = fft::ifftshift(C, fft::Axes::two);
+        C = fft::ifft2(C);
+        C = fft::fftshift(C, fft::Axes::two);
 
-        // don't crop projections, just the image
-        crop_size.n1 = 0;
-        auto C4 = crop2d(C3, crop_size, PadType::SYMMETRIC);
-        return array::to_real<T>(C4);
+        return array::to_real<T>(C);
     }
+    // Explicit instantiation forward
+    template Array<float> forward(const Array<float> &, const PolarGrid<float> &,
+                                  float);
+    template Array<double> forward(const Array<double> &, const PolarGrid<double> &,
+                                   double);
 
     template <typename T>
-    auto backward(const Array<T> &proj, const PolarGrid<T> &pg, T gamma,
-        dims_t recon_dims, bool use_filter) -> Array<T> {
+    Array<T> backward(const Array<T> &proj, const PolarGrid<T> &pg,
+                      const dims_t &recon_dims, T gamma, bool use_filter) {
 
         // cast to complex
-        auto proj2 = pad2d(proj, static_cast<T>(factor), PadType::SYMMETRIC);
-        auto C = array::to_complex(proj2);
+        auto C = array::to_complex(proj);
 
         // 2-D Fourier transforms
-        auto C1 = fft::ifftshift(C, fft::Axes::two);
-        auto C2 = fft::fft2(C1);
-        if (use_filter) { apply_filter(C2, "ram-lak"); }
-        auto C3 = fft::fftshift(C2, fft::Axes::two);
-
-        size_t n1 = static_cast<size_t>(factor * recon_dims.n1);
-        if (n1 % 2 == 0) { n1 -= 1; }
-        dims_t new_dims{n1, proj2.nrows(), proj2.ncols()};
-        Array<std::complex<T>> F(new_dims);
+        C = fft::ifftshift(C, fft::Axes::two);
+        C = fft::fft2(C);
+        if (use_filter) { apply_filter(C, "ramp"); }
+        C = fft::fftshift(C, fft::Axes::two);
+        Array<std::complex<T>> F(recon_dims);
 
         // nufft
-        nufft::nufft3d1<T>(C3, F, pg);
-
+        nufft::nufft3d1<T>(C, F, pg);
         // crop image
-        auto crop_size = new_dims - recon_dims;
-        auto F2 = crop3d(F, crop_size, PadType::SYMMETRIC);
-        return array::to_real<T>(F2);
+        return array::to_real<T>(F);
     }
 
-    // Explicit instantiation forward
-    template Array<float> forward(const Array<float> &,
-        const PolarGrid<float> &, float);
-    template Array<double> forward(const Array<double> &,
-        const PolarGrid<double> &, double);
-
     // Explicit instantiation backward
-    template Array<float> backward(const Array<float> &,
-        const PolarGrid<float> &, float, dims_t, bool);
-    template Array<double> backward(const Array<double> &,
-        const PolarGrid<double> &, double, dims_t, bool);
+    template Array<float> backward(const Array<float> &, const PolarGrid<float> &,
+                                   const dims_t &, float, bool);
+    template Array<double> backward(const Array<double> &, const PolarGrid<double> &,
+                                    const dims_t &, double, bool);
 
 } // namespace tomocam
