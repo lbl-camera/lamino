@@ -165,13 +165,13 @@ int main(int argc, char **argv) {
 
     auto yT = adjoint(x_blur, kernel);
 
-    auto backfwd = [&kernel](const Array &x) {
+    auto A = [&kernel](const Array &x) {
         auto tmp = forward(x, kernel);
         return adjoint(tmp, kernel);
     };
     float tol = 1.e-05;
 
-    auto x_opt = tomocam::opt::cgsolver<float>(backfwd, yT, 50, tol);
+    auto x_opt = tomocam::opt::cgsolver<float>(A, yT, 50, tol);
 
     tomocam::tiff::write("x_opt.tif", x_opt);
     return 0;
