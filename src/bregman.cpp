@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,8 +17,6 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
-
 
 #include "array.h"
 #include "array_ops.h"
@@ -45,8 +42,8 @@ namespace tomocam::opt {
 
     template <typename T>
     Array<T> split_bregman(std::function<Array<T>(const Array<T> &)> A,
-        const Array<T> &yT, T lambda, T mu, size_t outer_max, size_t inner_max,
-        T tol) {
+                           const Array<T> &yT, T lambda, T mu, size_t outer_max,
+                           size_t inner_max, T tol) {
 
         Array<T> x = yT.clone();
         Array<T> d = Array<T>::zeros_like(x);

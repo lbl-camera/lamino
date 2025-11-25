@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,8 +17,8 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 #include <complex>
+#include <format>
 
 #include "array.h"
 #include "array_ops.h"
@@ -32,7 +31,7 @@ namespace tomocam {
     template <typename T>
     Array<T> sysmat(const Array<T> &x, const PolarGrid<T> &grid) {
         // cast to complex
-        T scale = static_cast<T>(grid.size());
+        T scale = static_cast<T>(grid.x.nslices() * grid.x.ncols());
         auto xcmplx = array::to_complex(x);
         auto ccmplx = Array<std::complex<T>>(grid.dims());
         nufft::nufft3d2(ccmplx, xcmplx, grid);
@@ -63,6 +62,10 @@ namespace tomocam {
         auto AAx = sysmat(f, grid);
         auto xAAx = array::dot(f, AAx);
         auto yTx = array::dot(f, yT);
+#ifdef DEBUG
+        std::cout << std::format("residual: xAAx = {}, yTx = {}, yTy = {}\n", xAAx,
+                                 yTx, yTy);
+#endif
         return xAAx - 2.0 * yTx + yTy;
     }
 

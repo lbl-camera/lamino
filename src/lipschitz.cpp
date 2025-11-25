@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,10 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
+#include <format>
+#include <iostream>
+
 #include "array.h"
 #include "array_ops.h"
 #include "optimize.h"
@@ -40,6 +42,10 @@ namespace tomocam::opt {
             }
             x = Ax / norm_Ax;
             T L_new = norm_Ax;
+#ifdef DEBUG
+            std::cout << std::format("Iteration {}: Lipschitz estimate = {:.6e}\n",
+                                     i + 1, L_new);
+#endif
             if (std::abs(L_new - L) < tol) { break; }
             L = L_new;
         }

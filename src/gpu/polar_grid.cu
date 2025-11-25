@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,6 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 #include <cmath>
 #include <cuda_runtime.h>
 

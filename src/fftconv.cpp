@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,6 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 #include <iostream>
 
 #include <fftw3.h>
@@ -63,7 +61,7 @@ Array<Real_t> fftconvolve(const Array<Real_t> &signal, const Array<Real_t> &filt
     int filter_size = filter.ncols();
     int signal_size = signal.ncols();
 
-    //int s = filter_size + signal_size - 1;
+    // int s = filter_size + signal_size - 1;
     int s = filter_size;
 
     int padx = s - signal_size;
@@ -84,7 +82,7 @@ Array<Real_t> fftconvolve(const Array<Real_t> &signal, const Array<Real_t> &filt
     z2 = crop2d<Real_t>(z2, padx, PadType::SYMMETRIC);
 
     // remove padding and return
-    Real_t scale = (Real_t) std::pow(signal_size, 3);
+    Real_t scale = (Real_t)std::pow(signal_size, 3);
     return z2 / scale;
 }
 

@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,7 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
 #include "array.h"
 #include "array_ops.h"
 #include "dtypes.h"
@@ -46,9 +45,9 @@ namespace tomocam {
         nufft::nufft3d2<T>(C, Ft, pg);
 
         // ifft
-        C = fft::ifftshift(C, fft::Axes::two);
+        C = fft::fftshift2(C);
         C = fft::ifft2(C);
-        C = fft::fftshift(C, fft::Axes::two);
+        C = fft::ifftshift2(C);
 
         return array::to_real<T>(C);
     }
@@ -60,28 +59,33 @@ namespace tomocam {
 
     template <typename T>
     Array<T> backward(const Array<T> &proj, const PolarGrid<T> &pg,
-                      const dims_t &recon_dims, T gamma, bool use_filter) {
+                      const dims_t &recon_dims, T gamma, bool use_filter,
+                      const std::string &filter_type) {
 
         // cast to complex
         auto C = array::to_complex(proj);
 
         // 2-D Fourier transforms
-        C = fft::ifftshift(C, fft::Axes::two);
+        C = fft::fftshift2(C);
         C = fft::fft2(C);
-        if (use_filter) { apply_filter(C, "ramp"); }
-        C = fft::fftshift(C, fft::Axes::two);
-        Array<std::complex<T>> F(recon_dims);
+        C = fft::ifftshift2(C);
+        if (use_filter) { apply_filter(C, filter_type); }
 
         // nufft
+        Array<std::complex<T>> F(recon_dims);
         nufft::nufft3d1<T>(C, F, pg);
+
         // crop image
-        return array::to_real<T>(F);
+        // scale
+        T scale = static_cast<T>(proj.ncols() * proj.size());
+        return array::to_real<T>(F) / scale;
     }
 
     // Explicit instantiation backward
     template Array<float> backward(const Array<float> &, const PolarGrid<float> &,
-                                   const dims_t &, float, bool);
+                                   const dims_t &, float, bool, const std::string &);
     template Array<double> backward(const Array<double> &, const PolarGrid<double> &,
-                                    const dims_t &, double, bool);
+                                    const dims_t &, double, bool,
+                                    const std::string &);
 
 } // namespace tomocam

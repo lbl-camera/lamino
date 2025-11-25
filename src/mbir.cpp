@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,10 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+#include <cassert>
+#include <format>
+#include <functional>
+#include <iostream>
 
 #include "array.h"
 #include "array_ops.h"
@@ -26,7 +28,6 @@
 #include "padding.h"
 #include "polar_grid.h"
 #include "tomocam.h"
-#include <functional>
 
 namespace tomocam {
     template <typename T>
@@ -34,25 +35,28 @@ namespace tomocam {
                   const dims_t &recon_dims, size_t max_iter, T sigma, T p, T tol,
                   T xtol) {
 
-#ifdef DEBUG
-        // assert number of slices is same in projections and reconstruction
-        assert(
-            projs.nrows() == recon_dims.n1,
-            "Number of slices in projections and reconstruction must be the same");
-#endif
+        // normalize projections
+        T proj_max = array::max(projs);
+        auto y = projs / proj_max;
+
         // zero-pad projections by sqrt(2) to avoid aliasing
         T padding = static_cast<T>(1.42);
-        auto y = pad2d(projs, padding, PadType::SYMMETRIC);
+        y = pad2d(y, padding, PadType::SYMMETRIC);
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
+        out_dims.n1 = static_cast<size_t>(recon_dims.n1 * 2);
+        if (out_dims.n1 % 2 == 0) {
+            out_dims.n1 -= 1; // make sure n1 is odd
+        }
+
         out_dims.n2 = static_cast<size_t>(recon_dims.n2 * padding);
         if (out_dims.n2 % 2 == 0) {
-            out_dims.n2 += 1; // make sure n2 is odd
+            out_dims.n2 -= 1; // make sure n2 is odd
         }
         out_dims.n3 = static_cast<size_t>(recon_dims.n3 * padding);
         if (out_dims.n3 % 2 == 0) {
-            out_dims.n3 += 1; // make sure n3 is odd
+            out_dims.n3 -= 1; // make sure n3 is odd
         }
 
         // setup polar grid
@@ -64,7 +68,7 @@ namespace tomocam {
         T yTy = array::dot(y, y);
 
         // precompute backprojection of the projections
-        auto yT = backward(y, polar_grid, recon_dims);
+        auto yT = backproj(y, polar_grid, out_dims);
 
         // setup gradient operator
         opt::Function<T> grad = [&](const Array<T> &x) {
@@ -75,20 +79,23 @@ namespace tomocam {
         };
         // setup loss function
         opt::Residual<T> loss = [&](const Array<T> &x) {
-            return residual(x, yT, polar_grid, yTy);
+            return array::norm2(forward(x, polar_grid) - y);
         };
 
         // run optimization
-        auto x0 = backward(y, polar_grid, recon_dims, static_cast<T>(0), true);
+        auto x0 = fbp(y, polar_grid, out_dims);
+        std::cout << std::format("Starting MBIR with NAG optimization...\n");
 
         // estimate lipschitz constant
-        opt::Function<T> SysMat = [&](const Array<T> &x) {
-            return sysmat(x, polar_grid);
-        };
-        auto L = opt::lipschitz(SysMat, x0);
+        auto xtmp = Array<T>::like(x0, (T)1);
+        auto ytmp = Array<T>::like(x0, (T)0);
+        auto gtmp = gradient(xtmp, ytmp, polar_grid);
+        auto L = array::max(gtmp);
+        std::cout << std::format("Approximate Lipschitz constant: {:.2e}\n", L);
 
         auto reconVolume = opt::nagopt(grad, loss, x0, max_iter, L, tol, xtol);
-        return reconVolume;
+        // crop to original dimensions
+        return crop3d(reconVolume, recon_dims, PadType::SYMMETRIC);
     }
 
     // explicit template instantiation
