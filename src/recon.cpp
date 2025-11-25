@@ -20,86 +20,110 @@
  */
  //clang-format on
 
-#include "array.h"
-#include "array_ops.h"
-#include "optimize.h"
-#include "padding.h"
-#include "polar_grid.h"
+
+#include <format>
+#include <fstream>
+#include <iostream>
+#include <string>
+
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 #include "tomocam.h"
-#include <functional>
+#include "timer.h"
 
-namespace tomocam {
-    template <typename T>
-    Array<T> MBIR(const Array<T> &projs, const std::vector<T> &angles,
-                  const dims_t &recon_dims, size_t max_iter, T sigma, T p, T tol,
-                  T xtol) {
+void dump_config() {
+    std::ofstream outf("config_template.json", std::ios::out);
+    outf << "{\n";
+    outf << "  \"filename\": \"path/to/dataset.tif\",\n";
+    outf << "  \"angles\": \"path/to/angles.txt\",\n";
+    outf << "  \"max_iter\": 50,\n";
+    outf << "  \"sigma\": 100.0,\n";
+    outf << "  \"p\": 1.2,\n";
+    outf << "  \"tol\": 1e-5,\n";
+    outf << "  \"xtol\": 1e-5,\n";
+    outf << "  \"thickness\": 21\n";
+    outf << "}\n";
+    outf.close();
+}
 
-#ifdef DEBUG
-        // assert number of slices is same in projections and reconstruction
-        assert(
-            projs.nrows() == recon_dims.n1,
-            "Number of slices in projections and reconstruction must be the same");
-#endif
-        // zero-pad projections by sqrt(2) to avoid aliasing
-        T padding = static_cast<T>(1.42);
-        auto y = pad2d(projs, padding, PadType::SYMMETRIC);
+int main(int argc, char **argv) {
 
-        // adjust reconstruction dimensions
-        dims_t out_dims = recon_dims;
-        out_dims.n2 = static_cast<size_t>(recon_dims.n2 * padding);
-        if (out_dims.n2 % 2 == 0) {
-            out_dims.n2 += 1; // make sure n2 is odd
-        }
-        out_dims.n3 = static_cast<size_t>(recon_dims.n3 * padding);
-        if (out_dims.n3 % 2 == 0) {
-            out_dims.n3 += 1; // make sure n3 is odd
-        }
-
-        // setup polar grid
-        size_t nrows = y.nrows();
-        size_t ncols = y.ncols();
-        auto polar_grid = PolarGrid<T>(angles, nrows, ncols);
-
-        // precompute yTy
-        T yTy = array::dot(y, y);
-
-        // precompute backprojection of the projections
-        auto yT = backward(y, polar_grid, recon_dims);
-
-        // setup gradient operator
-        opt::Function<T> grad = [&](const Array<T> &x) {
-            auto g_data = gradient(x, yT, polar_grid);
-            // apply qggmrf penalty
-            opt::qggmrf(x, g_data, sigma, p);
-            return g_data;
-        };
-        // setup loss function
-        opt::Residual<T> loss = [&](const Array<T> &x) {
-            return residual(x, yT, polar_grid, yTy);
-        };
-
-        // run optimization
-        auto x0 = backward(y, polar_grid, recon_dims, static_cast<T>(0), true);
-
-        // estimate lipschitz constant
-        opt::Function<T> SysMat = [&](const Array<T> &x) {
-            return sysmat(x, polar_grid);
-        };
-        auto L = opt::lipschitz(SysMat, x0);
-
-        auto reconVolume = opt::nagopt(grad, loss, x0, max_iter, L, tol, xtol);
-        return reconVolume;
+    // paser JSON input
+    if (argc < 2) {
+        std::cerr << std::format("Usage: {} <input.json>\n", argv[0]);
+        std::cerr << "Please see config_template.json for an example input file.\n";
+        dump_config();
+        return 1;
     }
 
-    // explicit template instantiation
-    template Array<float> MBIR<float>(const Array<float> &projs,
-                                      const std::vector<float> &angles,
-                                      const dims_t &recon_dims, size_t max_iter,
-                                      float sigma, float p, float tol, float xtol);
-    template Array<double> MBIR<double>(const Array<double> &projs,
-                                        const std::vector<double> &angles,
-                                        const dims_t &recon_dims, size_t max_iter,
-                                        double sigma, double p, double tol,
-                                        double xtol);
+    std::string input_file = argv[1];
+    std::ifstream ifs(input_file);
+    if (!ifs.is_open()) {
+        std::cerr << "Error: Could not open input file " << input_file << "\n";
+        return 1;
+    }
+    auto config = json::parse(ifs);
+    ifs.close();
+    auto dataset = config["filename"].get<std::string>();
+    auto projs = tomocam::tiff::read(dataset);
 
-} // namespace tomocam
+    // read projection angles 
+    std::string angles_file = config["angles"];
+    std::ifstream fp(angles_file);
+    if (!fp.is_open()) {
+        std::cerr << std::format("Error: Could not open angles file {}\n", angles_file);
+        return 1;
+    }
+    std::vector<float> angles;
+    float angle;
+    while (fp >> angle) {
+        angles.push_back(angle);
+    }
+    fp.close();
+
+    // find keys in json, else set default values
+    size_t max_iter =
+        config.contains("max_iter") ? config["max_iter"].get<size_t>() : 50;
+    float sigma = config.contains("sigma") ? config["sigma"].get<float>() : 100.0f;
+    float p = config.contains("p") ? config["p"].get<float>() : 1.2f;
+    float tol = config.contains("tol") ? config["tol"].get<float>() : 1e-5f;
+    float xtol = config.contains("xtol") ? config["xtol"].get<float>() : 1e-5f;
+    size_t thickness =
+        config.contains("thickness") ? config["thickness"].get<size_t>() : 21;
+
+    // ensure angles are in radians
+    auto max_angle = *std::max_element(angles.begin(), angles.end());
+    if (std::abs(max_angle) > 2 * M_PI) {
+        for (auto &angle : angles) { angle = angle * M_PI / 180.0f; }
+    }
+    // print parameters
+    std::cout << "Reconstruction parameters:\n";
+    std::cout << std::format("  Dataset: {}\n", dataset);
+    std::cout << std::format("  Projections: {} x {} x {}\n", projs.nrows(),
+                             projs.ncols(), projs.nslices());
+    std::cout << std::format("  Angles: {} values from {:.2f} to {:.2f} radians\n",
+                             angles.size(), angles.front(), angles.back());
+    std::cout << std::format("  Recon Dimensions: {} x {} x {}\n", thickness,
+                             projs.nrows(), projs.ncols());
+    std::cout << std::format("  Max iterations: {}\n", max_iter);
+    std::cout << std::format("  Sigma: {:.2f}\n", sigma);
+    std::cout << std::format("  p: {:.2f}\n", p);
+    std::cout << std::format("  Tolerance: {:.2e}\n", tol);
+    std::cout << std::format("  XTolerance: {:.2e}\n", xtol);
+
+    // set reconstruction dimensions
+    tomocam::dims_t img_dims = {thickness, projs.nrows(), projs.ncols()};
+
+    tomocam::Timer t0;
+    t0.start();
+    auto recon =
+        tomocam::MBIR(projs, angles, img_dims, max_iter, sigma, p, tol, xtol);
+    t0.stop();
+    std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
+                             t0.seconds());
+
+    // save result to tiff
+    tomocam::tiff::write("recon.tif", recon);
+    return 0;
+}
