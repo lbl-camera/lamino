@@ -1,5 +1,4 @@
 #include <cmath>
-#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -7,6 +6,7 @@
 #include <string>
 using json = nlohmann::json;
 
+#include "padding.h"
 #include "tiff.h"
 #include "timer.h"
 #include "tomocam.h"
@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
     // get input data
     json config = json::parse(json_file);
     std::string filename = config["filename"];
+    std::string angles = config["angles"];
     std::string output = config["output"];
     float gamma = config["gamma"];
 
@@ -42,29 +43,50 @@ int main(int argc, char **argv) {
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
 
-    std::vector<float> theta(141, 0);
-    for (int i = 0; i < theta.size(); i++) {
-        int deg = (-1 * (theta.size() / 2)) + i + 90;
-        theta[i] = deg * M_PI / 180.F;
+    // read angles
+    std::vector<float> theta;
+    std::ifstream fp(angles);
+    if (!fp.is_open()) {
+        std::cerr << "error: can't open angles file: " << angles << '\n';
+        return 1;
     }
+    float angle;
+    while (fp >> angle) { theta.push_back(angle); }
+    fp.close();
+    // convert angles to radians
+    for (auto &a : theta) { a = a * M_PI / 180.0f; }
+
+    // pad the sample
+    t0.start();
+    auto sample2 =
+        tomocam::pad3d<float>(sample, PADDING, tomocam::PadType::SYMMETRIC);
+    t0.stop();
+    std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";
 
     // create a polar grid
     t0.start();
     // oversample polar-grid
-    auto nrows = 2 * (static_cast<uint64_t>(PADDING * sample.nrows()) / 2);
-    auto ncols = 2 * (static_cast<uint64_t>(PADDING * sample.ncols()) / 2);
+    auto nrows = sample2.nrows();
+    auto ncols = sample2.ncols();
     tomocam::PolarGrid<float> pgrid(theta, nrows, ncols);
     t0.stop();
     std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
 
     // do the forward projection
     t0.start();
-    auto proj = tomocam::forward(sample, pgrid, gamma);
+    auto proj = tomocam::forward(sample2, pgrid, gamma);
     t0.stop();
     std::cerr << "time to do forward projection: " << t0.seconds() << "(s)\n";
 
+    // crop the projection to original size
+    tomocam::dims_t crop_dims = {theta.size(), sample.nrows(), sample.ncols()};
+    t0.start();
+    auto proj2 =
+        tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
+    t0.stop();
+    std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
     // save data to tiff-stack
-    tomocam::tiff::write(output, proj);
+    tomocam::tiff::write(output, proj2);
 
     return 0;
 }

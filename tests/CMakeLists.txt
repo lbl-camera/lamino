@@ -1,6 +1,16 @@
 
-find_package(nlohmann_json REQUIRED)
-find_package(TIFF REQUIRED)
+# create a simple phantom
+add_executable(chessboard chessboard.cpp)
+target_link_libraries(chessboard PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(chessboard PUBLIC tomocam)
+target_link_libraries(chessboard PUBLIC TIFF::TIFF)
+
+# three-dimnsional shepp-log phantom
+add_executable(shepp3d shepplogan.cpp)
+target_link_libraries(shepp3d PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(shepp3d PUBLIC tomocam)
+target_link_libraries(shepp3d PUBLIC TIFF::TIFF)
+
 
 add_executable(forward forward.cpp)
 target_link_libraries(forward PRIVATE nlohmann_json::nlohmann_json)
@@ -12,14 +22,18 @@ target_link_libraries(backproj PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(backproj PUBLIC tomocam)
 target_link_libraries(backproj PUBLIC TIFF::TIFF)
 
-add_executable(chessboard chessboard.cpp)
-target_link_libraries(chessboard PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(chessboard PUBLIC tomocam)
-target_link_libraries(chessboard PUBLIC TIFF::TIFF)
-
 add_executable(test_fft test_fft.cpp)
 target_link_libraries(test_fft PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(test_fft PUBLIC tomocam)
+
+add_executable(test_gradient test_grad.cpp)
+target_link_libraries(test_gradient PUBLIC tomocam)
+
+add_executable(test_loss test_loss.cpp)
+target_link_libraries(test_loss PUBLIC tomocam)
+
+add_executable(test_lipschitz test_lipschitz.cpp)
+target_link_libraries(test_lipschitz PUBLIC tomocam)
 
 
 add_executable(test_cg test_cg.cpp)

@@ -12,8 +12,8 @@ struct Image {
     int n1;
     int n2;
     std::vector<float> pxl;
-    Image(uint64_t n1_, uint64_t n2_) :
-        n1(n1_), n2(n2_), pxl(std::vector<float>(n1 * n2, 0)) {}
+    Image(uint64_t n1_, uint64_t n2_)
+        : n1(n1_), n2(n2_), pxl(std::vector<float>(n1 * n2, 0)) {}
     float &operator()(int i, int j) { return pxl[i * n2 + j]; }
     const float &operator()(int i, int j) const { return pxl[i * n2 + j]; }
 };
@@ -28,7 +28,8 @@ float bilinear(float x, float y, const Image &img) {
     int i1 = i0 + 1;
     int j1 = j0 + 1;
     float val = 0;
-    if ((i1 >= img.n1) && (j1 >= img.n2)) val = img(i0, j0);
+    if ((i1 >= img.n1) && (j1 >= img.n2))
+        val = img(i0, j0);
     else if ((i1 < img.n1) && (j1 >= img.n2))
         val = img(i0, j0) * dy + img(i1, j0) * (1 - dy);
     else if ((i1 >= img.n1) && (j1 < img.n2))
@@ -61,9 +62,9 @@ Image rotate(const Image &img, float angle) {
 
 int main(int argc, char **argv) {
 
-    int nslcs = 21;
-    int nrows = 511;
-    int ncols = 511;
+    size_t nslcs = 31;
+    size_t nrows = 511;
+    size_t ncols = 511;
     float rot_ang = 0.f;
     std::string outfile("chess.tif");
 
@@ -81,13 +82,13 @@ int main(int argc, char **argv) {
 
     tomocam::Array<float> data(nslcs, nrows, ncols);
 
-    int nbox = 32;
-    for (int i = 0; i < nslcs; i++) {
+    size_t nbox = 32;
+    for (size_t i = 0; i < nslcs; i++) {
         auto img = Image(nrows, ncols);
-        for (int j = 2 * nbox; j < nrows - 2 * nbox; j++) {
-            for (int k = 3 * nbox; k < ncols - 3 * nbox; k++) {
-                int m = j / nbox;
-                int n = k / nbox;
+        for (size_t j = 2 * nbox; j < nrows - 2 * nbox; j++) {
+            for (size_t k = 3 * nbox; k < ncols - 3 * nbox; k++) {
+                size_t m = j / nbox;
+                size_t n = k / nbox;
                 if ((m + n) & 1) {
                     img(j, k) = 2.f;
 
@@ -97,7 +98,7 @@ int main(int argc, char **argv) {
             }
         }
         img = rotate(img, rot_ang);
-        std::copy(img.pxl.begin(), img.pxl.end(), data.slice(i));
+        std::copy(img.pxl.begin(), img.pxl.end(), data.slice(i).ptr);
     }
     tomocam::tiff::write(outfile, data);
     return 0;
