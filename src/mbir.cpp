@@ -45,7 +45,7 @@ namespace tomocam {
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
-        out_dims.n1 = static_cast<size_t>(recon_dims.n1 * 2);
+        out_dims.n1 = static_cast<size_t>(recon_dims.n1 * padding);
         if (out_dims.n1 % 2 == 0) {
             out_dims.n1 -= 1; // make sure n1 is odd
         }
