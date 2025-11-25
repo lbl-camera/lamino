@@ -27,10 +27,30 @@
             "name": "arch",
             "displayName": "Yoneda",
             "description": "Debug build with debug symbols for Arch Linux",
-            "generator": "Unix Makefiles",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "ENABLE_TESTS": {
+                    "type": "BOOL",
+                    "value": "ON"
+                }
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "arch-release",
+            "displayName": "Yoneda Release",
+            "description": "Release build for Arch Linux",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
@@ -53,8 +73,11 @@
         },
         {
             "name": "arch",
-            "configurePreset": "arch",
-            "jobs": 8
+            "configurePreset": "arch"
+        },
+        {
+            "name": "arch-release",
+            "configurePreset": "arch-release"
         }
     ],
     "testPresets": [
@@ -87,6 +110,14 @@
                 { "name": "arch", "type": "configure" },
                 { "name": "arch", "type": "build" },
                 { "name": "arch", "type": "test"}
+            ]
+        },
+        {
+            "name": "arch-release",
+            "displayName": "Full workflow for arch release",
+            "steps": [
+                { "name": "arch-release", "type": "configure" },
+                { "name": "arch-release", "type": "build" }
             ]
         }
     ]

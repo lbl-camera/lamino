@@ -14,11 +14,19 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG)
+endif()
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ftree-vectorize -march=native")
+endif()
+
 set(SRC
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
     src/lipschitz.cpp
+    src/mbir.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
     src/recon.cpp
@@ -37,6 +45,8 @@ endif(OpenMP_FOUND)
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS CXX)
+find_package(TIFF REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # finufft
 find_package(finufft REQUIRED)
@@ -45,7 +55,12 @@ target_link_libraries(tomocam PUBLIC FFTW::double)
 target_link_libraries(tomocam PUBLIC FFTW::float)
 target_link_libraries(tomocam PUBLIC finufft::finufft)
 target_link_libraries(tomocam PUBLIC TBB::tbb)
+target_link_libraries(tomocam PUBLIC TIFF::TIFF)
 set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
+
+# recon executable
+add_executable(recon src/recon.cpp)
+target_link_libraries(recon PRIVATE tomocam)
 
 
 option(ENABLE_TESTS "Enable tests" OFF)
