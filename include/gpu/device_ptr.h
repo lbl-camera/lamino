@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,9 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
+#ifndef DEVICE_PTR__H
+#define DEVICE_PTR__H
 
 #include <cstdint>
 #include <cuda_runtime.h>
@@ -26,34 +27,39 @@
 
 #include "../dtypes.h"
 
-#ifndef DEVICE_PTR__H
-    #define DEVICE_PTR__H
-
 namespace tomocam::gpu {
+
+    /// A non-owining view of device pointer with 3D indexing
     template <class T>
     class DevicePtr {
 
       private:
         T *dev_ptr_;
+        int2 halo_;
         dims_t dims_;
+
+        size_t flat_idx(int i, int j, int k) const {
+            return (static_cast<size_t>(i) * dims_.n2 * dims_.n3) +
+                   (static_cast<size_t>(j) * dims_.n3) + static_cast<size_t>(k);
+        }
 
       public:
         explicit DevicePtr(dims_t dims, T *ptr) : dims_(dims), dev_ptr_(ptr) {}
 
         __host__ __device__ [[nodiscard]] auto dims() const { return dims_; }
-        __host__ __device__ [[nodiscard]] uint_fast64_t size() const {
-            return dims_.size();
+        __host__ __device__ [[nodiscard]] size_t size() const {
+            return (dims_.n1 * dims_.n2 * dims_.n3);
         }
 
         // obj indexing
-        __host__ __device__ T &operator[](dims_t idx3) {
-            auto idx = dims_.flat_idx(idx3.x(), idx3.y(), idx3.z());
+        __host__ __device__ T &operator[](int3 idx3) {
+            auto idx = flat_idx(idx3.x, idx3.y, idx3.z);
             return dev_ptr_[idx];
         }
 
         // const obj indexing
-        __host__ __device__ const T &operator[](dims_t idx3) const {
-            auto idx = dims_.flat_idx(idx3.x(), idx3.y(), idx3.z());
+        __host__ __device__ const T &operator[](int3 idx3) const {
+            auto idx = flat_idx(idx3.x, idx3.y, idx3.z);
             return dev_ptr_[idx];
         }
 
@@ -67,13 +73,18 @@ namespace tomocam::gpu {
 
         // three-dim indexing
         __host__ __device__ T &operator()(int i, int j, int k) {
-            auto idx = dims_.flat_idx(i, j, k);
+            auto idx = flat_idx(i, j, k);
             return dev_ptr_[idx];
         }
 
         // const three-dim indexing
         __host__ __device__ const T &operator()(int i, int j, int k) const {
-            auto idx = dims_.flat_idx(i, j, k);
+            auto idx = flat_idx(i, j, k);
+            return dev_ptr_[idx];
+        }
+        __device__ const &T at(int i, int j, int k) const {
+            auto i1 = halo_.x + i;
+            auto idx = dims_.flat_idx(i1, j, k);
             return dev_ptr_[idx];
         }
     };

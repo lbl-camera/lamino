@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,6 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 
 #ifndef NUFFT__H
 #define NUFFT__H
@@ -46,23 +44,23 @@ namespace tomocam::nufft {
         if (std::is_same_v<T, double>) {
             finufft_default_opts(opts);
             opts->upsampfac = 2.0;
-            T tol = 1e-15;
+            T tol = 1e-14;
             double *x = (double *)pg.x.begin();
             double *y = (double *)pg.y.begin();
             double *z = (double *)pg.z.begin();
             std::complex<double> *cptr = (std::complex<double> *)cz.begin();
             std::complex<double> *fptr = (std::complex<double> *)fz.begin();
-            finufft3d1(M, x, y, z, cptr, 1, tol, N1, N2, N3, fptr, opts);
+            finufft3d1(M, x, y, z, cptr, 1, tol, N3, N2, N1, fptr, opts);
         } else {
             finufftf_default_opts(opts);
             opts->upsampfac = 2.0;
-            T tol = 1.2e-07;
+            T tol = 1.2e-06;
             float *x = (float *)pg.x.begin();
             float *y = (float *)pg.y.begin();
             float *z = (float *)pg.z.begin();
             std::complex<float> *cptr = (std::complex<float> *)cz.begin();
             std::complex<float> *fptr = (std::complex<float> *)fz.begin();
-            finufftf3d1(M, x, y, z, cptr, 1, tol, N1, N2, N3, fptr, opts);
+            finufftf3d1(M, x, y, z, cptr, 1, tol, N3, N2, N1, fptr, opts);
         }
         delete opts;
     }
@@ -86,7 +84,7 @@ namespace tomocam::nufft {
             double *z = (double *)pg.z.begin();
             std::complex<double> *cptr = (std::complex<double> *)cz.begin();
             std::complex<double> *fptr = (std::complex<double> *)fz.begin();
-            finufft3d2(M, x, y, z, cptr, -1, tol, N1, N2, N3, fptr, opts);
+            finufft3d2(M, x, y, z, cptr, -1, tol, N3, N2, N1, fptr, opts);
         } else {
             finufftf_default_opts(opts);
             opts->upsampfac = 2.0;
@@ -96,7 +94,7 @@ namespace tomocam::nufft {
             float *z = (float *)pg.z.begin();
             std::complex<float> *cptr = (std::complex<float> *)cz.begin();
             std::complex<float> *fptr = (std::complex<float> *)fz.begin();
-            finufftf3d2(M, x, y, z, cptr, -1, tol, N1, N2, N3, fptr, opts);
+            finufftf3d2(M, x, y, z, cptr, -1, tol, N3, N2, N1, fptr, opts);
         }
         delete opts;
     }

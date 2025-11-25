@@ -88,12 +88,12 @@ namespace tomocam::opt {
      * iteration method
      * @param function representing the system matrix
      * @param x0 reference for the size of the input
-     * @param max_iters Maximum number of iterations (default: 100)
+     * @param max_iters Maximum number of iterations (default: 20)
      * @param tol Tolerance for convergence (default: 1e-5)
      * @return Estimated Lipschitz constant
      */
     template <typename T>
-    T lipschitz(const Function<T> &grad, const Array<T> &x0, size_t max_iters = 100,
+    T lipschitz(const Function<T> &grad, const Array<T> &x0, size_t max_iters = 20,
                 T tol = 1e-5);
 
     /**

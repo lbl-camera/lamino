@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,16 +17,14 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+#ifndef UTILS__H
+#define UTILS__H
 
 #include <chrono>
 #include <iostream>
 #include <random>
 
-#ifndef UTILS__H
-#define UTILS__H
-
-namespace cam {
+namespace tomocam {
     class NumPyRandom {
       private:
         std::mt19937 gen_;
@@ -43,5 +40,5 @@ namespace cam {
         }
     };
 
-} // namespace cam
+} // namespace tomocam
 #endif // UTILS__H

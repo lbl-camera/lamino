@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,15 +17,15 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+#ifndef POLAR_GRID__H
+#define POLAR_GRID__H
+
 #include "array.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
 
-#ifndef POLAR_GRID__H
-    #define POLAR_GRID__H
 namespace tomocam {
 
     template <typename T>
@@ -52,17 +51,17 @@ namespace tomocam {
             npts = dims.size();
 
             // rotation matrix
-            T dx = (2 * M_PI) / static_cast<T>(dims.z() - 1);
-            T dr = (2 * M_PI) / static_cast<T>(dims.y() - 1);
+            T dz = (2 * M_PI) / static_cast<T>(nrows - 1);
+            T dr = (2 * M_PI) / static_cast<T>(ncols - 1);
 
-    #pragma omp parallel for collapse(3)
-            for (size_t i = 0; i < dims.x(); ++i) {
-                for (size_t j = 0; j < dims.y(); ++j) {
-                    for (size_t k = 0; k < dims.z(); ++k) {
+#pragma omp parallel for collapse(3)
+            for (size_t i = 0; i < dims.n1; ++i) {
+                for (size_t j = 0; j < dims.n2; ++j) {
+                    for (size_t k = 0; k < dims.n3; ++k) {
                         T radius = j * dr - M_PI;
-                        x[{i, j, k}] = k * dx - M_PI;
-                        y[{i, j, k}] = radius * sin(theta[i]);
-                        z[{i, j, k}] = radius * std::cos(theta[i]);
+                        y[{i, j, k}] = radius * std::cos(theta[i]);
+                        z[{i, j, k}] = radius * std::sin(theta[i]);
+                        x[{i, j, k}] = k * dz - M_PI;
                     }
                 }
             }

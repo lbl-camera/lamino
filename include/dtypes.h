@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,7 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -38,8 +37,8 @@ namespace tomocam {
         dims_t() : n1(0), n2(0), n3() {}
         dims_t(size_t a, size_t b, size_t c) : n1(a), n2(b), n3(c) {}
 
-        [[nodiscard]] std::tuple<size_t, size_t, size_t> unravel_idx(
-            size_t idx) const {
+        [[nodiscard]] std::tuple<size_t, size_t, size_t>
+        unravel_idx(size_t idx) const {
             size_t i = idx / n2 / n3;
             size_t j = (idx / n3) % n2;
             size_t k = idx % n3;

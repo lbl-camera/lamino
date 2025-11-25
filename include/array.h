@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,8 +17,12 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
+#ifndef ARRAY3__H
+#define ARRAY3__H
+
 #include <algorithm>
+#include <array>
 #include <complex>
 #include <cstdint>
 #include <execution>
@@ -30,10 +33,30 @@
 
 #include "dtypes.h"
 
-#ifndef ARRAY3__H
-    #define ARRAY3__H
-
 namespace tomocam {
+
+    // a non-owning view into a 3D array
+    template <typename T>
+    struct Slice {
+        std::array<size_t, 2> dims; // nrows, ncols
+        T *ptr;
+
+        /// methods
+        size_t size() const { return dims[0] * dims[1]; }
+        // iterators
+        T *begin() { return ptr; }
+        const T *begin() const { return ptr; }
+        T *end() { return ptr + (dims[0] * dims[1]); }
+        const T *end() const { return ptr + (dims[0] * dims[1]); }
+        // indexing
+        T &operator[](std::array<size_t, 2> idx) {
+            return ptr[idx[0] * dims[1] + idx[1]];
+        }
+        const T &operator[](std::array<size_t, 2> idx) const {
+            return ptr[idx[0] * dims[1] + idx[1]];
+        }
+    };
+
     template <typename T>
     class Array {
       private:
@@ -91,24 +114,32 @@ namespace tomocam {
             return ptr_[flatIdx(i, j, k)];
         }
 
-    #if (__cplusplus == 202302L)
+#if (__cplusplus == 202302L)
         T &operator[](size_t i, size_t j, size_t k) {
             return ptr_[flatIdx(i, j, k)];
         }
         T operator[](size_t i, size_t j, size_t k) const {
             return ptr_[flatIdx(i, j, k)];
         }
-    #else
+#else
         T &operator[](dims_t i) { return ptr_[flatIdx(i.x(), i.y(), i.z())]; }
         const T &operator[](dims_t i) const {
             return ptr_[flatIdx(i.x(), i.y(), i.z())];
         }
-    #endif
+#endif
 
-        // get slices
-        T *slice(size_t i) { return ptr_.get() + (i * dims_.y() * dims_.z()); }
-        const T *slice(size_t i) const {
-            return ptr_.get() + (i * dims_.y() * dims_.z());
+        // get contiguous view to part or whole array
+        Slice<T> slice(size_t i) {
+            size_t nrows = dims_.n2;
+            size_t ncols = dims_.n3;
+            T *ptr = ptr_.get() + (i * dims_.n2 * dims_.n3);
+            return Slice<T>{{nrows, ncols}, ptr};
+        }
+        const Slice<T> slice(size_t i) const {
+            size_t nrows = dims_.n2;
+            size_t ncols = dims_.n3;
+            T *ptr = ptr_.get() + (i * dims_.n2 * dims_.n3);
+            return Slice<T>{{nrows, ncols}, ptr};
         }
 
         // multiplication operators

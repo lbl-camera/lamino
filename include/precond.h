@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,15 +17,14 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+#ifndef TOMOCAM_PRECOND__H
+#define TOMOCAM_PRECOND__H
+
 #include <vector>
 
 #include "array.h"
 #include "array_ops.h"
 #include "fft.h"
-
-#ifndef TOMOCAM_PRECOND__H
-    #define TOMOCAM_PRECOND__H
 
 template <typename T>
 class RampPreconditioner {

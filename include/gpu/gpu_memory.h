@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,16 +17,15 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+#ifndef GPU_MEMORY__H
+#define GPU_MEMORY__H
+
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 
 #include <cuda_runtime.h>
 #include <string>
-
-#ifndef GPU_MEMORY__H
-#define GPU_MEMORY__H
 
 namespace tomocam::gpu {
     struct cudaDelete {
@@ -48,10 +46,9 @@ namespace tomocam::gpu {
     template <typename T>
     cudaPtr<T> make_cudaPtr(size_t count) {
         T *raw = nullptr;
-        auto err = cudaMallocManaged(&raw, sizeof(T) * count);
+        auto err = cudaMalloc(&raw, sizeof(T) * count);
         if (err != cudaSuccess) {
-            throw std::runtime_error(
-                std::string("failed to allocated unified memory"));
+            throw std::runtime_error(std::string("failed to allocated gpu memory"));
         }
         return cudaPtr<T>(raw);
     }

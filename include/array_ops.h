@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,7 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
 #include <algorithm>
 #include <complex>
 #include <execution>
@@ -79,7 +78,7 @@ namespace tomocam::array {
     T dot(const Array<T> &a, const Array<T> &b) {
         return std::transform_reduce(std::execution::par_unseq, a.begin(), a.end(),
                                      b.begin(), T(0), std::plus<T>(),
-                                     std::multiplies<T>());
+                                     [](T x, T y) { return x * y; });
     }
 
 } // namespace tomocam::array

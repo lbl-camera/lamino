@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,6 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 
 #include <complex>
 #include <string>
@@ -33,13 +31,13 @@ namespace tomocam {
     void apply_filter(Array<std::complex<T>> &arr, const std::string &filter_name) {
 
         // apply filter
-        T rmax = static_cast<T>(arr.ncols()) / 2;
+        T rmax = static_cast<T>(arr.nrows()) / 2;
         for (size_t i = 0; i < arr.nslices(); ++i) {
             for (size_t j = 0; j < arr.nrows(); ++j) {
                 for (size_t k = 0; k < arr.ncols(); ++k) {
 
                     T filt = 0;
-                    T f = std::abs(static_cast<T>(k) - rmax) / rmax;
+                    T f = std::abs(static_cast<T>(j) - rmax) / rmax;
                     if (filter_name == "ram-lak") {
                         if (f < 0.75) {
                             filt = f;

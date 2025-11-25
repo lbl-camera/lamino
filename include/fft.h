@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,7 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
+
 #include <complex>
 #include <fftw3.h>
 #include <new>
@@ -28,7 +27,7 @@
 #include "dtypes.h"
 
 #ifndef FFTDEFS__H
-#define FFTDEFS__H
+    #define FFTDEFS__H
 
 namespace tomocam::fft {
 
@@ -55,18 +54,18 @@ namespace tomocam::fft {
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_FORWARD, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)input.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_FORWARD, FFTW_ESTIMATE);
+            fftwf_plan plan = fftwf_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -96,17 +95,17 @@ namespace tomocam::fft {
         if (is_double) {
             auto *idata = (fftw_complex *)arr.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_BACKWARD, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)arr.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_BACKWARD, FFTW_ESTIMATE);
+            fftwf_plan plan = fftwf_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -136,18 +135,18 @@ namespace tomocam::fft {
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_FORWARD, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)input.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_FORWARD, FFTW_ESTIMATE);
+            fftwf_plan plan = fftwf_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -176,17 +175,17 @@ namespace tomocam::fft {
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_BACKWARD, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)input.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_many_dft(rank, n, batches, idata,
-                inembed, istride, idist, odata, onembed, ostride, odist,
-                FFTW_BACKWARD, FFTW_ESTIMATE);
+            fftwf_plan plan = fftwf_plan_many_dft(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -206,16 +205,16 @@ namespace tomocam::fft {
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_dft_3d(dims.x(), dims.y(), dims.z(),
-                idata, odata, -1, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
+                                              odata, -1, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)input.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_dft_3d(dims.x(), dims.y(), dims.z(),
-                idata, odata, -1, FFTW_ESTIMATE);
+            fftwf_plan plan = fftwf_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
+                                                odata, -1, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
@@ -235,16 +234,16 @@ namespace tomocam::fft {
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_dft_3d(dims.x(), dims.y(), dims.z(),
-                idata, odata, 1, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
+                                              odata, 1, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)input.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_dft_3d(dims.x(), dims.y(), dims.z(),
-                idata, odata, 1, FFTW_ESTIMATE);
+            fftwf_plan plan = fftwf_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
+                                                odata, 1, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);

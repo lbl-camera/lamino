@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,7 +17,6 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 
 #ifndef FFTUTILS__H
 #define FFTUTILS__H
@@ -33,24 +31,20 @@
 #include "array.h"
 
 namespace tomocam::fft {
-
-    enum class Axes { one, two, three };
-
     template <typename T>
     Array<T> fftshift1(const Array<T> &input) {
         auto dims = input.dims();
         Array<T> output(dims);
-        
-        size_t nz = dims.z();
-        size_t half_z = nz / 2;
-        size_t rem_z = nz - half_z;
-        
-        for (size_t i = 0; i < dims.x(); ++i) {
-            for (size_t j = 0; j < dims.y(); ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i, j, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i, j, 0}]);
+
+        size_t d = dims.n3 / 2;
+
+#pragma omp parallel for collapse(2)
+        for (size_t i = 0; i < dims.n1; ++i) {
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    size_t k2 = (k + d) % dims.n3;
+                    output[{i, j, k}] = input[{i, j, k2}];
+                }
             }
         }
         return output;
@@ -60,26 +54,18 @@ namespace tomocam::fft {
     Array<T> fftshift2(const Array<T> &input) {
         auto dims = input.dims();
         Array<T> output(dims);
-        
-        size_t ny = dims.y();
-        size_t nz = dims.z();
-        size_t half_y = ny / 2;
-        size_t half_z = nz / 2;
-        size_t rem_y = ny - half_y;
-        size_t rem_z = nz - half_z;
-        
-        for (size_t i = 0; i < dims.x(); ++i) {
-            for (size_t j = 0; j < half_y; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i, j + rem_y, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i, j + rem_y, 0}]);
-            }
-            for (size_t j = half_y; j < ny; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i, j - half_y, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i, j - half_y, 0}]);
+
+        size_t d1 = dims.n2 / 2;
+        size_t d2 = dims.n3 / 2;
+
+#pragma omp parallel for collapse(2)
+        for (size_t i = 0; i < dims.n1; ++i) {
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    size_t j2 = (j + d1) % dims.n2;
+                    size_t k2 = (k + d2) % dims.n3;
+                    output[{i, j, k}] = input[{i, j2, k2}];
+                }
             }
         }
         return output;
@@ -89,43 +75,20 @@ namespace tomocam::fft {
     Array<T> fftshift3(const Array<T> &input) {
         auto dims = input.dims();
         Array<T> output(dims);
-        
-        size_t nx = dims.x();
-        size_t ny = dims.y();
-        size_t nz = dims.z();
-        size_t half_x = nx / 2;
-        size_t half_y = ny / 2;
-        size_t half_z = nz / 2;
-        size_t rem_x = nx - half_x;
-        size_t rem_y = ny - half_y;
-        size_t rem_z = nz - half_z;
-        
-        for (size_t i = 0; i < half_x; ++i) {
-            for (size_t j = 0; j < half_y; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i + rem_x, j + rem_y, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i + rem_x, j + rem_y, 0}]);
-            }
-            for (size_t j = half_y; j < ny; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i + rem_x, j - half_y, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i + rem_x, j - half_y, 0}]);
-            }
-        }
-        for (size_t i = half_x; i < nx; ++i) {
-            for (size_t j = 0; j < half_y; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i - half_x, j + rem_y, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i - half_x, j + rem_y, 0}]);
-            }
-            for (size_t j = half_y; j < ny; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, half_z}],
-                          &output[{i - half_x, j - half_y, rem_z}]);
-                std::copy(&input[{i, j, half_z}], &input[{i, j, nz}],
-                          &output[{i - half_x, j - half_y, 0}]);
+
+        size_t d1 = dims.n1 / 2;
+        size_t d2 = dims.n2 / 2;
+        size_t d3 = dims.n3 / 2;
+
+#pragma omp parallel for collapse(2)
+        for (size_t i = 0; i < dims.n1; ++i) {
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    size_t i2 = (i + d1) % dims.n1;
+                    size_t j2 = (j + d2) % dims.n2;
+                    size_t k2 = (k + d3) % dims.n3;
+                    output[{i, j, k}] = input[{i2, j2, k2}];
+                }
             }
         }
         return output;
@@ -135,17 +98,15 @@ namespace tomocam::fft {
     Array<T> ifftshift1(const Array<T> &input) {
         auto dims = input.dims();
         Array<T> output(dims);
-        
-        size_t nz = dims.z();
-        size_t half_z = nz / 2;
-        size_t rem_z = nz - half_z;
-        
-        for (size_t i = 0; i < dims.x(); ++i) {
-            for (size_t j = 0; j < dims.y(); ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i, j, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i, j, 0}]);
+
+        size_t d = dims.n3 / 2;
+        if (dims.n3 % 2 == 1) { d += 1; }
+        for (size_t i = 0; i < dims.n1; ++i) {
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    size_t k2 = (k + d) % dims.n3;
+                    output[{i, j, k}] = input[{i, j, k2}];
+                }
             }
         }
         return output;
@@ -155,28 +116,22 @@ namespace tomocam::fft {
     Array<T> ifftshift2(const Array<T> &input) {
         auto dims = input.dims();
         Array<T> output(dims);
-        
-        size_t ny = dims.y();
-        size_t nz = dims.z();
-        size_t half_y = ny / 2;
-        size_t half_z = nz / 2;
-        size_t rem_y = ny - half_y;
-        size_t rem_z = nz - half_z;
-        
-        for (size_t i = 0; i < dims.x(); ++i) {
-            for (size_t j = 0; j < rem_y; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i, j + half_y, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i, j + half_y, 0}]);
-            }
-            for (size_t j = rem_y; j < ny; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i, j - rem_y, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i, j - rem_y, 0}]);
+
+        size_t d1 = dims.n2 / 2;
+        if (dims.n2 % 2 == 1) { d1 += 1; }
+        size_t d2 = dims.n3 / 2;
+        if (dims.n3 % 2 == 1) { d2 += 1; }
+#pragma omp parallel for collapse(2)
+        for (size_t i = 0; i < dims.n1; ++i) {
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    size_t j2 = (j + d1) % dims.n2;
+                    size_t k2 = (k + d2) % dims.n3;
+                    output[{i, j, k}] = input[{i, j2, k2}];
+                }
             }
         }
+
         return output;
     }
 
@@ -184,74 +139,26 @@ namespace tomocam::fft {
     Array<T> ifftshift3(const Array<T> &input) {
         auto dims = input.dims();
         Array<T> output(dims);
-        
-        size_t nx = dims.x();
-        size_t ny = dims.y();
-        size_t nz = dims.z();
-        size_t half_x = nx / 2;
-        size_t half_y = ny / 2;
-        size_t half_z = nz / 2;
-        size_t rem_x = nx - half_x;
-        size_t rem_y = ny - half_y;
-        size_t rem_z = nz - half_z;
-        
-        for (size_t i = 0; i < rem_x; ++i) {
-            for (size_t j = 0; j < rem_y; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i + half_x, j + half_y, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i + half_x, j + half_y, 0}]);
-            }
-            for (size_t j = rem_y; j < ny; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i + half_x, j - rem_y, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i + half_x, j - rem_y, 0}]);
-            }
-        }
-        for (size_t i = rem_x; i < nx; ++i) {
-            for (size_t j = 0; j < rem_y; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i - rem_x, j + half_y, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i - rem_x, j + half_y, 0}]);
-            }
-            for (size_t j = rem_y; j < ny; ++j) {
-                std::copy(&input[{i, j, 0}], &input[{i, j, rem_z}],
-                          &output[{i - rem_x, j - rem_y, half_z}]);
-                std::copy(&input[{i, j, rem_z}], &input[{i, j, nz}],
-                          &output[{i - rem_x, j - rem_y, 0}]);
+
+        size_t d1 = dims.n1 / 2;
+        if (dims.n1 % 2 == 1) { d1 += 1; }
+        size_t d2 = dims.n2 / 2;
+        if (dims.n2 % 2 == 1) { d2 += 1; }
+        size_t d3 = dims.n3 / 2;
+        if (dims.n3 % 2 == 1) { d3 += 1; }
+#pragma omp parallel for collapse(2)
+        for (size_t i = 0; i < dims.n1; ++i) {
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    size_t i2 = (i + d1) % dims.n1;
+                    size_t j2 = (j + d2) % dims.n2;
+                    size_t k2 = (k + d3) % dims.n3;
+                    output[{i, j, k}] = input[{i2, j2, k2}];
+                }
             }
         }
         return output;
     }
-
-    template <typename T>
-    Array<T> fftshift(const Array<T> &input, Axes axes) {
-        if (axes == Axes::one) {
-            return fftshift1(input);
-        } else if (axes == Axes::two) {
-            return fftshift2(input);
-        } else if (axes == Axes::three) {
-            return fftshift3(input);
-        } else {
-            throw std::runtime_error("unknown shift axes");
-        }
-    }
-
-    template <typename T>
-    Array<T> ifftshift(const Array<T> &input, Axes axes) {
-        if (axes == Axes::one) {
-            return ifftshift1(input);
-        } else if (axes == Axes::two) {
-            return ifftshift2(input);
-        } else if (axes == Axes::three) {
-            return ifftshift3(input);
-        } else {
-            throw std::runtime_error("unknown shift axes");
-        }
-    }
-
 } // namespace tomocam::fft
 
 #endif // FFTUTILS__H
