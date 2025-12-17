@@ -1,3 +1,24 @@
+// clang-format off
+/* -------------------------------------------------------------------------------
+ * Tomocam Copyright (c) 2018
+ *
+ * The Regents of the University of California, through Lawrence Berkeley
+ * National Laboratory (subject to receipt of any required approvals from the
+ * U.S. Dept. of Energy). All rights reserved.
+ *
+ * If you have questions about your rights to use or distribute this software,
+ * please contact Berkeley Lab's Innovation & Partnerships Office at
+ * IPO@lbl.gov.
+ *
+ * NOTICE. This Software was developed under funding from the U.S. Department of
+ * Energy and the U.S. Government consequently retains certain rights. As such,
+ * the U.S. Government has been granted for itself and others acting on its
+ * behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software
+ * to reproduce, distribute copies to the public, prepare derivative works, and
+ * perform publicly and display publicly, and to permit other to do so.
+ *---------------------------------------------------------------------------------
+ */
+ //clang-format on
 
 #ifndef SLICE__H
 #define SLICE__H
@@ -11,25 +32,20 @@ namespace tomocam {
      */
     template <typename T>
     class Slice {
-        pivate : T *data_;
+      private:
+        T *data_;
         dims_t dims_;
         size_t size_;
 
         size_t flatIdx(dims_t idx) const {
-            return ((idx.i * dims_.n2) + idx.j) * dims_.n3 + idx.k;
+            return ((idx.n1 * dims_.n2) + idx.n2) * dims_.n3 + idx.n3;
         }
 
       public:
         Slice(T *data, dims_t dims)
             : data_(data), dims_(dims), size_(dims.n1 * dims.n2 * dims.n3) {}
 
-        // delete copy constructor and copy assignment
-        Slice(const Slice &) = delete;
-        Slice &operator=(const Slice &) = delete;
-
-        // default move constructor and move assignment
-        Slice(Slice &&) = default;
-        Slice &operator=(Slice &&) = default;
+        // using default copy, move, destructor, assignment and move assignment
 
         dims_t dims() const { return dims_; }
         size_t size() const { return size_; }
@@ -48,3 +64,4 @@ namespace tomocam {
     };
 
 } // namespace tomocam
+#endif // SLICE__H
