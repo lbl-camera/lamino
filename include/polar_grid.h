@@ -31,6 +31,7 @@ namespace tomocam {
     template <typename T>
     struct PolarGrid {
         size_t npts;
+        std::vector<T> theta;
         Array<T> x;
         Array<T> y;
         Array<T> z;
@@ -41,9 +42,16 @@ namespace tomocam {
         // size of the array
         [[nodiscard]] size_t size() const { return x.size(); }
 
-        // constructor
-        PolarGrid(const std::vector<T> &theta, size_t nrows, size_t ncols) {
+        // theta values
+        [[nodiscard]] const std::vector<T> &angles() const { return theta; }
 
+        // number of angles
+        [[nodiscard]] size_t nprojs() const { return theta.size(); }
+
+        // constructor
+        PolarGrid(const std::vector<T> &angles, size_t nrows, size_t ncols) {
+
+            theta = angles;
             dims_t dims = dims_t{theta.size(), nrows, ncols};
             x = Array<T>(dims);
             y = Array<T>(dims);
@@ -70,7 +78,6 @@ namespace tomocam {
         PolarGrid<T> rotate(T angle) const {
 
             PolarGrid<T> out = *this;
-
             T cos_t = std::cos(angle);
             T sin_t = std::sin(angle);
 
