@@ -25,7 +25,6 @@ set(SRC
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/lipschitz.cpp
     src/mbir.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
