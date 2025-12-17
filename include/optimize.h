@@ -84,6 +84,26 @@ namespace tomocam::opt {
                     size_t max_inner_iters = 20);
 
     /**
+     * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector version)
+     * @param grad Gradient function for vector reconstruction
+     * @param loss Loss function for vector reconstruction
+     * @param x Initial solution (array of 3 components)
+     * @param max_iters Maximum number of iterations
+     * @param lipschitz Lipschitz constant of the gradient
+     * @param tol Tolerance for convergence based on loss change
+     * @param xtol Tolerance for convergence based on solution change
+     * @param max_inner_iters Maximum number of inner iterations for line search
+     * @return Optimized solution (array of 3 components)
+     */
+    template <typename T>
+    std::array<Array<T>, 3> nagopt(
+        const std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)> &grad,
+        const std::function<T(const std::array<Array<T>, 3> &)> &loss,
+        std::array<Array<T>, 3> &x,
+        size_t max_iters, T lipschitz, T tol, T xtol,
+        size_t max_inner_iters = 20);
+
+    /**
      * @brief Estimate the Lipschitz constant of a gradient function using the power
      * iteration method
      * @param function representing the system matrix
