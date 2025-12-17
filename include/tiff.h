@@ -110,5 +110,57 @@ namespace tomocam::tiff {
         _TIFFfree(buf);
         TIFFClose(tif_);
     }
+
+    template<typename T>
+    inline void write_vectors(std::string filename,
+                              const std::array<Array<T>, 3> &data) {
+
+        // open file
+        TIFF *tif_ = TIFFOpen(filename.c_str(), "w");
+        if (!tif_) {
+            std::cerr << "Error opening tiff file for writing: " << filename
+                      << std::endl;
+            std::exit(1);
+        }
+
+        uint32_t npages = static_cast<uint32_t>(data[0].nslices());
+        uint32_t height = static_cast<uint32_t>(data[0].nrows());
+        uint32_t width = static_cast<uint32_t>(data[0].ncols());
+
+        for (uint32_t i = 0; i < npages; i++) {
+            TIFFSetField(tif_, TIFFTAG_IMAGEWIDTH, width);
+            TIFFSetField(tif_, TIFFTAG_IMAGELENGTH, height);
+            TIFFSetField(tif_, TIFFTAG_SAMPLESPERPIXEL, 3);
+            TIFFSetField(tif_, TIFFTAG_BITSPERSAMPLE, 32);
+            TIFFSetField(tif_, TIFFTAG_SAMPLEFORMAT,
+                         std::is_floating_point<T>::value ? SAMPLEFORMAT_IEEEFP
+                                                          : SAMPLEFORMAT_UINT);
+            TIFFSetField(tif_, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+            TIFFSetField(tif_, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+            TIFFSetField(tif_, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+            TIFFSetField(tif_, TIFFTAG_COMPRESSION, COMPRESSION_LZW);
+
+            // Metadata
+            TIFFSetField(
+                tif_, TIFFTAG_IMAGEDESCRIPTION,
+                "3D vector field: x,y,z components; layout: [slice, row, col]");
+
+            std::vector<T> buffer(width * 3);
+            for (uint32_t j = 0; j < height; ++j) {
+                for (uint32_t k = 0; k < width; ++k) {
+                    buffer[3 * k + 0] = data[0][{i, j, k}];
+                    buffer[3 * k + 1] = data[1][{i, j, k}];
+                    buffer[3 * k + 2] = data[2][{i, j, k}];
+                }
+
+                if (TIFFWriteScanline(tif_, buffer.data(), j) < 0) {
+                    std::cerr << "Error writing data to tif file." << std::endl;
+                    std::exit(2);
+                }
+            }
+            TIFFWriteDirectory(tif_);
+        }
+        TIFFClose(tif_);
+    }
 } // namespace tomocam::tiff
 #endif // TOMOCAM_TIFF__H
