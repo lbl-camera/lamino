@@ -18,8 +18,10 @@
  *---------------------------------------------------------------------------------
  */
 
+#include <array>
 #include <cmath>
 #include <format>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <tuple>
@@ -84,6 +86,85 @@ namespace tomocam::opt {
         }
         return x.clone();
     }
+
+    template <typename T>
+    std::array<Array<T>, 3> nagopt(
+        const std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
+            &grad,
+        const std::function<T(const std::array<Array<T>, 3> &)> &loss,
+        std::array<Array<T>, 3> &x, size_t max_iters, T lipschitz, T tol, T xtol,
+        size_t max_inner_iters) {
+
+        // initialize
+        std::array<Array<T>, 3> xold;
+        for (size_t i = 0; i < 3; ++i) { xold[i] = x[i].clone(); }
+
+        T t = 1;
+        T tnew = 1;
+
+        // gradient step size
+        T step = 0.1 / lipschitz;
+        T step_prev = step;
+        T xerr = std::numeric_limits<T>::max();
+
+        for (size_t iter = 0; iter < max_iters; iter++) {
+
+            // line search
+            for (size_t inner_iter = 0; inner_iter < max_inner_iters; inner_iter++) {
+
+                // update theta
+                T beta = tnew * (1 / t - 1);
+                tnew = 0.5 * (std::sqrt(std::pow(t, 4) + 4 * std::pow(t, 2)) -
+                              std::pow(t, 2));
+
+                // update y
+                std::array<Array<T>, 3> y;
+                for (size_t i = 0; i < 3; ++i) {
+                    y[i] = x[i] + (x[i] - xold[i]) * beta;
+                }
+                auto g = grad(y);
+
+                // update x
+                for (size_t i = 0; i < 3; ++i) { x[i] = y[i] - g[i] * step; }
+
+                // check if step size is small enough
+                T ex = loss(x);
+                T ey = loss(y);
+                T gy = 0;
+                for (size_t i = 0; i < 3; ++i) { gy += array::norm2(g[i]); }
+                gy *= 0.5 * step;
+                if (ex > (ey + gy))
+                    step *= 0.9;
+                else {
+                    step = step_prev;
+                    t = tnew;
+                    T xerr_sum = 0;
+                    T xnorm_sum = 0;
+                    for (size_t i = 0; i < 3; ++i) {
+                        xerr_sum += array::norm2(x[i] - xold[i]);
+                        xnorm_sum += array::norm2(x[i]);
+                    }
+                    xerr = xerr_sum / xnorm_sum;
+                    if (xerr < xtol) {
+                        std::array<Array<T>, 3> result;
+                        for (size_t i = 0; i < 3; ++i) { result[i] = x[i].clone(); }
+                        return result;
+                    }
+                    for (size_t i = 0; i < 3; ++i) { xold[i] = x[i].clone(); }
+                    break;
+                }
+            }
+            T e = loss(x);
+            std::cout << std::format("iter: {}, error: {}, x-error: {}\n", iter, e,
+                                     xerr);
+            // check convergence
+            if (e < tol) { break; }
+        }
+        std::array<Array<T>, 3> result;
+        for (size_t i = 0; i < 3; ++i) { result[i] = x[i].clone(); }
+        return result;
+    }
+
     // explicit template instantiation
     template Array<float> nagopt<float>(const Function<float> &,
                                         const Residual<float> &, Array<float> &,
@@ -91,5 +172,16 @@ namespace tomocam::opt {
     template Array<double> nagopt<double>(const Function<double> &,
                                           const Residual<double> &, Array<double> &,
                                           size_t, double, double, double, size_t);
+
+    template std::array<Array<float>, 3> nagopt<float>(
+        const std::function<
+            std::array<Array<float>, 3>(const std::array<Array<float>, 3> &)> &,
+        const std::function<float(const std::array<Array<float>, 3> &)> &,
+        std::array<Array<float>, 3> &, size_t, float, float, float, size_t);
+    template std::array<Array<double>, 3> nagopt<double>(
+        const std::function<
+            std::array<Array<double>, 3>(const std::array<Array<double>, 3> &)> &,
+        const std::function<double(const std::array<Array<double>, 3> &)> &,
+        std::array<Array<double>, 3> &, size_t, double, double, double, size_t);
 
 } // namespace tomocam::opt
