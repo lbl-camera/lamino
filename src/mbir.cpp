@@ -17,10 +17,13 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
+#include <array>
 #include <cassert>
 #include <format>
 #include <functional>
 #include <iostream>
+#include <tuple>
+#include <vector>
 
 #include "array.h"
 #include "array_ops.h"
@@ -30,18 +33,15 @@
 #include "tomocam.h"
 
 namespace tomocam {
+
+    constexpr double PAD_FACTOR = 1.42;
     template <typename T>
-    Array<T> MBIR(const Array<T> &projs, const std::vector<T> &angles,
-                  const dims_t &recon_dims, size_t max_iter, T sigma, T p, T tol,
-                  T xtol) {
+    std::array<Array<T>, 3> MBIR(const Array<T> &proj, const std::vector<T> &angles,
+                                 T gamma, const dims_t &recon_dims, size_t max_iter,
+                                 T sigma, T p, T tol, T xtol) {
 
-        // normalize projections
-        T proj_max = array::max(projs);
-        auto y = projs / proj_max;
-
-        // zero-pad projections by sqrt(2) to avoid aliasing
-        T padding = static_cast<T>(1.42);
-        y = pad2d(y, padding, PadType::SYMMETRIC);
+        // padding factor
+        T padding = static_cast<T>(PAD_FACTOR);
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
@@ -59,54 +59,71 @@ namespace tomocam {
             out_dims.n3 -= 1; // make sure n3 is odd
         }
 
+        // normalize projection from different orientations
+        T proj_max = array::max(proj);
+        auto y = proj / proj_max;
+
+        // zero-pad projections by sqrt(2) to avoid aliasing
+        y = pad2d(y, padding, PadType::SYMMETRIC);
+
         // setup polar grid
         size_t nrows = y.nrows();
         size_t ncols = y.ncols();
         auto polar_grid = PolarGrid<T>(angles, nrows, ncols);
 
-        // precompute yTy
-        T yTy = array::dot(y, y);
-
-        // precompute backprojection of the projections
-        auto yT = backproj(y, polar_grid, out_dims);
-
         // setup gradient operator
-        opt::Function<T> grad = [&](const Array<T> &x) {
-            auto g_data = gradient(x, yT, polar_grid);
+        std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)> grad = 
+            [&](const std::array<Array<T>, 3> &x) {
+            // forward projection
+            auto Ax = forward(x, polar_grid, gamma);
+            // adjoint projection
+            auto g_data = adjoint(Ax - y, polar_grid, out_dims, gamma);
             // apply qggmrf penalty
-            opt::qggmrf(x, g_data, sigma, p);
+            for (size_t i = 0; i < 3; ++i) {
+                opt::qggmrf(x[i], g_data[i], sigma, p);
+            }
             return g_data;
         };
         // setup loss function
-        opt::Residual<T> loss = [&](const Array<T> &x) {
-            return array::norm2(forward(x, polar_grid) - y);
+        std::function<T(const std::array<Array<T>, 3> &)> loss = 
+            [&](const std::array<Array<T>, 3> &x) {
+            return array::norm2(forward(x, polar_grid, gamma) - y);
         };
 
-        // run optimization
-        auto x0 = fbp(y, polar_grid, out_dims);
-        std::cout << std::format("Starting MBIR with NAG optimization...\n");
+        // lipshitz constant
+        std::array<Array<T>, 3> xtmp;
+        for (size_t i = 0; i < 3; ++i) { xtmp[i] = Array<T>::ones(out_dims); }
+        auto Axtmp = forward(xtmp, polar_grid, gamma);
+        auto gtmp = adjoint(Axtmp, polar_grid, out_dims, gamma);
+        T L = 0;
+        for (size_t i = 0; i < 3; ++i) {
+            // estimate lipshitz constant
+            L = std::max(L, array::max(array::abs(gtmp[i])));
+        }
 
-        // estimate lipschitz constant
-        auto xtmp = Array<T>::like(x0, (T)1);
-        auto ytmp = Array<T>::like(x0, (T)0);
-        auto gtmp = gradient(xtmp, ytmp, polar_grid);
-        auto L = array::max(gtmp);
-        std::cout << std::format("Approximate Lipschitz constant: {:.2e}\n", L);
+        // initial guess
+        std::array<Array<T>, 3> x0;
+        for (size_t i = 0; i < 3; ++i) {
+            x0[i] = std::move(Array<T>::random(out_dims));
+        }
 
-        auto reconVolume = opt::nagopt(grad, loss, x0, max_iter, L, tol, xtol);
+        auto recon_m = opt::nagopt(grad, loss, x0, max_iter, L, tol, xtol);
+
         // crop to original dimensions
-        return crop3d(reconVolume, recon_dims, PadType::SYMMETRIC);
+        std::array<Array<T>, 3> recon_magnetisation;
+        for (size_t i = 0; i < 3; ++i) {
+            recon_magnetisation[i] =
+                crop3d(recon_m[i], recon_dims, PadType::SYMMETRIC);
+        }
+        return recon_magnetisation;
     }
 
-    // explicit template instantiation
-    template Array<float> MBIR<float>(const Array<float> &projs,
-                                      const std::vector<float> &angles,
-                                      const dims_t &recon_dims, size_t max_iter,
-                                      float sigma, float p, float tol, float xtol);
-    template Array<double> MBIR<double>(const Array<double> &projs,
-                                        const std::vector<double> &angles,
-                                        const dims_t &recon_dims, size_t max_iter,
-                                        double sigma, double p, double tol,
-                                        double xtol);
+    // Explicit template instantiations
+    template std::array<Array<float>, 3> MBIR(const Array<float> &proj, const std::vector<float> &angles,
+                                 float gamma, const dims_t &recon_dims, size_t max_iter,
+                                 float sigma, float p, float tol, float xtol);
+    template std::array<Array<double>, 3> MBIR(const Array<double> &proj, const std::vector<double> &angles,
+                                 double gamma, const dims_t &recon_dims, size_t max_iter,
+                                 double sigma, double p, double tol, double xtol);
 
 } // namespace tomocam
