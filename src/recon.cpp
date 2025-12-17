@@ -39,10 +39,9 @@ void dump_config() {
     outf << "  \"angles\": \"path/to/angles.txt\",\n";
     outf << "  \"max_iter\": 50,\n";
     outf << "  \"sigma\": 100.0,\n";
-    outf << "  \"p\": 1.2,\n";
     outf << "  \"tol\": 1e-5,\n";
     outf << "  \"xtol\": 1e-5,\n";
-    outf << "  \"thickness\": 21\n";
+    outf << "  \"thickness\": 31\n";
     outf << "}\n";
     outf.close();
 }
@@ -83,6 +82,7 @@ int main(int argc, char **argv) {
     fp.close();
 
     // find keys in json, else set default values
+    float gamma = config.contains("gamma") ? config["gamma"].get<float>() : 0.0f;
     size_t max_iter =
         config.contains("max_iter") ? config["max_iter"].get<size_t>() : 50;
     float sigma = config.contains("sigma") ? config["sigma"].get<float>() : 100.0f;
@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
                              projs.ncols(), projs.nslices());
     std::cout << std::format("  Angles: {} values from {:.2f} to {:.2f} radians\n",
                              angles.size(), angles.front(), angles.back());
+    std::cout << std::format("  Gamma: {:.2f}\n", gamma);
     std::cout << std::format("  Recon Dimensions: {} x {} x {}\n", thickness,
                              projs.nrows(), projs.ncols());
     std::cout << std::format("  Max iterations: {}\n", max_iter);
@@ -113,17 +114,17 @@ int main(int argc, char **argv) {
     std::cout << std::format("  XTolerance: {:.2e}\n", xtol);
 
     // set reconstruction dimensions
-    tomocam::dims_t img_dims = {thickness, projs.nrows(), projs.ncols()};
+    tomocam::dims_t rec_dims = {thickness, projs.nrows(), projs.ncols()};
 
     tomocam::Timer t0;
     t0.start();
     auto recon =
-        tomocam::MBIR(projs, angles, img_dims, max_iter, sigma, p, tol, xtol);
+        tomocam::MBIR<float>(projs, angles, gamma, rec_dims, max_iter, sigma, p, tol, xtol);
     t0.stop();
     std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
                              t0.seconds());
 
     // save result to tiff
-    tomocam::tiff::write("recon.tif", recon);
+    tomocam::tiff::write_vectors("recon.tif", recon);
     return 0;
 }
