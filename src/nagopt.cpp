@@ -27,13 +27,21 @@
 #include <tuple>
 
 #include "array_ops.h"
+#include "logger.h"
 #include "optimize.h"
 
 namespace tomocam::opt {
     template <typename T>
     Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
                     size_t max_iters, T lipschitz, T tol, T xtol,
-                    size_t max_inner_iters) {
+                    size_t max_inner_iters, Logger *logger) {
+
+        Logger default_logger(LogMode::STDOUT);
+        if (!logger) logger = &default_logger;
+
+        logger->log(std::format("NAG Optimization started: max_iters={}, lipschitz={}, "
+                                "tol={:.2e}, xtol={:.2e}\n",
+                                max_iters, lipschitz, tol, xtol));
 
         // initialize
         Array<T> xold = x.clone();
@@ -49,7 +57,9 @@ namespace tomocam::opt {
         for (size_t iter = 0; iter < max_iters; iter++) {
 
             // line search
+            size_t inner_iter_final = 0;
             for (size_t inner_iter = 0; inner_iter < max_inner_iters; inner_iter++) {
+                inner_iter_final = inner_iter;
 
                 // update theta
                 T beta = tnew * (1 / t - 1);
@@ -73,16 +83,29 @@ namespace tomocam::opt {
                     step = step_prev;
                     t = tnew;
                     xerr = array::norm2(x - xold) / array::norm2(x);
-                    if (xerr < xtol) { return x.clone(); }
+                    if (xerr < xtol) {
+                        logger->log(std::format(
+                            "Convergence achieved at iter {}: x-error {:.6e} < xtol "
+                            "{:.2e}\n",
+                            iter, xerr, xtol));
+                        return x.clone();
+                    }
                     xold = x.clone();
                     break;
                 }
             }
             T e = loss(x);
-            std::cout << std::format("iter: {}, error: {}, x-error: {}\n", iter, e,
-                                     xerr);
+            logger->log(
+                std::format("Iter {:3d}: loss={:.6e}, x-error={:.6e}, step={:.6e}, "
+                            "inner_iters={}\n",
+                            iter, e, xerr, step, inner_iter_final + 1));
             // check convergence
-            if (e < tol) { break; }
+            if (e < tol) {
+                logger->log(std::format(
+                    "Convergence achieved at iter {}: loss {:.6e} < tol {:.2e}\n", iter,
+                    e, tol));
+                break;
+            }
         }
         return x.clone();
     }
@@ -93,7 +116,14 @@ namespace tomocam::opt {
             &grad,
         const std::function<T(const std::array<Array<T>, 3> &)> &loss,
         std::array<Array<T>, 3> &x, size_t max_iters, T lipschitz, T tol, T xtol,
-        size_t max_inner_iters) {
+        size_t max_inner_iters, Logger *logger) {
+
+        Logger default_logger(LogMode::STDOUT);
+        if (!logger) logger = &default_logger;
+
+        logger->log(std::format("NAG Optimization (vector) started: max_iters={}, "
+                                "lipschitz={}, tol={:.2e}, xtol={:.2e}\n",
+                                max_iters, lipschitz, tol, xtol));
 
         // initialize
         std::array<Array<T>, 3> xold;
@@ -110,7 +140,9 @@ namespace tomocam::opt {
         for (size_t iter = 0; iter < max_iters; iter++) {
 
             // line search
+            size_t inner_iter_final = 0;
             for (size_t inner_iter = 0; inner_iter < max_inner_iters; inner_iter++) {
+                inner_iter_final = inner_iter;
 
                 // update theta
                 T beta = tnew * (1 / t - 1);
@@ -146,6 +178,10 @@ namespace tomocam::opt {
                     }
                     xerr = xerr_sum / xnorm_sum;
                     if (xerr < xtol) {
+                        logger->log(std::format(
+                            "Convergence achieved at iter {}: x-error {:.6e} < xtol "
+                            "{:.2e}\n",
+                            iter, xerr, xtol));
                         std::array<Array<T>, 3> result;
                         for (size_t i = 0; i < 3; ++i) { result[i] = x[i].clone(); }
                         return result;
@@ -155,10 +191,17 @@ namespace tomocam::opt {
                 }
             }
             T e = loss(x);
-            std::cout << std::format("iter: {}, error: {}, x-error: {}\n", iter, e,
-                                     xerr);
+            logger->log(
+                std::format("Iter {:3d}: loss={:.6e}, x-error={:.6e}, step={:.6e}, "
+                            "inner_iters={}\n",
+                            iter, e, xerr, step, inner_iter_final + 1));
             // check convergence
-            if (e < tol) { break; }
+            if (e < tol) {
+                logger->log(std::format(
+                    "Convergence achieved at iter {}: loss {:.6e} < tol {:.2e}\n", iter,
+                    e, tol));
+                break;
+            }
         }
         std::array<Array<T>, 3> result;
         for (size_t i = 0; i < 3; ++i) { result[i] = x[i].clone(); }
@@ -168,20 +211,22 @@ namespace tomocam::opt {
     // explicit template instantiation
     template Array<float> nagopt<float>(const Function<float> &,
                                         const Residual<float> &, Array<float> &,
-                                        size_t, float, float, float, size_t);
+                                        size_t, float, float, float, size_t, Logger *);
     template Array<double> nagopt<double>(const Function<double> &,
                                           const Residual<double> &, Array<double> &,
-                                          size_t, double, double, double, size_t);
+                                          size_t, double, double, double, size_t,
+                                          Logger *);
 
     template std::array<Array<float>, 3> nagopt<float>(
         const std::function<
             std::array<Array<float>, 3>(const std::array<Array<float>, 3> &)> &,
         const std::function<float(const std::array<Array<float>, 3> &)> &,
-        std::array<Array<float>, 3> &, size_t, float, float, float, size_t);
+        std::array<Array<float>, 3> &, size_t, float, float, float, size_t, Logger *);
     template std::array<Array<double>, 3> nagopt<double>(
         const std::function<
             std::array<Array<double>, 3>(const std::array<Array<double>, 3> &)> &,
         const std::function<double(const std::array<Array<double>, 3> &)> &,
-        std::array<Array<double>, 3> &, size_t, double, double, double, size_t);
+        std::array<Array<double>, 3> &, size_t, double, double, double, size_t,
+        Logger *);
 
 } // namespace tomocam::opt
