@@ -59,7 +59,7 @@ namespace tomocam {
             out_dims.n3 -= 1; // make sure n3 is odd
         }
 
-        // normalize projection from different orientations
+        // normalize projections
         T proj_max = array::max(proj);
         auto y = proj / proj_max;
 
@@ -72,23 +72,23 @@ namespace tomocam {
         auto polar_grid = PolarGrid<T>(angles, nrows, ncols);
 
         // setup gradient operator
-        std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)> grad = 
-            [&](const std::array<Array<T>, 3> &x) {
-            // forward projection
-            auto Ax = forward(x, polar_grid, gamma);
-            // adjoint projection
-            auto g_data = adjoint(Ax - y, polar_grid, out_dims, gamma);
-            // apply qggmrf penalty
-            for (size_t i = 0; i < 3; ++i) {
-                opt::qggmrf(x[i], g_data[i], sigma, p);
-            }
-            return g_data;
-        };
+        std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
+            grad = [&](const std::array<Array<T>, 3> &x) {
+                // forward projection
+                auto Ax = forward(x, polar_grid, gamma);
+                // adjoint projection
+                auto g_data = adjoint(Ax - y, polar_grid, out_dims, gamma);
+                // apply qggmrf penalty
+                for (size_t i = 0; i < 3; ++i) {
+                    opt::qggmrf(x[i], g_data[i], sigma, p);
+                }
+                return g_data;
+            };
         // setup loss function
-        std::function<T(const std::array<Array<T>, 3> &)> loss = 
+        std::function<T(const std::array<Array<T>, 3> &)> loss =
             [&](const std::array<Array<T>, 3> &x) {
-            return array::norm2(forward(x, polar_grid, gamma) - y);
-        };
+                return array::norm2(forward(x, polar_grid, gamma) - y);
+            };
 
         // lipshitz constant
         std::array<Array<T>, 3> xtmp;
@@ -119,11 +119,14 @@ namespace tomocam {
     }
 
     // Explicit template instantiations
-    template std::array<Array<float>, 3> MBIR(const Array<float> &proj, const std::vector<float> &angles,
-                                 float gamma, const dims_t &recon_dims, size_t max_iter,
-                                 float sigma, float p, float tol, float xtol);
-    template std::array<Array<double>, 3> MBIR(const Array<double> &proj, const std::vector<double> &angles,
-                                 double gamma, const dims_t &recon_dims, size_t max_iter,
-                                 double sigma, double p, double tol, double xtol);
+    template std::array<Array<float>, 3> MBIR(const Array<float> &proj,
+                                              const std::vector<float> &angles,
+                                              float gamma, const dims_t &recon_dims,
+                                              size_t max_iter, float sigma, float p,
+                                              float tol, float xtol);
+    template std::array<Array<double>, 3>
+    MBIR(const Array<double> &proj, const std::vector<double> &angles, double gamma,
+         const dims_t &recon_dims, size_t max_iter, double sigma, double p,
+         double tol, double xtol);
 
 } // namespace tomocam
