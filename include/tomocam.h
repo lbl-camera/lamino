@@ -29,6 +29,7 @@
 #include "polar_grid.h"
 #include "projection.h"
 #include "tiff.h"
+#include "write_vti.h"
 
 namespace tomocam {
     /**

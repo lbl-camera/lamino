@@ -32,10 +32,10 @@ namespace tomocam::gpu {
     constexpr int N1 = 2;
     constexpr int N2 = 16;
     constexpr int N3 = 16; 
-    constexpr SHAMEM = (N1 + 2) * (N2 + 2) * (N3 + 2);
+    constexpr int SHAMEM = (N1 + 2) * (N2 + 2) * (N3 + 2);
 
     template <typename T>
-    __global__ void qGGMRF_kernel(DevicePtr<T> f_ext, DevicePtr<T> g, T sigma, T p) {
+    __global__ void qGGMRF_kernel(const DevicePtr<T> f_ext, DevicePtr<T> g, T sigma, T p) {
 
         // shared memory for the block
         __shared__ T s_val[SHAMEM];
@@ -60,24 +60,25 @@ namespace tomocam::gpu {
                         int y = (int)(blockIdx.y * blockDim.y) + j - 1;
                         int z = (int)(blockIdx.x * blockDim.x) + k - 1;
                         int idx = flatidx(i, j, k);
-                        s_val[idx] = f_ext.at(x, y, z);
+                        s_val[idx] = f_ext[{x, y, z}];
                     }
                 }
             }
             __syncthreads();
 
             // compute the qGGMRF contribution
-            T v = s_val[threadIdx.z + 1][threadIdx.y + 1][threadIdx.x + 1];
+            T u = s_val[flatidx(threadIdx.z + 1, threadIdx.y + 1, threadIdx.x + 1)];
             T temp = 0.f;
             for (int ix = 0; ix < 3; ix++) {
                 for (int iy = 0; iy < 3; iy++) {
                     for (int iz = 0; iz < 3; iz++) {
                         if (ix == 1 && iy == 1 && iz == 1)
                             continue;
-                        auto idx = flatidx(threadIdx.z + ix, threadIdx.y + iy,
+                        auto idx_neighbor = flatidx(threadIdx.z + ix, threadIdx.y + iy,
                                               threadIdx.x + iz);
-                        auto delta = v - s_val[idx];
-                        auto tv = d_pot_func(delta, p, sigma);
+                        T v = s_val[idx_neighbor];
+                        auto delta = v - u;
+                        auto tv = d_pot_func(delta, sigma, p);
                         temp += weight(ix, iy, iz) * tv;
                     }
                 }
@@ -88,7 +89,7 @@ namespace tomocam::gpu {
     }
 
     template <typename T>
-    void add_qGRRMRF(const DeviceArray<T> &sol, DeviceArray<T> &grad, T sigma,
+    void add_qGGMRF(const DeviceArray<T> &sol, DeviceArray<T> &grad, T sigma,
                         T p) {
 
         // data size
@@ -96,7 +97,7 @@ namespace tomocam::gpu {
         // CUDA kernel parameters
         dim3 block(N3, N2, N1);
         dim3 grid;
-        grid.x = divup(dims.n3, block.x);
+        grid.x = DIVUP(dims.n3, block.x);
         grid.y = DIVUP(dims.n2, block.y);
         grid.z = DIVUP(dims.n1, block.z);
 
@@ -106,10 +107,10 @@ namespace tomocam::gpu {
     }
 
     // instantiate the template
-    template void add_qGRRMRF<float>(const DeviceArray<float> &sol,
+    template void add_qGGMRF<float>(const DeviceArray<float> &sol,
                                     DeviceArray<float> &grad, float sigma,
                                     float p);
-    template void add_qGRRMRF<double>(const DeviceArray<double> &sol,
+    template void add_qGGMRF<double>(const DeviceArray<double> &sol,
                                      DeviceArray<double> &grad, double sigma,
                                      double p);
 

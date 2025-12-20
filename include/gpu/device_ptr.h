@@ -23,9 +23,8 @@
 
 #include <cstdint>
 #include <cuda_runtime.h>
-#include <sys/types.h>
 
-#include "../dtypes.h"
+#include "gpu/device_array.h"
 
 namespace tomocam::gpu {
 
@@ -35,16 +34,17 @@ namespace tomocam::gpu {
 
       private:
         T *dev_ptr_;
-        int2 halo_;
         dims_t dims_;
 
-        size_t flat_idx(int i, int j, int k) const {
+        __host__ __device__ size_t flat_idx(int i, int j, int k) const {
             return (static_cast<size_t>(i) * dims_.n2 * dims_.n3) +
                    (static_cast<size_t>(j) * dims_.n3) + static_cast<size_t>(k);
         }
 
       public:
-        explicit DevicePtr(dims_t dims, T *ptr) : dims_(dims), dev_ptr_(ptr) {}
+        // implicit constructor from non-const DeviceArray
+        __host__ DevicePtr(const DeviceArray<T> &dev_array)
+            : dev_ptr_(dev_array.begin()), dims_(dev_array.dims()) {}
 
         __host__ __device__ [[nodiscard]] auto dims() const { return dims_; }
         __host__ __device__ [[nodiscard]] size_t size() const {
@@ -80,11 +80,6 @@ namespace tomocam::gpu {
         // const three-dim indexing
         __host__ __device__ const T &operator()(int i, int j, int k) const {
             auto idx = flat_idx(i, j, k);
-            return dev_ptr_[idx];
-        }
-        __device__ const &T at(int i, int j, int k) const {
-            auto i1 = halo_.x + i;
-            auto idx = dims_.flat_idx(i1, j, k);
             return dev_ptr_[idx];
         }
     };

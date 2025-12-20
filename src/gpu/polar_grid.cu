@@ -44,6 +44,7 @@ namespace tomocam::gpu {
         }
     }
 
+
     template <typename T>
     __global__ void rotate_polar_grid(DevicePtr<T> x, DevicePtr<T> y, T gamma) {
 

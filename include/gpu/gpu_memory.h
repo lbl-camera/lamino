@@ -17,8 +17,8 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
-#ifndef GPU_MEMORY__H
-#define GPU_MEMORY__H
+#ifndef GPUMEMORY__H
+#define GPUMEMORY__H
 
 #include <iostream>
 #include <memory>
@@ -27,7 +27,7 @@
 #include <cuda_runtime.h>
 #include <string>
 
-namespace tomocam::gpu {
+namespace tomocam::gpu::memory {
     struct cudaDelete {
         void operator()(void *ptr) const noexcept {
             if (ptr != nullptr) {
@@ -41,17 +41,43 @@ namespace tomocam::gpu {
     };
 
     template <typename T>
-    using cudaPtr = std::unique_ptr<T, cudaDelete>;
+    using cunique_ptr = std::unique_ptr<T, cudaDelete>;
 
     template <typename T>
-    cudaPtr<T> make_cudaPtr(size_t count) {
+    cunique_ptr make_cunique_ptr(std::size_t count) {
         T *raw = nullptr;
         auto err = cudaMalloc(&raw, sizeof(T) * count);
         if (err != cudaSuccess) {
             throw std::runtime_error(std::string("failed to allocated gpu memory"));
         }
-        return cudaPtr<T>(raw);
+        return cunique_ptr<T>(raw);
     }
-} // namespace tomocam::gpu
 
-#endif // GPU_MEMORY__H
+    struct pinnedDelete {
+        void operator()(void *ptr) const noexcept {
+            if (ptr != nullptr) {
+                auto err = cudaFreeHost(ptr);
+                if (err != cudaSuccess) {
+                    std::cerr << "cudaFreeHost failed: " << cudaGetErrorString(err)
+                              << '\n';
+                }
+            }
+        }
+    };
+
+    template <typename T>
+    using pinned_ptr = std::unique_ptr<T, pinnedDelete>;
+
+    template <typename T>
+    pinned_ptr<T> make_pinned_ptr(std::size_t count) {
+        T *raw = nullptr;
+        auto err = cudaMallocHost(&raw, sizeof(T) * count);
+        if (err != cudaSuccess) {
+            throw std::runtime_error(
+                std::string("failed to allocated pinned host memory"));
+        }
+        return pinned_ptr<T>(raw);
+    }
+} // namespace tomocam::gpu::memory
+
+#endif // GPUMEMORY__H
