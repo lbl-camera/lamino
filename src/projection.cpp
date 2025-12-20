@@ -43,12 +43,6 @@ namespace tomocam {
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
                      const PolarGrid<T> &pg, const T &gamma) {
 
-        // ensure sizes match
-        if (magnetization.size() != 3) {
-            throw std::runtime_error(
-                "forward: magnetization vector must have 3 components");
-        }
-
         // initialize output array
         using complex_t = std::complex<T>;
         auto proj = Array<complex_t>::zeros(pg.dims());
