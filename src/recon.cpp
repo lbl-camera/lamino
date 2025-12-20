@@ -29,6 +29,7 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+#include "logger.h"
 #include "tomocam.h"
 #include "timer.h"
 
@@ -125,6 +126,11 @@ int main(int argc, char **argv) {
                              t0.seconds());
 
     // save result to tiff
-    tomocam::tiff::write_vectors("recon.tif", recon);
+    std::array<std::string, 3> tifnames = {"recon_x.tif", "recon_y.tif",
+                                              "recon_z.tif"};
+    for (size_t i = 0; i < 3; i++) {
+        tomocam::tiff::write(tifnames[i], recon[i]);
+    }
+    tomocam::vti::write_vectors("recon.vti", recon);
     return 0;
 }
