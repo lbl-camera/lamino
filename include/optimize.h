@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "array.h"
+#include "logger.h"
 #include "tomocam.h"
 
 namespace tomocam::opt {
@@ -76,12 +77,14 @@ namespace tomocam::opt {
      * @param tol Tolerance for convergence based on loss change
      * @param xtol Tolerance for convergence based on solution change
      * @param max_inner_iters Maximum number of inner iterations for line search
+     * @param logger Logger instance for output control
      * @return Optimized solution
      */
     template <typename T>
     Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
                     size_t max_iters, T lipschitz, T tol, T xtol,
-                    size_t max_inner_iters = 20);
+                    size_t max_inner_iters = 20,
+                    Logger *logger = nullptr);
 
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector version)
@@ -93,6 +96,7 @@ namespace tomocam::opt {
      * @param tol Tolerance for convergence based on loss change
      * @param xtol Tolerance for convergence based on solution change
      * @param max_inner_iters Maximum number of inner iterations for line search
+     * @param logger Logger instance for output control
      * @return Optimized solution (array of 3 components)
      */
     template <typename T>
@@ -101,7 +105,8 @@ namespace tomocam::opt {
         const std::function<T(const std::array<Array<T>, 3> &)> &loss,
         std::array<Array<T>, 3> &x,
         size_t max_iters, T lipschitz, T tol, T xtol,
-        size_t max_inner_iters = 20);
+        size_t max_inner_iters = 20,
+        Logger *logger = nullptr);
 
     /**
      * @brief Estimate the Lipschitz constant of a gradient function using the power
