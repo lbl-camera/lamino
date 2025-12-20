@@ -63,6 +63,9 @@ int main(int argc, char **argv) {
     for (auto &a : theta) { a = a * M_PI / 180.0f; }
     std::cerr << std::format("Number of angles: {}\n", theta.size());
 
+    // out dims
+    tomocam::dims_t out_dims = {thickness, projs.nrows(), projs.ncols()};
+
     // padd projections
     t0.start();
     auto projs2 = tomocam::pad2d<float>(projs, PADDING, tomocam::PadType::SYMMETRIC);
@@ -84,21 +87,26 @@ int main(int argc, char **argv) {
     std::cerr << std::format("Backprojecting to size: ({}, {}, {})\n", dims.n1,
                              dims.n2, dims.n3);
     t0.start();
-    auto img = tomocam::backproj(projs2, pgrid, dims, gamma);
+    auto img = tomocam::adjoint(projs2, pgrid, dims, gamma);
     t0.stop();
     std::cerr << std::format("Time to backproject: {}(s)\n", t0.seconds());
 
-    // crop the image to original size
-    tomocam::dims_t crop_dims = {thickness, projs.nrows(), projs.ncols()};
+    // crop to original size
     t0.start();
-    img = tomocam::crop2d<float>(img, crop_dims, tomocam::PadType::SYMMETRIC);
-    t0.stop();
-    std::cerr << std::format("Cropped image size: ({}, {}, {})\n", img.nslices(),
-                             img.nrows(), img.ncols());
-    std::cerr << std::format("Time to crop image: {}(s)\n", t0.seconds());
+    std::array<tomocam::Array<float>, 3> crop_imgs;
 
-    // save data to tiff-stack
-    tomocam::tiff::write(output, img);
+    for (size_t i = 0; i < 3; ++i) {
+        crop_imgs[i] =
+            tomocam::crop3d<float>(img[i], out_dims, tomocam::PadType::SYMMETRIC);
+    }
+    t0.stop();
+    std::cerr << std::format("Time to crop images: {}(s)\n", t0.seconds());
+
+    // write output
+    t0.start();
+    tomocam::tiff::write3<float>(output, crop_imgs);
+    t0.stop();
+    std::cerr << std::format("Time to write output: {}(s)\n", t0.seconds());
 
     return 0;
 }
