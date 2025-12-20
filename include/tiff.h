@@ -111,7 +111,7 @@ namespace tomocam::tiff {
         TIFFClose(tif_);
     }
 
-    template<typename T>
+    template <typename T>
     inline void write_vectors(std::string filename,
                               const std::array<Array<T>, 3> &data) {
 
@@ -161,6 +161,20 @@ namespace tomocam::tiff {
             TIFFWriteDirectory(tif_);
         }
         TIFFClose(tif_);
+    }
+
+    template <typename T>
+    void write3(const std::string &name, const std::array<Array<T>, 3> &data) {
+        // trucate extension if present
+        std::string basename = name;
+        // check for existing .tif or .tiff extension
+        if (name.rfind(".tif") != std::string::npos) {
+            basename = name.substr(0, name.rfind(".tif"));
+        }
+        for (size_t i = 0; i < 3; ++i) {
+            std::string filename = basename + std::to_string(i) + ".tiff";
+            tiff::write(filename, data[i]);
+        }
     }
 } // namespace tomocam::tiff
 #endif // TOMOCAM_TIFF__H
