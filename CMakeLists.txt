@@ -4,12 +4,6 @@ cmake_minimum_required(VERSION 3.20)
 project(Testbed CXX)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-# Add cuda
-option(USE_GPU "Use GPU Acceleration" TRUE)
-if (${USE_GPU})
-  enable_language(CUDA)
-endif()
-
 # C++ std
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,9 +24,6 @@ set(SRC
     src/qggmrf.cpp
     src/recon.cpp
    )
-#if (${USE_GPU})
-#  list(APPEND SRC src/gpu/polar_grid.cu)
-#endif()
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 find_package(OpenMP)
