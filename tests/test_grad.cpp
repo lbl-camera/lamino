@@ -1,3 +1,4 @@
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -13,8 +14,8 @@ int main() {
 
     // Define random f
     dims_t dims = {21, 511, 511};
-    Array<float> f = Array<float>(dims);
-    f = Array<float>::random_like(f);
+    std::array<Array<float>, 3> f;
+    for (size_t i = 0; i < 3; i++) { f[i] = Array<float>::random(dims); }
 
     // Define theta
     size_t ntheta = 141;
@@ -26,25 +27,33 @@ int main() {
     Timer timer;
 
     // direct method
+    float gamma = 0.7853981634f; // pi/4
     timer.start();
-    auto fwd = forward(f, pg);
-    auto grad_direct = backproj(fwd, pg, dims);
+    auto fwd = forward(f, pg, gamma);
+    auto grad_direct = adjoint(fwd, pg, dims, gamma);
     timer.stop();
     std::cout << std::format("Direct method time: {:.3f} s\n", timer.seconds());
 
     // Ajdoint method
-    auto yT = Array<float>::zeros_like(fwd);
+    std::array<Array<float>, 3> yT;
+    for (size_t i = 0; i < 3; i++) { yT[i] = Array<float>::zeros(fwd.dims()); }
+
     timer.start();
-    auto grad_adj = gradient(f, yT, pg);
+    auto grad_adj = gradient(f, yT, pg, gamma);
     timer.stop();
     std::cout << std::format("Adjoint method time: {:.3f} s\n", timer.seconds());
 
     // Compare
-    auto scale = array::dot(grad_direct, grad_adj) / array::dot(grad_adj, grad_adj);
-    auto diff = grad_direct - grad_adj * scale;
-    std::cout << "Scale factor: " << scale << std::endl;
-    std::cout << "Relative difference: "
-              << array::norm2(diff) / array::norm2(grad_direct) << std::endl;
+    for (size_t i = 0; i < 3; ++i) {
+        auto &g1 = grad_direct[i];
+        auto &g2 = grad_adj[i];
+        auto scale = array::dot<float>(g1, g2) / array::dot<float>(g2, g2);
+        auto diff = g1 - g2 * scale;
+        std::cout << "Channel " << i << ":\n";
+        std::cout << "  Scale factor: " << scale << std::endl;
+        std::cout << "  Relative difference: "
+                  << array::norm2(diff) / array::norm2(g1) << std::endl;
+    }
 
     return 0;
 }
