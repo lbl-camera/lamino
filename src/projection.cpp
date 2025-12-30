@@ -111,7 +111,7 @@ namespace tomocam {
         // nufft - each component separately
         std::array<Array<T>, 3> m_components;
         using complex_t = std::complex<T>;
-        T scale = static_cast<T>(proj.nrows() * proj.ncols());
+        T scale = static_cast<T>(proj.size());
 
         for (size_t i = 0; i < 3; ++i) {
             auto c_cmplx_copy = c_cmplx.clone();
@@ -127,7 +127,7 @@ namespace tomocam {
             // apply NUFFT for this component
             Array<complex_t> m_cmplx(recon_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = std::move(array::to_real<T>(m_cmplx / scale));
+            m_components[i] = std::move(array::to_real<T>(m_cmplx) / scale);
         }
 
         return m_components;
