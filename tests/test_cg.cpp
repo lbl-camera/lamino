@@ -20,24 +20,25 @@ int main(int argc, char **argv) {
     std::vector<float> diagMat(N);
     for (size_t i = 0; i < N; i++) { diagMat[i] = static_cast<float>(i + 1); }
 
-    tomocam::Array<float> xref(dims);
-    auto x_true = tomocam::Array<float>::random_like(xref);
+    auto x_true = tomocam::Array<float>::random(dims);
 
     // create b = A*x_true
     tomocam::Array<float> b(dims);
     for (size_t i = 0; i < N; i++) { b[{0, 0, i}] = diagMat[i] * x_true[{0, 0, i}]; }
 
     // Conjugate Gradient solver for diagonal matrix
-    std::function<tomocam::Array<float>(const tomocam::Array<float> &)> A = 
+    std::function<tomocam::Array<float>(const tomocam::Array<float> &)> A =
         [&](const tomocam::Array<float> &v) {
-        tomocam::Array<float> Av(dims);
-        for (size_t i = 0; i < N; i++) { Av[{0, 0, i}] = diagMat[i] * v[{0, 0, i}]; }
-        return Av;
-    };
+            tomocam::Array<float> Av(dims);
+            for (size_t i = 0; i < N; i++) {
+                Av[{0, 0, i}] = diagMat[i] * v[{0, 0, i}];
+            }
+            return Av;
+        };
 
     // call CG solver
     // initialize guess
-    auto x = tomocam::Array<float>::random_like(xref);
+    auto x = tomocam::Array<float>::random(dims);
     auto x_sol = tomocam::opt::cgsolver(A, b, x, 1000, 1e-6f);
 
     return 0;
