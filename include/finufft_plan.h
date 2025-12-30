@@ -37,13 +37,15 @@ namespace tomocam::nufft {
         using plan_type = finufft_plan;
         using complex_type = std::complex<double>;
 
-        static int makeplan(int type, int dim, int64_t *n_modes, int iflag, 
-                           int ntrans, double tol, plan_type *plan, finufft_opts *opts) {
-            return finufft_makeplan(type, dim, n_modes, iflag, ntrans, tol, plan, opts);
+        static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
+                            int ntrans, double tol, plan_type *plan,
+                            finufft_opts *opts) {
+            return finufft_makeplan(type, dim, n_modes, iflag, ntrans, tol, plan,
+                                    opts);
         }
 
-        static int setpts(plan_type plan, int64_t npts, double *x, double *y, double *z,
-                         int nk, double *s, double *t, double *u) {
+        static int setpts(plan_type plan, int64_t npts, double *x, double *y,
+                          double *z, int nk, double *s, double *t, double *u) {
             return finufft_setpts(plan, npts, x, y, z, nk, s, t, u);
         }
 
@@ -51,9 +53,7 @@ namespace tomocam::nufft {
             return finufft_execute(plan, cz, fz);
         }
 
-        static void destroy(plan_type plan) {
-            finufft_destroy(plan);
-        }
+        static void destroy(plan_type plan) { finufft_destroy(plan); }
     };
 
     template <>
@@ -62,12 +62,14 @@ namespace tomocam::nufft {
         using complex_type = std::complex<float>;
 
         static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
-                           int ntrans, float tol, plan_type *plan, finufft_opts *opts) {
-            return finufftf_makeplan(type, dim, n_modes, iflag, ntrans, tol, plan, opts);
+                            int ntrans, float tol, plan_type *plan,
+                            finufft_opts *opts) {
+            return finufftf_makeplan(type, dim, n_modes, iflag, ntrans, tol, plan,
+                                     opts);
         }
 
         static int setpts(plan_type plan, int64_t npts, float *x, float *y, float *z,
-                         int nk, float *s, float *t, float *u) {
+                          int nk, float *s, float *t, float *u) {
             return finufftf_setpts(plan, npts, x, y, z, nk, s, t, u);
         }
 
@@ -75,26 +77,25 @@ namespace tomocam::nufft {
             return finufftf_execute(plan, cz, fz);
         }
 
-        static void destroy(plan_type plan) {
-            finufftf_destroy(plan);
-        }
+        static void destroy(plan_type plan) { finufftf_destroy(plan); }
     };
 
     template <typename T>
     class FinufftPlanWrapper {
-    private:
+      private:
         using Traits = FinufftTraits<T>;
         typename Traits::plan_type plan;
         bool initialized = false;
 
-    public:
+      public:
         FinufftPlanWrapper() = default;
 
         void make_plan(int type, int dim, int64_t *n_modes, int iflag, T tol) {
             finufft_opts opts;
             finufft_default_opts(&opts);
             opts.upsampfac = 2.0;
-            int ierr = Traits::makeplan(type, dim, n_modes, iflag, 1, tol, &plan, &opts);
+            int ierr =
+                Traits::makeplan(type, dim, n_modes, iflag, 1, tol, &plan, &opts);
             if (ierr != 0) { throw std::runtime_error("Error in finufft_makeplan"); }
             initialized = true;
         }
@@ -103,34 +104,33 @@ namespace tomocam::nufft {
             T *x = (T *)pg.x.begin();
             T *y = (T *)pg.y.begin();
             T *z = (T *)pg.z.begin();
-            int ierr = Traits::setpts(plan, pg.npts, x, y, z, 0, nullptr, nullptr, nullptr);
+            int ierr =
+                Traits::setpts(plan, pg.npts, x, y, z, 0, nullptr, nullptr, nullptr);
             if (ierr != 0) { throw std::runtime_error("Error in finufft_setpts"); }
         }
 
         int execute(std::complex<T> *cz, std::complex<T> *fz) {
-            return Traits::execute(plan, (typename Traits::complex_type *)cz, 
-                                  (typename Traits::complex_type *)fz);
+            return Traits::execute(plan, (typename Traits::complex_type *)cz,
+                                   (typename Traits::complex_type *)fz);
         }
 
         ~FinufftPlanWrapper() {
-            if (initialized) {
-                Traits::destroy(plan);
-            }
+            if (initialized) { Traits::destroy(plan); }
         }
 
-        FinufftPlanWrapper(const FinufftPlanWrapper&) = delete;
-        FinufftPlanWrapper& operator=(const FinufftPlanWrapper&) = delete;
+        FinufftPlanWrapper(const FinufftPlanWrapper &) = delete;
+        FinufftPlanWrapper &operator=(const FinufftPlanWrapper &) = delete;
 
-        FinufftPlanWrapper(FinufftPlanWrapper&& other) noexcept 
+        bool valid() const { return initialized; }
+
+        FinufftPlanWrapper(FinufftPlanWrapper &&other) noexcept
             : plan(other.plan), initialized(other.initialized) {
             other.initialized = false;
         }
 
-        FinufftPlanWrapper& operator=(FinufftPlanWrapper&& other) noexcept {
+        FinufftPlanWrapper &operator=(FinufftPlanWrapper &&other) noexcept {
             if (this != &other) {
-                if (initialized) {
-                    Traits::destroy(plan);
-                }
+                if (initialized) { Traits::destroy(plan); }
                 plan = other.plan;
                 initialized = other.initialized;
                 other.initialized = false;
