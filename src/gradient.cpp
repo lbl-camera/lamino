@@ -122,7 +122,7 @@ namespace tomocam {
     // Compute residual ||R^T R f - yT||^2
     template <typename T>
     T residual(const std::array<Array<T>, 3> &f, const std::array<Array<T>, 3> &yT,
-               const PolarGrid<T> &grid, T gamma, T yTy) {
+               const PolarGrid<T> &grid, T yTy, T gamma) {
         auto AAx = sysmat(f, grid, gamma);
         T xAAx = 0.0;
         T yTx = 0.0;
