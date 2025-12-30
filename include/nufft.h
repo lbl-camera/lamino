@@ -28,6 +28,8 @@
 #include "array.h"
 #include "dtypes.h"
 #include "finufft_plan.h"
+#include "finufft_plan_cache.h"
+#include "polar_grid.h"
 
 namespace tomocam::nufft {
 
@@ -36,11 +38,10 @@ namespace tomocam::nufft {
     void nufft3d1(const Array<std::complex<T>> &cz, Array<std::complex<T>> &fz,
                   const PolarGrid<T> &pg) {
 
-        FinufftPlanWrapper<T> plan;
         int64_t n_modes[3] = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                               (int64_t)fz.nslices()};
         T tol = std::is_same_v<T, double> ? 1e-14 : 1.2e-06;
-        plan.make_plan(1, 3, n_modes, 1, tol);
+        auto &plan = plans::cache<T>.get_plan(1, 3, n_modes, 1, tol);
         plan.set_points(pg);
 
         int ierr = plan.execute((std::complex<T> *)cz.begin(),
@@ -53,11 +54,10 @@ namespace tomocam::nufft {
     void nufft3d2(Array<std::complex<T>> &cz, const Array<std::complex<T>> &fz,
                   const PolarGrid<T> &pg) {
 
-        FinufftPlanWrapper<T> plan;
         int64_t n_modes[3] = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                               (int64_t)fz.nslices()};
         T tol = std::is_same_v<T, double> ? 1e-14 : 1.2e-06;
-        plan.make_plan(2, 3, n_modes, -1, tol);
+        auto &plan = plans::cache<T>.get_plan(2, 3, n_modes, -1, tol);
         plan.set_points(pg);
 
         int ierr = plan.execute((std::complex<T> *)cz.begin(),
