@@ -29,72 +29,46 @@
 #include "polar_grid.h"
 #include "projection.h"
 #include "tiff.h"
+#include "write_vti.h"
 
 namespace tomocam {
-    /**
-     * @brief Adjoint of the Radon operator for polar grid data.
-     * @param projections The input polar grid data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param dims The dimensions of the output volume.
-     * @param gamma orientation of the polar grid (default is 0).
-     * @return The adjoint projected data as an Array.
-     */
+    /// Restrict T to floating-point types
     template <typename T>
-    Array<T> backproj(const Array<T> &projections, const PolarGrid<T> &grid,
-                      const dims_t &dims, T gamma = T(0)) {
-        std::string filter_type = "";
-        return backward(projections, grid, dims, gamma, false, filter_type);
-    }
-    /**
-     * @brief Filtered-backprojection of polar grid data to reconstruct a 3D volume.
-     * @param projections The input polar grid data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param dims The dimensions of the output volume.
-     * @param gamma orientation of the polar grid (default is 0).
-     * @pram filter_type The type of filter to apply (default is "ram-lak").
-     * @return The reconstructed volume data as an Array.
-     */
-    template <typename T>
-    Array<T> fbp(const Array<T> &projections, const PolarGrid<T> &grid,
-                 const dims_t &dims, const std::string &filter_type = "ramp",
-                 T gamma = T(0)) {
-        return backward(projections, grid, dims, gamma, true, filter_type);
-    }
-    /**
-     * @brief Function equivalent of system matrix y = A*x
-     *
-     * @param x Input volume data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @return The equivalent of A^T(A*x) result as an Array.
-     */
-    template <typename T>
-    Array<T> sysmat(const Array<T> &x, const PolarGrid<T> &grid);
+    concept Float = std::is_floating_point<T>::value;
+
+    template <typename Float>
+    Array<Float> sysmat(const std::array<Array<Float>, 3> &x,
+                        const PolarGrid<Float> &grid);
 
     /**
      * @brief Computes the gradient of the objective function for iterative
      * reconstruction.
      *
-     * @param x Current estimate of the volume data as an Array.
-     * @param b backprojection data as an Array.
+     * @param m Current estimate of the 3-d vector field
+     * @param pT backprojection data as an Array.
      * @param grid The polar grid defining the projection geometry.
+     * @param gamma Sample orientation in plane normal to beam direction.
      * @return The gradient as an Array.
      */
-    template <typename T>
-    Array<T> gradient(const Array<T> &x, const Array<T> &b, const PolarGrid<T> &grid,
-                      T gamma);
+    template <typename Float>
+    std::array<Array<Float>, 3> gradient(const std::array<Array<Float>, 3> &m,
+                                         const std::array<Array<Float>, 3> &pT,
+                                         const PolarGrid<Float> &grid, Float gamma);
 
     /**
      * @brief Computes the residual between the projected data and the measured data.
      *
-     * @param x Current estimate of the volume data as an Array.
-     * @param b backprojection data as an Array.
+     * @param m Current estimate of the 3-d vector field
+     * @param pT backprojected data as split into its components.
      * @param grid The polar grid defining the projection geometry.
-     * @param yTy Precomputed inner product of the measured data.
+     * @param pTp Precomputed inner product of the measured data.
+     * @param gamma Sample orientation in plane normal to beam direction.
      * @return The computed residual as a scalar value of type T.
      */
-    template <typename T>
-    T residual(const Array<T> &x, const Array<T> &b, const PolarGrid<T> &grid,
-               T yTy);
+    template <typename Float>
+    Float residual(const std::array<Array<Float>, 3> &m,
+                   const std::array<Array<Float>, 3> &pT,
+                   const PolarGrid<Float> &grid, Float pTp, Float gamma);
 
     /**
      * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
@@ -132,10 +106,11 @@ namespace tomocam {
      * representing the three spatial components of magnetization or multi-channel
      * data. Each component is an Array with dimensions specified by recon_dims.
      */
-    template <typename T>
-    std::array<Array<T>, 3> MBIR(const Array<T> &proj, const std::vector<T> &angles,
-                                 T gamma, const dims_t &recon_dims, size_t max_iter,
-                                 T sigma, T p, T tol, T xtol);
+    template <typename Float>
+    std::array<Array<Float>, 3> MBIR(const Array<Float> &proj,
+                                     const std::vector<Float> &angles, Float gamma,
+                                     const dims_t &recon_dims, size_t max_iter,
+                                     Float sigma, Float p, Float tol, Float xtol);
 
 } // namespace tomocam
 
