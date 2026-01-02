@@ -22,26 +22,18 @@
 #ifndef FINUFFT_PLAN_CACHE__H
 #define FINUFFT_PLAN_CACHE__H
 
-#include <string>
-#include <unordered_map>
-
 #include "finufft_plan.h"
+#include <mutex>
 
 namespace tomocam::nufft {
 
     template <typename T>
     class FinufftPlanCache {
       private:
-        std::unordered_map<std::string, FinufftPlanWrapper<T>> cache_;
-
-        std::string make_key(int type, int dim, const int64_t *n_modes) {
-            std::string key = std::to_string(type) + "_";
-            for (int i = 0; i < dim - 1; ++i) {
-                key += std::to_string(n_modes[i]) + "x";
-            }
-            key += std::to_string(n_modes[dim - 1]);
-            return key;
-        }
+        FinufftPlanWrapper<T> type1_plan_;
+        FinufftPlanWrapper<T> type2_plan_;
+        std::once_flag type1_init_flag_;
+        std::once_flag type2_init_flag_;
 
       public:
         FinufftPlanCache() = default;
@@ -54,15 +46,20 @@ namespace tomocam::nufft {
 
         FinufftPlanWrapper<T> &get_plan(int type, int dim, int64_t *n_modes,
                                         int iflag, T tol) {
-            // create a hash key from the plan parameters
-            std::string key = make_key(type, dim, n_modes);
-            auto it = cache_.find(key);
-            if (it == cache_.end()) {
-                FinufftPlanWrapper<T> plan;
-                plan.make_plan(type, dim, n_modes, iflag, tol);
-                cache_[key] = std::move(plan);
+            if (type == 1) {
+                std::call_once(type1_init_flag_, [&]() {
+                    type1_plan_.make_plan(1, dim, n_modes, iflag, tol);
+                });
+                return type1_plan_;
+            } else if (type == 2) {
+                std::call_once(type2_init_flag_, [&]() {
+                    type2_plan_.make_plan(2, dim, n_modes, iflag, tol);
+                });
+                return type2_plan_;
+            } else {
+                throw std::invalid_argument(
+                    "Only FINUFFT type 1 and 2 are supported");
             }
-            return cache_[key];
         }
     };
 
