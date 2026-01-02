@@ -101,6 +101,10 @@ namespace tomocam::nufft {
         }
 
         void set_points(const PolarGrid<T> &pg) {
+            if (!initialized) {
+                throw std::runtime_error(
+                    "FinufftPlanWrapper::set_points called before make_plan");
+            }
             T *x = (T *)pg.x.begin();
             T *y = (T *)pg.y.begin();
             T *z = (T *)pg.z.begin();
@@ -110,6 +114,10 @@ namespace tomocam::nufft {
         }
 
         int execute(std::complex<T> *cz, std::complex<T> *fz) {
+            if (!initialized) {
+                throw std::runtime_error(
+                    "FinufftPlanWrapper::execute called before make_plan");
+            }
             return Traits::execute(plan, (typename Traits::complex_type *)cz,
                                    (typename Traits::complex_type *)fz);
         }
