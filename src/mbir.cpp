@@ -71,19 +71,22 @@ namespace tomocam {
         size_t ncols = y.ncols();
         auto polar_grid = PolarGrid<T>(angles, nrows, ncols);
 
+        // backproject measurements to get yT
+        auto yT = adjoint(y, polar_grid, out_dims, gamma);
+
         // setup gradient operator
         std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
             grad = [&](const std::array<Array<T>, 3> &x) {
-                // forward projection
-                auto Ax = forward(x, polar_grid, gamma);
-                // adjoint projection
-                auto g_data = adjoint(Ax - y, polar_grid, out_dims, gamma);
+                // gradient data
+                auto g_data = gradient(x, yT, polar_grid, gamma);
+
                 // apply qggmrf penalty
                 for (size_t i = 0; i < 3; ++i) {
                     opt::qggmrf(x[i], g_data[i], sigma, p);
                 }
                 return g_data;
             };
+
         // setup loss function
         std::function<T(const std::array<Array<T>, 3> &)> loss =
             [&](const std::array<Array<T>, 3> &x) {
