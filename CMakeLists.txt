@@ -31,6 +31,17 @@ if(OpenMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif(OpenMP_FOUND)
 
+# toml++
+include(FetchContent)
+FetchContent_Declare(
+  tomlplusplus
+  GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG v3.4.0
+)
+FetchContent_MakeAvailable(tomlplusplus)
+include_directories(${tomlplusplus_SOURCE_DIR}/include)
+
+
 # tbb
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
@@ -52,6 +63,14 @@ set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
 
+# backprojection executable
+add_executable(backprojection src/backproj.cpp)
+target_link_libraries(backprojection PRIVATE tomocam)
+
+# install executables and library
+install(TARGETS recon DESTINATION bin)
+install(TARGETS backprojection DESTINATION bin)
+install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)
 if (${ENABLE_TESTS})
