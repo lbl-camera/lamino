@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         std::cerr << std::format("Usage: {} TOML input configuration\n", argv[0]);
         return 1;
     }
-    auto params = ReconParams::from_toml(argv[1]);
+    auto params = tomocam::ReconParams::from_toml(argv[1]);
 
     tomocam::Timer t0;
     t0.start();
