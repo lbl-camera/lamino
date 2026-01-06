@@ -38,9 +38,9 @@ namespace tomocam::nufft {
         using complex_type = std::complex<double>;
 
         static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
-                            int ntrans, double tol, plan_type *plan,
-                            finufft_opts *opts) {
-            return finufft_makeplan(type, dim, n_modes, iflag, ntrans, tol, plan,
+                            int ntrans, plan_type *plan, finufft_opts *opts) {
+            constexpr double TOL = 1e-14;
+            return finufft_makeplan(type, dim, n_modes, iflag, ntrans, TOL, plan,
                                     opts);
         }
 
@@ -62,9 +62,9 @@ namespace tomocam::nufft {
         using complex_type = std::complex<float>;
 
         static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
-                            int ntrans, float tol, plan_type *plan,
-                            finufft_opts *opts) {
-            return finufftf_makeplan(type, dim, n_modes, iflag, ntrans, tol, plan,
+                            int ntrans, plan_type *plan, finufft_opts *opts) {
+            constexpr float TOL = 1.2e-06f;
+            return finufftf_makeplan(type, dim, n_modes, iflag, ntrans, TOL, plan,
                                      opts);
         }
 
@@ -90,12 +90,18 @@ namespace tomocam::nufft {
       public:
         FinufftPlanWrapper() = default;
 
-        void make_plan(int type, int dim, int64_t *n_modes, int iflag, T tol) {
+        void make_plan(int type, int dim, std::array<int64_t, 3> n_modes,
+                       int iflag) {
+
+            if (dim != n_modes.size()) {
+                throw std::runtime_error("FinufftPlanWrapper::make_plan: dim does "
+                                         "not match size of n_modes");
+            }
             finufft_opts opts;
             finufft_default_opts(&opts);
             opts.upsampfac = 2.0;
             int ierr =
-                Traits::makeplan(type, dim, n_modes, iflag, 1, tol, &plan, &opts);
+                Traits::makeplan(type, dim, n_modes.data(), iflag, 1, &plan, &opts);
             if (ierr != 0) { throw std::runtime_error("Error in finufft_makeplan"); }
             initialized = true;
         }
