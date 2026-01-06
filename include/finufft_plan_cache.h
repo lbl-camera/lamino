@@ -19,11 +19,14 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef FINUFFT_PLAN_CACHE__H
-#define FINUFFT_PLAN_CACHE__H
+#ifndef FINUFFT_PLAN_CACHE_H
+#define FINUFFT_PLAN_CACHE_H
+
+#include <array>
+#include <mutex>
+#include <stdexcept>
 
 #include "finufft_plan.h"
-#include <mutex>
 
 namespace tomocam::nufft {
 
@@ -44,16 +47,16 @@ namespace tomocam::nufft {
         FinufftPlanCache(FinufftPlanCache &&) = delete;
         FinufftPlanCache &operator=(FinufftPlanCache &&) = delete;
 
-        FinufftPlanWrapper<T> &get_plan(int type, int dim, int64_t *n_modes,
-                                        int iflag, T tol) {
+        FinufftPlanWrapper<T> &get_plan(int type, int dim,
+                                        std::array<int64_t, 3> n_modes, int iflag) {
             if (type == 1) {
                 std::call_once(type1_init_flag_, [&]() {
-                    type1_plan_.make_plan(1, dim, n_modes, iflag, tol);
+                    type1_plan_.make_plan(1, dim, n_modes, iflag);
                 });
                 return type1_plan_;
             } else if (type == 2) {
                 std::call_once(type2_init_flag_, [&]() {
-                    type2_plan_.make_plan(2, dim, n_modes, iflag, tol);
+                    type2_plan_.make_plan(2, dim, n_modes, iflag);
                 });
                 return type2_plan_;
             } else {
@@ -70,4 +73,4 @@ namespace tomocam::nufft {
 
 } // namespace tomocam::nufft
 
-#endif // FINUFFT_PLAN_CACHE__H
+#endif // FINUFFT_PLAN_CACHE_H
