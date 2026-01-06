@@ -26,9 +26,12 @@
 #include "array.h"
 #include "dtypes.h"
 #include "optimize.h"
+#include "padding.h"
 #include "polar_grid.h"
 #include "projection.h"
+#include "recon_params.h"
 #include "tiff.h"
+#include "timer.h"
 #include "write_vti.h"
 
 namespace tomocam {
