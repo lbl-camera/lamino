@@ -13,12 +13,12 @@ using namespace tomocam;
 int main() {
 
     // Define random f
-    dims_t dims = {21, 511, 511};
+    dims_t dims = {21, 319, 319};
     std::array<Array<float>, 3> f;
     for (size_t i = 0; i < 3; i++) { f[i] = Array<float>::random(dims); }
 
     // Define theta
-    size_t ntheta = 141;
+    size_t ntheta = 71;
     std::vector<float> theta(ntheta, 0.0f);
     for (size_t i = 0; i < ntheta; i++) { theta[i] = (i - 70.f) * M_PI / 180.f; }
 
