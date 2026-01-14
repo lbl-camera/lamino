@@ -69,7 +69,7 @@ namespace tomocam {
         // setup polar grid
         size_t nrows = y.nrows();
         size_t ncols = y.ncols();
-        auto polar_grid = PolarGrid<T>(angles, nrows, ncols);
+        auto polar_grid = PolarGrid<T>(angles, nrows, ncols, gamma);
 
         // backproject measurements to get yT
         auto yT = adjoint(y, polar_grid, out_dims, gamma);
