@@ -58,7 +58,9 @@ namespace tomocam {
                     (*input)["filename"].value_or<std::string>("");
                 params.angles_file_path =
                     (*input)["angles"].value_or<std::string>("");
-                params.orientation = (*input)["orientation"].value_or<float>(0.0f);
+                params.orientation = (*input)["gamma"].value_or<float>(0.0f);
+                // convert to radians
+                params.orientation *= static_cast<float>(M_PI) / 180.0f;
 
                 // Validate input paths
                 if (params.input_file_path.empty()) {
