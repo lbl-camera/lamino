@@ -34,14 +34,7 @@ int main(int argc, char **argv) {
         tomocam::ReconParams::dump_config();
         return 1;
     }
-
-    std::string input_file = argv[1];
-    std::ifstream ifs(input_file);
-    if (!ifs.is_open()) {
-        std::cerr << "Error: Could not open input file " << input_file << "\n";
-        return 1;
-    }
-    auto params = tomocam::ReconParams::from_toml(input_file);
+    auto params = tomocam::ReconParams::from_toml(argv[1]);
     auto projs = tomocam::tiff::read(params.input_file_path);
 
     // read projection angles
@@ -67,7 +60,6 @@ int main(int argc, char **argv) {
 
     // log parameters
     params.print_toml(std::cout);
-    exit(1);
 
     // ensure angles are in radians
     auto max_angle = *std::max_element(angles.begin(), angles.end());
