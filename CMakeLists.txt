@@ -63,13 +63,8 @@ set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
 
-# backprojection executable
-add_executable(backprojection src/backproj.cpp)
-target_link_libraries(backprojection PRIVATE tomocam)
-
 # install executables and library
 install(TARGETS recon DESTINATION bin)
-install(TARGETS backprojection DESTINATION bin)
 install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)
