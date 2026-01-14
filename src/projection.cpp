@@ -43,6 +43,10 @@ namespace tomocam {
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
                      const PolarGrid<T> &pg, const T &gamma) {
 
+        // nomralization factor
+        auto dims = pg.dims();
+        T scale = static_cast<T>(dims.n2 * dims.n3);
+
         // initialize output array
         using complex_t = std::complex<T>;
         auto proj = Array<complex_t>::zeros(pg.dims());
@@ -63,7 +67,7 @@ namespace tomocam {
             // call NUFFT3d type-2
             nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
 
-            // add to projection scaled by gamma
+            // add to projection scaled by coeff
             for (size_t j = 0; j < pg.nprojs(); ++j) {
                 auto slice = c_cmplx.slice(j, j + 1);
                 T coeff = c_gamma[i] * c_alpha[i](pg.angles()[j]);
@@ -77,7 +81,7 @@ namespace tomocam {
         proj = fft::fftshift2(proj);
         proj = fft::ifft2(proj);
         proj = fft::ifftshift2(proj);
-        return array::to_real<T>(proj);
+        return array::to_real<T>(proj) / scale;
     }
     // Explicit instantiation forward
     template Array<float>
@@ -111,7 +115,6 @@ namespace tomocam {
         // nufft - each component separately
         std::array<Array<T>, 3> m_components;
         using complex_t = std::complex<T>;
-        T scale = static_cast<T>(proj.size());
 
         for (size_t i = 0; i < 3; ++i) {
             auto c_cmplx_copy = c_cmplx.clone();
@@ -127,7 +130,7 @@ namespace tomocam {
             // apply NUFFT for this component
             Array<complex_t> m_cmplx(recon_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = std::move(array::to_real<T>(m_cmplx) / scale);
+            m_components[i] = std::move(array::to_real<T>(m_cmplx));
         }
 
         return m_components;
