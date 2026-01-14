@@ -13,21 +13,20 @@ using namespace tomocam;
 int main() {
 
     // Define random f
-    dims_t dims = {21, 319, 319};
+    dims_t dims = {21, 319, 419};
     std::array<Array<float>, 3> f;
     for (size_t i = 0; i < 3; i++) { f[i] = Array<float>::random(dims); }
 
     // Define theta
     size_t ntheta = 71;
+    float gamma = 0.7853981634f; // pi/4
     std::vector<float> theta(ntheta, 0.0f);
     for (size_t i = 0; i < ntheta; i++) { theta[i] = (i - 70.f) * M_PI / 180.f; }
-
-    auto pg = PolarGrid(theta, dims.n2, dims.n3);
+    auto pg = PolarGrid(theta, dims.n2, dims.n3, gamma);
 
     Timer timer;
-
     // direct method
-    float gamma = 0.7853981634f; // pi/4
+    // gamma = 0.0f;                // for testing
     timer.start();
     auto fwd = forward(f, pg, gamma);
     auto grad_direct = adjoint(fwd, pg, dims, gamma);
