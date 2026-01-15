@@ -39,9 +39,10 @@ namespace tomocam::opt {
         Logger default_logger(LogMode::STDOUT);
         if (!logger) logger = &default_logger;
 
-        logger->log(std::format("NAG Optimization started: max_iters={}, lipschitz={}, "
-                                "tol={:.2e}, xtol={:.2e}\n",
-                                max_iters, lipschitz, tol, xtol));
+        logger->log(
+            std::format("NAG Optimization started: max_iters={}, lipschitz={}, "
+                        "tol={:.2e}, xtol={:.2e}\n",
+                        max_iters, lipschitz, tol, xtol));
 
         // initialize
         Array<T> xold = x.clone();
@@ -102,8 +103,8 @@ namespace tomocam::opt {
             // check convergence
             if (e < tol) {
                 logger->log(std::format(
-                    "Convergence achieved at iter {}: loss {:.6e} < tol {:.2e}\n", iter,
-                    e, tol));
+                    "Convergence achieved at iter {}: loss {:.6e} < tol {:.2e}\n",
+                    iter, e, tol));
                 break;
             }
         }
@@ -191,15 +192,13 @@ namespace tomocam::opt {
                 }
             }
             T e = loss(x);
-            logger->log(
-                std::format("Iter {:3d}: loss={:.6e}, x-error={:.6e}, step={:.6e}, "
-                            "inner_iters={}\n",
-                            iter, e, xerr, step, inner_iter_final + 1));
+            logger->log(std::format("Iter {:3d}: loss={:.6e}, x-error={:.6e}\n",
+                                    iter, e, xerr));
             // check convergence
             if (e < tol) {
                 logger->log(std::format(
-                    "Convergence achieved at iter {}: loss {:.6e} < tol {:.2e}\n", iter,
-                    e, tol));
+                    "Convergence achieved at iter {}: loss {:.6e} < tol {:.2e}\n",
+                    iter, e, tol));
                 break;
             }
         }
@@ -211,17 +210,19 @@ namespace tomocam::opt {
     // explicit template instantiation
     template Array<float> nagopt<float>(const Function<float> &,
                                         const Residual<float> &, Array<float> &,
-                                        size_t, float, float, float, size_t, Logger *);
+                                        size_t, float, float, float, size_t,
+                                        Logger *);
     template Array<double> nagopt<double>(const Function<double> &,
                                           const Residual<double> &, Array<double> &,
                                           size_t, double, double, double, size_t,
                                           Logger *);
 
-    template std::array<Array<float>, 3> nagopt<float>(
-        const std::function<
-            std::array<Array<float>, 3>(const std::array<Array<float>, 3> &)> &,
-        const std::function<float(const std::array<Array<float>, 3> &)> &,
-        std::array<Array<float>, 3> &, size_t, float, float, float, size_t, Logger *);
+    template std::array<Array<float>, 3>
+    nagopt<float>(const std::function<std::array<Array<float>, 3>(
+                      const std::array<Array<float>, 3> &)> &,
+                  const std::function<float(const std::array<Array<float>, 3> &)> &,
+                  std::array<Array<float>, 3> &, size_t, float, float, float, size_t,
+                  Logger *);
     template std::array<Array<double>, 3> nagopt<double>(
         const std::function<
             std::array<Array<double>, 3>(const std::array<Array<double>, 3> &)> &,
