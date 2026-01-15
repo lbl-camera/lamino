@@ -18,10 +18,12 @@
  *---------------------------------------------------------------------------------
  */
 
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "tomocam.h"
 
@@ -48,6 +50,11 @@ int main(int argc, char **argv) {
     float angle;
     while (fp >> angle) { angles.push_back(angle); }
     fp.close();
+    // ensure angles are in radians
+    auto max_angle = *std::max_element(angles.begin(), angles.end());
+    if (std::abs(max_angle) > 2 * M_PI) {
+        for (auto &angle : angles) { angle = angle * M_PI / 180.0f; }
+    }
 
     // find keys in json, else set default values
     float gamma = params.orientation;
@@ -61,12 +68,6 @@ int main(int argc, char **argv) {
     // log parameters
     params.print_toml(std::cout);
 
-    // ensure angles are in radians
-    auto max_angle = *std::max_element(angles.begin(), angles.end());
-    if (std::abs(max_angle) > 2 * M_PI) {
-        for (auto &angle : angles) { angle = angle * M_PI / 180.0f; }
-    }
-
     // set reconstruction dimensions
     tomocam::dims_t rec_dims = {thickness, projs.nrows(), projs.ncols()};
 
@@ -79,9 +80,11 @@ int main(int argc, char **argv) {
                              t0.seconds());
 
     // save result to tiff
-    std::array<std::string, 3> tifnames = {"recon_x.tif", "recon_y.tif",
-                                           "recon_z.tif"};
-    for (size_t i = 0; i < 3; i++) { tomocam::tiff::write(tifnames[i], recon[i]); }
-    tomocam::vti::write_vectors("recon.vti", recon);
+    auto base_dir = std::filesystem::path(params.output_file_path).parent_path();
+    if (!std::filesystem::exists(base_dir)) {
+        std::filesystem::create_directories(base_dir);
+    }
+    tomocam::tiff::write3(params.output_file_path, recon);
+    tomocam::vti::write_vectors(params.output_file_path, recon);
     return 0;
 }
