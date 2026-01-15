@@ -23,6 +23,7 @@
 
 #include <array>
 #include <cstring>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <stdexcept>
@@ -36,6 +37,10 @@ namespace tomocam::vti {
     void write_vectors(const std::string &filename,
                        const std::array<Array<T>, 3> &vectors,
                        const std::string &field_name = "magetization") {
+
+        // replace file extension with .vti
+        std::filesystem::path filepath(filename);
+        filepath.replace_extension(".vti");
 
         std::ofstream file(filename, std::ios::binary);
         if (!file) { throw std::runtime_error("Could not open file for writing"); }
