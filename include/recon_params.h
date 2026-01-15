@@ -53,58 +53,63 @@ namespace tomocam {
             }
 
             // Read [input] section
-            if (auto input = config["input"].as_table()) {
-                params.input_file_path =
-                    (*input)["filename"].value_or<std::string>("");
-                params.angles_file_path =
-                    (*input)["angles"].value_or<std::string>("");
-                params.orientation = (*input)["gamma"].value_or<float>(0.0f);
-                // convert to radians
-                params.orientation *= static_cast<float>(M_PI) / 180.0f;
+            auto input = config["input"];
+            if (!input) {
+                throw std::runtime_error("Missing [input] section in config file");
+            }
+            params.input_file_path = input["filename"].value_or<std::string>("");
+            params.angles_file_path = input["angles"].value_or<std::string>("");
+            params.orientation = input["gamma"].value_or<float>(0.0f);
+            // convert to radians
+            params.orientation *= static_cast<float>(M_PI) / 180.0f;
 
-                // Validate input paths
-                if (params.input_file_path.empty()) {
-                    throw std::runtime_error("Input filename is required");
-                }
-                if (!std::filesystem::exists(params.input_file_path)) {
-                    throw std::runtime_error("Input file does not exist: " +
-                                             params.input_file_path);
-                }
+            // Validate input paths
+            if (params.input_file_path.empty()) {
+                throw std::runtime_error("Input filename is required");
+            }
+            if (!std::filesystem::exists(params.input_file_path)) {
+                throw std::runtime_error("Input file does not exist: " +
+                                         params.input_file_path);
+            }
 
-                if (params.angles_file_path.empty()) {
-                    throw std::runtime_error("Angles filename is required");
-                }
-                if (!std::filesystem::exists(params.angles_file_path)) {
-                    throw std::runtime_error("Angles file does not exist: " +
-                                             params.angles_file_path);
-                }
+            if (params.angles_file_path.empty()) {
+                throw std::runtime_error("Angles filename is required");
+            }
+            if (!std::filesystem::exists(params.angles_file_path)) {
+                throw std::runtime_error("Angles file does not exist: " +
+                                         params.angles_file_path);
             }
 
             // Read [output] section
-            if (auto output = config["output"].as_table()) {
-                params.output_file_path =
-                    (*output)["filename"].value_or<std::string>("");
+            auto output = config["output"];
+            if (!output) {
+                throw std::runtime_error("Missing [output] section in config file");
+            }
 
-                // Validate output path
-                if (params.output_file_path.empty()) {
-                    throw std::runtime_error("Output filename is required");
-                }
-                std::filesystem::path outPath(params.output_file_path);
-                std::filesystem::path outDir = outPath.parent_path();
-                if (!outDir.empty() && !std::filesystem::exists(outDir)) {
-                    throw std::runtime_error("Output directory does not exist: " +
-                                             outDir.string());
-                }
+            params.output_file_path = output["filename"].value_or<std::string>("");
+
+            // Validate output path
+            if (params.output_file_path.empty()) {
+                throw std::runtime_error("Output filename is required");
+            }
+            std::filesystem::path outPath(params.output_file_path);
+            std::filesystem::path outDir = outPath.parent_path();
+            if (!outDir.empty() && !std::filesystem::exists(outDir)) {
+                throw std::runtime_error("Output directory does not exist: " +
+                                         outDir.string());
             }
 
             // Read [recon_params] section
-            if (auto recon = config["recon_params"].as_table()) {
-                params.maxIters = (*recon)["max_iters"].value_or<size_t>(50);
-                params.thickness = (*recon)["thickness"].value_or<size_t>(41);
-                params.sigma = (*recon)["sigma"].value_or<float>(1000.0f);
-                params.tol = (*recon)["tol"].value_or<float>(1e-5f);
-                params.xtol = (*recon)["xtol"].value_or<float>(1e-5f);
+            auto recon = config["recon_params"];
+            if (!recon) {
+                throw std::runtime_error(
+                    "Missing [recon_params] section in config file");
             }
+            params.maxIters = recon["max_iters"].value_or<size_t>(50);
+            params.thickness = recon["thickness"].value_or<size_t>(41);
+            params.sigma = recon["sigma"].value_or<float>(1000.0f);
+            params.tol = recon["tol"].value_or<float>(1e-5f);
+            params.xtol = recon["xtol"].value_or<float>(1e-5f);
 
             return params;
         }
