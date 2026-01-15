@@ -41,6 +41,9 @@ namespace tomocam {
             [](T alpha) { return -std::sin(alpha); },
             [](T alpha) { return std::cos(alpha); }};
 
+        // narmalization factor
+        T scale = static_cast<T>(grid.size() / grid.nprojs());
+
         // Step 1: Apply nufft3d2 to each component
         std::array<Array<complex_t>, 3> c_components;
         for (size_t i = 0; i < 3; ++i) {
@@ -88,7 +91,7 @@ namespace tomocam {
         for (size_t i = 0; i < 3; ++i) {
             auto out_cmplx = Array<complex_t>(x[i].dims());
             nufft::nufft3d1(result_components[i], out_cmplx, grid);
-            output[i] = array::to_real(out_cmplx);
+            output[i] = array::to_real(out_cmplx) / scale;
         }
         return output;
     }
