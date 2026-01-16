@@ -29,7 +29,6 @@ set(SRC
     src/mbir.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
-    src/recon.cpp
    )
 #if (${USE_GPU})
 #  list(APPEND SRC src/gpu/polar_grid.cu)
@@ -44,7 +43,6 @@ endif(OpenMP_FOUND)
 # tbb
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS CXX)
 find_package(TIFF REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
@@ -61,6 +59,7 @@ set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
 # recon executable
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
+target_link_libraries(recon PRIVATE nlohmann_json::nlohmann_json)
 
 
 option(ENABLE_TESTS "Enable tests" OFF)
