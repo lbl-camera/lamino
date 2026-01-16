@@ -116,12 +116,12 @@ namespace tomocam {
         }
 
         for (size_t i = 0; i < arr.nslices(); i++) {
-            Slice<T> in = arr.slice(i);
-            Slice<T> out = arr2.slice(i);
+            Slice<T> in = arr.slice(i, i + 1);
+            Slice<T> out = arr2.slice(i, i + 1);
             for (size_t j = 0; j < arr.nrows(); j++) {
-                std::copy(in.ptr + j * arr.ncols(),
-                          in.ptr + j * arr.ncols() + arr.ncols(),
-                          out.ptr + (j + d1) * arr2.ncols() + d2);
+                std::copy(in.begin() + j * arr.ncols(),
+                          in.begin() + j * arr.ncols() + arr.ncols(),
+                          out.begin() + (j + d1) * arr2.ncols() + d2);
             }
         }
         return arr2;
@@ -148,12 +148,12 @@ namespace tomocam {
         }
 
         for (size_t i = 0; i < new_dims.n1; i++) {
-            Slice<T> in = arr.slice(i);
-            Slice<T> out = arr2.slice(i);
+            Slice<T> in = arr.slice(i, i + 1);
+            Slice<T> out = arr2.slice(i, i + 1);
             for (size_t j = 0; j < new_dims.n2; j++) {
-                std::copy(in.ptr + (j + d1) * arr.ncols() + d2,
-                          in.ptr + (j + d1) * arr.ncols() + d2 + new_dims.n3,
-                          out.ptr + j * arr2.ncols());
+                std::copy(in.begin() + (j + d1) * arr.ncols() + d2,
+                          in.begin() + (j + d1) * arr.ncols() + d2 + new_dims.n3,
+                          out.begin() + j * arr2.ncols());
             }
         }
         return arr2;
@@ -186,12 +186,12 @@ namespace tomocam {
             d = pad_size;
         }
         for (size_t i = 0; i < arr.nslices(); i++) {
-            Slice<T> in = arr.slice(i);
-            Slice<T> out = arr2.slice(d.n1 + i);
+            Slice<T> in = arr.slice(i, i + 1);
+            Slice<T> out = arr2.slice(d.n1 + i, d.n1 + i + 1);
             for (size_t j = 0; j < arr.nrows(); j++) {
-                std::copy(in.ptr + j * arr.ncols(),
-                          in.ptr + j * arr.ncols() + arr.ncols(),
-                          out.ptr + (j + d.n2) * arr2.ncols() + d.n3);
+                std::copy(in.begin() + j * arr.ncols(),
+                          in.begin() + j * arr.ncols() + arr.ncols(),
+                          out.begin() + (j + d.n2) * arr2.ncols() + d.n3);
             }
         }
         return arr2;
@@ -212,12 +212,12 @@ namespace tomocam {
             d = crop_size;
 
         for (size_t i = 0; i < new_dims.n1; i++) {
-            Slice<T> in = arr.slice(i + d.n1);
-            Slice<T> out = arr2.slice(i);
+            Slice<T> in = arr.slice(i + d.n1, i + d.n1 + 1);
+            Slice<T> out = arr2.slice(i, i + 1);
             for (size_t j = 0; j < new_dims.n2; j++) {
-                std::copy(in.ptr + (j + d.n2) * arr.ncols() + d.n3,
-                          in.ptr + (j + d.n2) * arr.ncols() + d.n3 + new_dims.n3,
-                          out.ptr + j * arr2.ncols());
+                std::copy(in.begin() + (j + d.n2) * arr.ncols() + d.n3,
+                          in.begin() + (j + d.n2) * arr.ncols() + d.n3 + new_dims.n3,
+                          out.begin() + j * arr2.ncols());
             }
         }
         return arr2;

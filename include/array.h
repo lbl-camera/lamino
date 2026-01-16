@@ -32,30 +32,9 @@
 #include <type_traits>
 
 #include "dtypes.h"
+#include "slice.h"
 
 namespace tomocam {
-
-    // a non-owning view into a 3D array
-    template <typename T>
-    struct Slice {
-        std::array<size_t, 2> dims; // nrows, ncols
-        T *ptr;
-
-        /// methods
-        size_t size() const { return dims[0] * dims[1]; }
-        // iterators
-        T *begin() { return ptr; }
-        const T *begin() const { return ptr; }
-        T *end() { return ptr + (dims[0] * dims[1]); }
-        const T *end() const { return ptr + (dims[0] * dims[1]); }
-        // indexing
-        T &operator[](std::array<size_t, 2> idx) {
-            return ptr[idx[0] * dims[1] + idx[1]];
-        }
-        const T &operator[](std::array<size_t, 2> idx) const {
-            return ptr[idx[0] * dims[1] + idx[1]];
-        }
-    };
 
     template <typename T>
     class Array {
@@ -129,17 +108,16 @@ namespace tomocam {
 #endif
 
         // get contiguous view to part or whole array
-        Slice<T> slice(size_t i) {
-            size_t nrows = dims_.n2;
-            size_t ncols = dims_.n3;
-            T *ptr = ptr_.get() + (i * dims_.n2 * dims_.n3);
-            return Slice<T>{{nrows, ncols}, ptr};
+        Slice<T> slice(size_t begin, size_t end) {
+            dims_t d{end - begin, dims_.n2, dims_.n3};
+            T *ptr = ptr_.get() + (begin * dims_.n2 * dims_.n3);
+            return Slice<T>(ptr, d);
         }
-        const Slice<T> slice(size_t i) const {
-            size_t nrows = dims_.n2;
-            size_t ncols = dims_.n3;
-            T *ptr = ptr_.get() + (i * dims_.n2 * dims_.n3);
-            return Slice<T>{{nrows, ncols}, ptr};
+
+        const Slice<T> slice(size_t begin, size_t end) const {
+            dims_t d{end - begin, dims_.n2, dims_.n3};
+            T *ptr = ptr_.get() + (begin * dims_.n2 * dims_.n3);
+            return Slice<T>(ptr, d);
         }
 
         // multiplication operators
@@ -223,20 +201,20 @@ namespace tomocam {
         }
 
         // factory methods
-        static Array<T> zeros_like(const Array<T> &ref) {
-            Array<T> rv(ref.dims());
+        static Array<T> zeros(const dims_t &d) {
+            Array<T> rv(d);
             std::fill(std::execution::par_unseq, rv.begin(), rv.end(), T(0));
             return rv;
         }
         //  new array filled with value v
-        static Array<T> like(const Array<T> &ref, T v) {
-            Array<T> rv(ref.dims());
-            std::fill(std::execution::par_unseq, rv.begin(), rv.end(), v);
+        static Array<T> ones(const dims_t &d) {
+            Array<T> rv(d);
+            std::fill(std::execution::par_unseq, rv.begin(), rv.end(), T(1));
             return rv;
         }
         // new array with random values
-        static Array<T> random_like(const Array<T> &ref) {
-            Array<T> rv(ref.dims());
+        static Array<T> random(const dims_t &d) {
+            Array<T> rv(d);
             std::random_device rd;
             std::mt19937 gen(rd());
             if constexpr (std::is_floating_point<T>::value) {
@@ -245,7 +223,7 @@ namespace tomocam {
                               [&]() { return dis(gen); });
             } else {
                 static_assert(std::is_floating_point<T>::value,
-                              "Unsupported type for random_like");
+                              "Unsupported type for random");
             }
             return rv;
         }

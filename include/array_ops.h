@@ -27,7 +27,7 @@
 #include "array.h"
 
 #ifndef ARRAY_OPS__H
-    #define ARRAY_OPS__H
+#define ARRAY_OPS__H
 
 namespace tomocam::array {
 
@@ -47,6 +47,14 @@ namespace tomocam::array {
         Array<Real_t> b(a.dims());
         std::transform(std::execution::par_unseq, a.begin(), a.end(), b.begin(),
                        [](std::complex<Real_t> x) { return x.real(); });
+        return b;
+    }
+
+    template <typename T>
+    Array<T> abs(const Array<T> &a) {
+        Array<T> b(a.dims());
+        std::transform(std::execution::par_unseq, a.begin(), a.end(), b.begin(),
+                       [](T x) { return std::abs(x); });
         return b;
     }
 

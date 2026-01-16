@@ -22,6 +22,10 @@
 #include "array_ops.h"
 #include "tomocam.h"
 
+/* TODO:
+ * implement finite difference for Bregman TV
+ * implment CG solver for the linear system
+ */
 namespace tomocam::opt {
 
     template <typename T>
@@ -46,8 +50,8 @@ namespace tomocam::opt {
                            size_t inner_max, T tol) {
 
         Array<T> x = yT.clone();
-        Array<T> d = Array<T>::zeros_like(x);
-        Array<T> b = Array<T>::zeros_like(x);
+        Array<T> d = Array<T>::zeros(x.dims());
+        Array<T> b = Array<T>::zeros(x.dims());
 
         for (int iter = 0; iter < outer_max; ++iter) {
 

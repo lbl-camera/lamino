@@ -26,115 +26,94 @@
 #include "array.h"
 #include "dtypes.h"
 #include "optimize.h"
+#include "padding.h"
 #include "polar_grid.h"
+#include "projection.h"
+#include "recon_params.h"
 #include "tiff.h"
+#include "timer.h"
+#include "write_vti.h"
 
 namespace tomocam {
-    /**
-     * @brief Performs a forward projection of 3D volume data onto a polar grid.
-     * @param volume The input 3D volume data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param gamma orientation of the polar grid (default is 0).
-     * @return The projected data as an Array.
-     */
+    /// Restrict T to floating-point types
     template <typename T>
-    Array<T> forward(const Array<T> &volume, const PolarGrid<T> &grid,
-                     T gamma = T(0));
+    concept Float = std::is_floating_point<T>::value;
 
-    /**
-     * @brief Performs a backward projection from polar grid data to reconstruct a 3D
-     * volume.
-     * @param projections The input polar grid data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param dims The dimensions of the output volume.
-     * @param gamma orientation of the polar grid (ALS specific)
-     * @param boolean filter Whether to apply filtering
-     * @param filter_type The type of filter to apply
-     * @return The backprojected polar data as an Array
-     */
-    template <typename T>
-    Array<T> backward(const Array<T> &projections, const PolarGrid<T> &grid,
-                      const dims_t &dims, T gamma, bool filter,
-                      const std::string &filter_type);
-
-    /**
-     * @brief Adjoint of the Radon operator for polar grid data.
-     * @param projections The input polar grid data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param dims The dimensions of the output volume.
-     * @param gamma orientation of the polar grid (default is 0).
-     * @return The adjoint projected data as an Array.
-     */
-    template <typename T>
-    Array<T> backproj(const Array<T> &projections, const PolarGrid<T> &grid,
-                      const dims_t &dims, T gamma = T(0)) {
-        std::string filter_type = "";
-        return backward(projections, grid, dims, gamma, false, filter_type);
-    }
-    /**
-     * @brief Filtered-backprojection of polar grid data to reconstruct a 3D volume.
-     * @param projections The input polar grid data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param dims The dimensions of the output volume.
-     * @param gamma orientation of the polar grid (default is 0).
-     * @pram filter_type The type of filter to apply (default is "ram-lak").
-     * @return The reconstructed volume data as an Array.
-     */
-    template <typename T>
-    Array<T> fbp(const Array<T> &projections, const PolarGrid<T> &grid,
-                 const dims_t &dims, const std::string &filter_type = "ramp",
-                 T gamma = T(0)) {
-        return backward(projections, grid, dims, gamma, true, filter_type);
-    }
-    /**
-     * @brief Function equivalent of system matrix y = A*x
-     * @param x Input volume data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @return The equivalent of A^T(A*x) result as an Array.
-     */
-    template <typename T>
-    Array<T> sysmat(const Array<T> &x, const PolarGrid<T> &grid);
+    template <typename Float>
+    Array<Float> sysmat(const std::array<Array<Float>, 3> &x,
+                        const PolarGrid<Float> &grid);
 
     /**
      * @brief Computes the gradient of the objective function for iterative
      * reconstruction.
-     * @param x Current estimate of the volume data as an Array.
-     * @param b backprojection data as an Array.
+     *
+     * @param m Current estimate of the 3-d vector field
+     * @param pT backprojection data as an Array.
      * @param grid The polar grid defining the projection geometry.
+     * @param gamma Sample orientation in plane normal to beam direction.
      * @return The gradient as an Array.
      */
-    template <typename T>
-    Array<T> gradient(const Array<T> &x, const Array<T> &b,
-                      const PolarGrid<T> &grid);
+    template <typename Float>
+    std::array<Array<Float>, 3> gradient(const std::array<Array<Float>, 3> &m,
+                                         const std::array<Array<Float>, 3> &pT,
+                                         const PolarGrid<Float> &grid, Float gamma);
 
     /**
      * @brief Computes the residual between the projected data and the measured data.
-     * @param x Current estimate of the volume data as an Array.
-     * @param b backprojection data as an Array.
+     *
+     * @param m Current estimate of the 3-d vector field
+     * @param pT backprojected data as split into its components.
      * @param grid The polar grid defining the projection geometry.
-     * @param yTy Precomputed inner product of the measured data.
+     * @param pTp Precomputed inner product of the measured data.
+     * @param gamma Sample orientation in plane normal to beam direction.
      * @return The computed residual as a scalar value of type T.
      */
-    template <typename T>
-    T residual(const Array<T> &x, const Array<T> &b, const PolarGrid<T> &grid,
-               T yTy);
+    template <typename Float>
+    Float residual(const std::array<Array<Float>, 3> &m,
+                   const std::array<Array<Float>, 3> &pT,
+                   const PolarGrid<Float> &grid, Float pTp, Float gamma);
 
     /**
-     * @brief Performs Model-Based Iterative Reconstruction (MBIR) of volume data.
-     * @param projections The input projection data as an Array.
-     * @param theta std::vector containing the projection angles.
-     * @param recon_dims Dimensions of the output reconstructed volume.
-     * @param max_iter Maximum number of iterations for the optimization.
-     * @param sigma Parameter for the QGGMRF penalty function.
-     * @param p Parameter for the QGGMRF penalty function.
-     * @param tol Tolerance for convergence based on the residual.
-     * @param xtol Tolerance for convergence based on the change in the solution.
-     * @return The reconstructed volume data as an Array.
+     * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
+     * tomographic imaging.
+     *
+     * Reconstructs 3D volumetric data from projection images using a regularized
+     * optimization approach with QGGMRF (q-Generalized Gaussian Markov Random Field)
+     * penalty. The algorithm operates in a padded domain (sqrt(2) factor) to avoid
+     * aliasing artifacts during backprojection, then crops the result to the desired
+     * dimensions. The reconstruction uses Nesterov's Accelerated Gradient (NAG)
+     * method for optimization.
+     *
+     * The QGGMRF penalty provides edge-preserving regularization, with the parameter
+     * p controlling the degree of edge preservation.
+     *
+     * @tparam T Floating-point type (float or double).
+     * @param proj Input projection data as an Array containing measurements from
+     * multiple viewing angles.
+     * @param angles Vector of projection angles corresponding to each projection in
+     * radians (or degrees depending on convention).
+     * @param gamma Laminography angle parameter controlling the tilt geometry of the
+     * imaging system. For standard tomography, gamma = 0.
+     * @param recon_dims Desired output dimensions (n1, n2, n3) for the reconstructed
+     * volume. The algorithm internally uses padded dimensions.
+     * @param max_iter Maximum number of NAG optimization iterations.
+     * @param sigma Regularization strength parameter for QGGMRF penalty. Larger
+     * values increase smoothing (default is 1000).
+     * @param p Power parameter for QGGMRF penalty controlling edge preservation
+     * characteristics (default is 1.2).
+     * @param tol Convergence tolerance for the loss function (residual norm).
+     * Algorithm stops if relative change in loss falls below this threshold.
+     * @param xtol Convergence tolerance for solution updates. Algorithm stops if
+     * relative change in reconstruction falls below this threshold.
+     a @return std::array<Array<T>, 3> containing three reconstructed volumes
+     * representing the three spatial components of magnetization or multi-channel
+     * data. Each component is an Array with dimensions specified by recon_dims.
      */
-    template <typename T>
-    Array<T> MBIR(const Array<T> &projections, const std::vector<T> &theta,
-                  const dims_t &recon_dims, size_t max_iter, T sigma, T p, T tol,
-                  T xtol);
+    template <typename Float>
+    std::array<Array<Float>, 3> MBIR(const Array<Float> &proj,
+                                     const std::vector<Float> &angles, Float gamma,
+                                     const dims_t &recon_dims, size_t max_iter,
+                                     Float sigma, Float p, Float tol, Float xtol);
 
 } // namespace tomocam
 

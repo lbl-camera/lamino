@@ -4,12 +4,6 @@ cmake_minimum_required(VERSION 3.20)
 project(Testbed CXX)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-# Add cuda
-option(USE_GPU "Use GPU Acceleration" TRUE)
-if (${USE_GPU})
-  enable_language(CUDA)
-endif()
-
 # C++ std
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,20 +19,27 @@ set(SRC
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/lipschitz.cpp
     src/mbir.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
    )
-#if (${USE_GPU})
-#  list(APPEND SRC src/gpu/polar_grid.cu)
-#endif()
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 find_package(OpenMP)
 if(OpenMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif(OpenMP_FOUND)
+
+# toml++
+include(FetchContent)
+FetchContent_Declare(
+  tomlplusplus
+  GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG v3.4.0
+)
+FetchContent_MakeAvailable(tomlplusplus)
+include_directories(${tomlplusplus_SOURCE_DIR}/include)
+
 
 # tbb
 find_package(TBB REQUIRED)
@@ -61,6 +62,9 @@ add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
 target_link_libraries(recon PRIVATE nlohmann_json::nlohmann_json)
 
+# install executables and library
+install(TARGETS recon DESTINATION bin)
+install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)
 if (${ENABLE_TESTS})
