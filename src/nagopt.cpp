@@ -32,7 +32,8 @@
 
 namespace tomocam::opt {
     template <typename T>
-    Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
+    Array<T> nagopt(const std::function<Array<T>(const Array<T> &)> &grad,
+                    const std::function<T(const Array<T> &)> &loss, Array<T> &x,
                     size_t max_iters, T lipschitz, T tol, T xtol,
                     size_t max_inner_iters, Logger *logger) {
 
@@ -208,14 +209,15 @@ namespace tomocam::opt {
     }
 
     // explicit template instantiation
-    template Array<float> nagopt<float>(const Function<float> &,
-                                        const Residual<float> &, Array<float> &,
-                                        size_t, float, float, float, size_t,
-                                        Logger *);
-    template Array<double> nagopt<double>(const Function<double> &,
-                                          const Residual<double> &, Array<double> &,
-                                          size_t, double, double, double, size_t,
-                                          Logger *);
+    template Array<float>
+    nagopt<float>(const std::function<Array<float>(const Array<float> &)> &,
+                  const std::function<float(const Array<float> &)> &, Array<float> &,
+                  size_t, float, float, float, size_t, Logger *);
+    template Array<double>
+    nagopt<double>(const std::function<Array<double>(const Array<double> &)> &,
+                   const std::function<double(const Array<double> &)> &,
+                   Array<double> &, size_t, double, double, double, size_t,
+                   Logger *);
 
     template std::array<Array<float>, 3>
     nagopt<float>(const std::function<std::array<Array<float>, 3>(
