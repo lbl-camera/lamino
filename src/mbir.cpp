@@ -104,15 +104,6 @@ namespace tomocam {
             L = std::max(L, array::max(array::abs(gtmp[i])));
         }
 
-        // normalize yT with max value
-        /*
-        T max_yT = 1e-10;
-        for (size_t i = 0; i < 3; ++i) {
-            T mx_yT = array::max(array::abs(yT[i]));
-            if (mx_yT > max_yT) { max_yT = mx_yT; }
-        }
-        */
-
         // initial guess
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::ones(out_dims) * 0.9; }
