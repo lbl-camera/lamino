@@ -35,6 +35,10 @@
                 "ENABLE_TESTS": {
                     "type": "BOOL",
                     "value": "ON"
+                },
+                "USE_CUDA": {
+                    "type": "BOOL",
+                    "value": "ON"
                 }
             },
             "condition": {
