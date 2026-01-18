@@ -18,51 +18,63 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef NUFFT__H
-#define NUFFT__H
+#ifndef GPU_NUFFT_H
+#define GPU_NUFFT_H
 
 #include <cmath>
-#include <complex>
+#include <cuda/std/complex>
 #include <vector>
 
 #include "array.h"
+#include "cufinufft_plan.h"
+#include "cufinufft_plan_cache.h"
 #include "dtypes.h"
-#include "finufft_plan.h"
-#include "finufft_plan_cache.h"
 #include "polar_grid.h"
 
 namespace tomocam::nufft {
 
-    // 3D Type-1 NUFFT: nonuniform points to uniform grid
+    // 3D Type-1 NUFFT (GPU): nonuniform points to uniform grid
     template <typename T>
-    void nufft3d1(const Array<std::complex<T>> &cz, Array<std::complex<T>> &fz,
-                  const PolarGrid<T> &pg) {
+    void gpu_nufft3d1(const Array<std::complex<T>> &cz, Array<std::complex<T>> &fz,
+                      const PolarGrid<T> &pg) {
+
+        using complex_t = cuda::std::complex<T>;
 
         std::array<int64_t, 3> n_modes = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                                           (int64_t)fz.nslices()};
-        auto &plan = plans::cache<T>.get_plan(1, 3, n_modes, 1);
+        auto &plan = plans::cu_cache<T>.get_plan(1, 3, n_modes, 1);
         plan.set_points(pg);
+
+        // input array on device
+        DeviceArray<complex_t> d_cz(cz.dims());
+        gpu::copy_to_device(d_cz.begin(), cz.begin(), cz.bytes());
+
+        // output array on device
+        DeviceArray<complex_t> d_fz(fz.dims());
 
         int ierr = plan.execute((std::complex<T> *)cz.begin(),
                                 (std::complex<T> *)fz.begin());
-        if (ierr != 0) { throw std::runtime_error("Error in finufft_execute"); }
+        // copy
+        gpu::copy_to_host(fz.begin(), d_fz.begin(), fz.bytes());
+
+        if (ierr != 0) { throw std::runtime_error("Error in cufinufft_execute"); }
     }
 
-    // 3D Type-2 NUFFT: uniform grid to nonuniform points
+    // 3D Type-2 NUFFT (GPU): uniform grid to nonuniform points
     template <typename T>
-    void nufft3d2(Array<std::complex<T>> &cz, const Array<std::complex<T>> &fz,
-                  const PolarGrid<T> &pg) {
+    void gpu_nufft3d2(Array<std::complex<T>> &cz, const Array<std::complex<T>> &fz,
+                      const PolarGrid<T> &pg) {
 
         std::array<int64_t, 3> n_modes = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                                           (int64_t)fz.nslices()};
-        auto &plan = plans::cache<T>.get_plan(2, 3, n_modes, -1);
+        auto &plan = plans::cu_cache<T>.get_plan(2, 3, n_modes, -1);
         plan.set_points(pg);
 
         int ierr = plan.execute((std::complex<T> *)cz.begin(),
                                 (std::complex<T> *)fz.begin());
-        if (ierr != 0) { throw std::runtime_error("Error in finufft_execute"); }
+        if (ierr != 0) { throw std::runtime_error("Error in cufinufft_execute"); }
     }
 
 } // namespace tomocam::nufft
 
-#endif // NUFFT__H
+#endif // GPU_NUFFT__H

@@ -6,7 +6,7 @@
             "displayName": "MacOS",
             "description": "Debug build with debug symbols for MacOS",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/debug",
+            "binaryDir": "${sourceDir}/build/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
@@ -28,7 +28,7 @@
             "displayName": "Yoneda",
             "description": "Debug build with debug symbols for Arch Linux",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/debug",
+            "binaryDir": "${sourceDir}/build/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
@@ -48,7 +48,7 @@
             "displayName": "Yoneda Release",
             "description": "Release build for Arch Linux",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/release",
+            "binaryDir": "${sourceDir}/build/release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
@@ -68,8 +68,7 @@
     "buildPresets": [
         {
             "name": "macos",
-            "configurePreset": "macos",
-            "cleanFirst": false
+            "configurePreset": "macos"
         },
         {
             "name": "arch",

@@ -31,10 +31,13 @@
 namespace tomocam::opt {
 
     template <typename T>
-    using Function = std::function<Array<T>(const Array<T> &)>;
+    using VecArray = std::array<Array<T>, 3>;
 
     template <typename T>
-    using Residual = std::function<T(const Array<T> &)>;
+    using Function = std::function<VecArray<T>(const VecArray<T> &)>;
+
+    template <typename T>
+    using Residual = std::function<T(const VecArray<T> &)>;
 
     /** TODO: implement Split Bregman method for L1-regularized optimization problems
      * @brief Split Bregman method for L1-regularized optimization problems
@@ -58,14 +61,14 @@ namespace tomocam::opt {
      * @brief Conjugate Gradient Solver for linear systems
      * @param A Function representing the system matrix
      * @param y Right-hand side vector
-     * @param x Initial guess for the solution
+     * @param x0 Initial guess for the solution
      * @param max_iter Maximum number of iterations
      * @param tol Tolerance for convergence
      * @return Approximate solution vector
      */
     template <typename T>
-    Array<T> cgsolver(const Function<T> &A, const Array<T> &y, const Array<T> &x,
-                      size_t max_iter, T tol);
+    VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &y,
+                         const VecArray<T> &x0, size_t max_iter, T tol);
 
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term
@@ -83,11 +86,11 @@ namespace tomocam::opt {
     template <typename T>
     Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
                     size_t max_iters, T lipschitz, T tol, T xtol,
-                    size_t max_inner_iters = 20,
-                    Logger *logger = nullptr);
+                    size_t max_inner_iters = 20, Logger *logger = nullptr);
 
     /**
-     * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector version)
+     * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
+     * version)
      * @param grad Gradient function for vector reconstruction
      * @param loss Loss function for vector reconstruction
      * @param x Initial solution (array of 3 components)
@@ -101,12 +104,11 @@ namespace tomocam::opt {
      */
     template <typename T>
     std::array<Array<T>, 3> nagopt(
-        const std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)> &grad,
+        const std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
+            &grad,
         const std::function<T(const std::array<Array<T>, 3> &)> &loss,
-        std::array<Array<T>, 3> &x,
-        size_t max_iters, T lipschitz, T tol, T xtol,
-        size_t max_inner_iters = 20,
-        Logger *logger = nullptr);
+        std::array<Array<T>, 3> &x, size_t max_iters, T lipschitz, T tol, T xtol,
+        size_t max_inner_iters = 20, Logger *logger = nullptr);
 
     /**
      * @brief Estimate the Lipschitz constant of a gradient function using the power

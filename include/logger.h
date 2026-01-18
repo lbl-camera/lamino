@@ -18,8 +18,8 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef LOGGER__H
-#define LOGGER__H
+#ifndef LOGGER_H
+#define LOGGER_H
 
 #include <fstream>
 #include <iostream>
@@ -69,4 +69,4 @@ namespace tomocam {
 
 } // namespace tomocam
 
-#endif // LOGGER__H
+#endif // LOGGER_H

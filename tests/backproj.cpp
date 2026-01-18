@@ -2,58 +2,35 @@
 #include <format>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <ostream>
 #include <string>
-using json = nlohmann::json;
+#include <toml++/toml.hpp>
 
-#include "padding.h"
-#include "polar_grid.h"
-#include "tiff.h"
-#include "timer.h"
 #include "tomocam.h"
 
 constexpr double PADDING = 1.4142;
 
-void usage(char **argv) {
-    std::cout << "Usage: " << argv[0] << " JSON input configuration" << std::endl;
-    exit(0);
-}
-
 int main(int argc, char **argv) {
 
     // sanity check
-    if (argc < 2) usage(argv);
-
-    // read data
-    std::ifstream json_file(argv[1]);
-    if (!json_file.is_open()) {
-        std::cerr << std::format("Usage: {} JSON input configuration\n", argv[0]);
+    if (argc < 2) {
+        std::cerr << std::format("Usage: {} TOML input configuration\n", argv[0]);
         return 1;
     }
 
-    // get input data
-    json config = json::parse(json_file);
-    std::string filename = config["filename"];
-    std::string angles = config["angles"];
-    std::string output = config["output"];
-    float gamma = config["gamma"];
-    size_t thickness = config["thickness"];
-    json_file.close();
+    auto params = tomocam::ReconParams::from_toml(argv[1]);
+    params.print_toml(std::cout);
 
     tomocam::Timer t0;
     t0.start();
-    auto projs = tomocam::tiff::read(filename);
+    auto projs = tomocam::tiff::read(params.input_file_path);
     t0.stop();
-    std::cerr << std::format("Time to read data: {}(s)\n", t0.seconds());
-    std::cerr << std::format("Projections size: ({}, {})\n", projs.nrows(),
-                             projs.ncols());
-    std::cerr << std::format("No. of projections: {}\n", projs.nslices());
 
     std::vector<float> theta;
-    std::ifstream angles_file(angles);
+    std::ifstream angles_file(params.angles_file_path);
     if (!angles_file.is_open()) {
-        std::cerr << std::format("Could not open angles file: {}\n", angles);
+        std::cerr << std::format("Could not open angles file: {}\n",
+                                 params.angles_file_path);
         return 1;
     }
     float angle;
@@ -61,35 +38,36 @@ int main(int argc, char **argv) {
     angles_file.close();
     // convert degrees to radians
     for (auto &a : theta) { a = a * M_PI / 180.0f; }
-    std::cerr << std::format("Number of angles: {}\n", theta.size());
 
     // out dims
+    auto thickness = params.thickness;
+    auto gamma = params.orientation;
     tomocam::dims_t out_dims = {thickness, projs.nrows(), projs.ncols()};
 
     // padd projections
     t0.start();
     auto projs2 = tomocam::pad2d<float>(projs, PADDING, tomocam::PadType::SYMMETRIC);
     t0.stop();
-    std::cerr << std::format("Time to pad projections: {}(s)\n", t0.seconds());
-    std::cerr << std::format("Padded projections size: ({}, {})\n", projs2.ncols(),
-                             projs2.nrows());
+    std::cout << std::format("Padded projections to size: {} x {}\n", projs2.nrows(),
+                             projs2.ncols());
+    std::cout << std::format("Time elapsed for padding: {:.3f} s\n", t0.seconds());
 
     // create a polar grid
     t0.start();
     auto nrows = projs2.nrows();
     auto ncols = projs2.ncols();
-    tomocam::PolarGrid<float> pgrid(theta, nrows, ncols);
+    tomocam::PolarGrid<float> pgrid(theta, nrows, ncols, gamma);
     t0.stop();
-    std::cerr << std::format("Polar grid size: ({}, {})\n", nrows, ncols);
+    std::cout << std::format("Time elapsed for creating polar grid: {:.3f} s\n",
+                             t0.seconds());
 
     // do the forward projection
     tomocam::dims_t dims = {thickness, nrows, ncols};
-    std::cerr << std::format("Backprojecting to size: ({}, {}, {})\n", dims.n1,
-                             dims.n2, dims.n3);
     t0.start();
     auto img = tomocam::adjoint(projs2, pgrid, dims, gamma);
     t0.stop();
-    std::cerr << std::format("Time to backproject: {}(s)\n", t0.seconds());
+    std::cout << std::format("Time elapsed for backprojection: {:.3f} s\n",
+                             t0.seconds());
 
     // crop to original size
     t0.start();
@@ -100,13 +78,15 @@ int main(int argc, char **argv) {
             tomocam::crop3d<float>(img[i], out_dims, tomocam::PadType::SYMMETRIC);
     }
     t0.stop();
-    std::cerr << std::format("Time to crop images: {}(s)\n", t0.seconds());
+    std::cout << std::format("Time elapsed for cropping: {:.3f} s\n", t0.seconds());
 
     // write output
+    auto output = params.output_file_path;
     t0.start();
     tomocam::tiff::write3<float>(output, crop_imgs);
     t0.stop();
-    std::cerr << std::format("Time to write output: {}(s)\n", t0.seconds());
+    std::cout << std::format("Time elapsed for writing output: {:.3f} s\n",
+                             t0.seconds());
 
     return 0;
 }

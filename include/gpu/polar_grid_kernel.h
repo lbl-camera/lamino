@@ -1,5 +1,4 @@
-#!/bin/bash
-header="/* -------------------------------------------------------------------------------
+/* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
  * The Regents of the University of California, through Lawrence Berkeley
@@ -18,17 +17,18 @@ header="/* ---------------------------------------------------------------------
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- "
+#ifndef TOMOCAM_GPU_POLAR_GRID_KERNELS_H
+#define TOMOCAM_GPU_POLAR_GRID_KERNELS_H
 
-copyright='Tomocam Copyright (c) 2018'
+#include "gpu/device_array.h"
+#include <vector>
 
-# find .cpp, .h, .cu, and .cuh files in src directory
-files=$(find ./src ./include -type f -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.cu" -o -name "*.cuh")
-for file in $files; do
-    if ! grep -q "$copyright" $file; then
-        echo "Adding license to file $file"
-        echo "$header" > $file.new
-        cat $file >> $file.new
-        mv $file.new $file
-    fi
-done
+namespace tomocam::gpu {
+
+    template <typename T>
+    void calc_polar_grid(DeviceArray<T> &x, DeviceArray<T> &y, DeviceArray<T> &z,
+                         std::vector<T> &angles, T gamma);
+
+} // namespace tomocam::gpu
+
+#endif // TOMOCAM_GPU_POLAR_GRID_KERNELS_H

@@ -33,7 +33,6 @@ namespace tomocam {
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
                                    const PolarGrid<T> &grid, T gamma) {
         using complex_t = std::complex<T>;
-        T scale = static_cast<T>(grid.x.nslices() * grid.x.ncols());
 
         // Coefficient arrays
         std::array<T, 3> c_gamma = {std::cos(gamma), std::sin(gamma), 1.0};
@@ -41,6 +40,9 @@ namespace tomocam {
             [](T alpha) { return std::sin(alpha); },
             [](T alpha) { return -std::sin(alpha); },
             [](T alpha) { return std::cos(alpha); }};
+
+        // narmalization factor
+        T scale = static_cast<T>(grid.size() / grid.nprojs());
 
         // Step 1: Apply nufft3d2 to each component
         std::array<Array<complex_t>, 3> c_components;
@@ -91,7 +93,6 @@ namespace tomocam {
             nufft::nufft3d1(result_components[i], out_cmplx, grid);
             output[i] = array::to_real(out_cmplx) / scale;
         }
-
         return output;
     }
     // Explicit instantiations
@@ -122,19 +123,15 @@ namespace tomocam {
     // Compute residual ||R^T R f - yT||^2
     template <typename T>
     T residual(const std::array<Array<T>, 3> &f, const std::array<Array<T>, 3> &yT,
-               const PolarGrid<T> &grid, T gamma, T yTy) {
+               const PolarGrid<T> &grid, T yTy, T gamma) {
         auto AAx = sysmat(f, grid, gamma);
-        T xAAx = 0.0;
-        T yTx = 0.0;
+        T err = T(0);
         for (size_t i = 0; i < 3; ++i) {
-            xAAx += array::dot(f[i], AAx[i]);
-            yTx += array::dot(f[i], yT[i]);
+            auto xAAx = array::dot(f[i], AAx[i]);
+            auto yTx = array::dot(f[i], yT[i]);
+            err += std::sqrt(xAAx - 2.0 * yTx + yTy);
         }
-#ifdef DEBUG
-        std::cout << std::format("residual: xAAx = {}, yTx = {}, yTy = {}\n", xAAx,
-                                 yTx, yTy);
-#endif
-        return xAAx - 2.0 * yTx + yTy;
+        return err;
     }
 
     // Explicit instantiations
