@@ -18,96 +18,115 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef TOMOCAM_DEV_ARRAY__H
-#define TOMOCAM_DEV_ARRAY__H
+#ifndef TOMOCAM_DEV_ARRAY_H
+#define TOMOCAM_DEV_ARRAY_H
 
 #include <cuda_runtime.h>
 #include <stdexcept>
 
 #include "array.h"
-#include "gpu/cuda_check.h"
 #include "gpu/gpu_memory.h"
+#include "gpu/utils.h"
 
 namespace tomocam::gpu {
 
+    /// Container wrapping a CUDA device pointer as a 3D array.
+    /// Manages device memory with RAII semantics using cunique_ptr. Provides
+    /// 3D indexing through implicit conversion to DevicePtr for use in CUDA kernels.
+    ///
+    /// @tparam T Element type of the device array
+    ///
+    /// Usage:
+    /// @code
+    /// DeviceArray<float> dev_array({10, 20, 30});  // Allocate 10x20x30
+    ///
+    /// Slice<float> host_data(...);
+    /// DeviceArray<float> dev_from_host(host_data);  // Copy from host
+    ///
+    /// __global__ void my_kernel(DevicePtr<float> data) {
+    ///     float val = data(i, j, k);
+    /// }
+    /// my_kernel<<<blocks, threads>>>(dev_array);  // Implicit conversion to
+    /// DevicePtr
+    /// @endcode
     template <typename T>
     class DeviceArray {
+      public:
+        using value_type = T;
+
       protected:
         dims_t dims_;
         size_t size_;
-        memory::cuniquePtr<T> dev_ptr_;
+        memory::cunique_ptr<T> dev_ptr_;
 
       public:
+        /// Default constructor creates empty array.
         DeviceArray() : dims_({0, 0, 0}), size_(0), dev_ptr_(nullptr) {}
 
-        // Allocate space
+        /// Allocates device memory for a 3D array of given dimensions.
         DeviceArray(dims_t d) : dims_(d) {
             size_ = d.n1 * d.n2 * d.n3;
-            dev_ptr_ = memory::make_cuniquePtr<T>(size_);
+            dev_ptr_ = memory::make_cunique_ptr<T>(size_);
         }
 
-        /* create device array from Slice */
+        /// Constructs device array from host Slice, copying data to device.
         DeviceArray(const Slice<T> &rhs)
             : dims_(rhs.dims()), size_(rhs.size()),
-              dev_ptr_(memory::make_cuniquePtr<T>(rhs.size())) {
+              dev_ptr_(memory::make_cunique_ptr<T>(rhs.size())) {
             SAFE_CALL(cudaMemcpy(dev_ptr_.get(), rhs.begin(), rhs.bytes(),
                                  cudaMemcpyHostToDevice));
         }
 
-        //  copy constructor
-        DeviceArray(const DeviceArray<T> &rhs)
-            : dims_(rhs.dims_), size_(rhs.size_),
-              dev_ptr_(memory::make_cuniquePtr<T>(size_)) {
-            SAFE_CALL(cudaMemcpy(dev_ptr_.get(), rhs.dev_ptr_.get(), rhs.bytes(),
-                                 cudaMemcpyDeviceToDevice));
-        }
+        /// Copy constructor is deleted to prevent unintended device memory
+        /// duplication.
+        DeviceArray(const DeviceArray<T> &rhs) = delete;
+        /// Copy assignment is deleted to prevent unintended device memory
+        /// duplication.
+        DeviceArray<T> &operator=(const Slice<T> &rhs) = delete;
 
-        // assignment operator
-        DeviceArray<T> &operator=(const DeviceArray &rhs) {
-            if (this != &rhs) {
-                auto new_ptr = memory::make_cuniquePtr<T>(rhs.size_);
-                SAFE_CALL(cudaMemcpy(new_ptr.get(), rhs.dev_ptr_.get(), rhs.bytes(),
-                                     cudaMemcpyDeviceToDevice));
-                dims_ = rhs.dims_;
-                size_ = rhs.size_;
-                dev_ptr_ = std::move(new_ptr);
-            }
-            return *this;
-        }
-
-        // cuniquePtr makes destructor redundant
+        /// Destructor automatically managed by cunique_ptr.
         ~DeviceArray() = default;
 
-        // move constructor
+        /// Creates explicit clone of the device array on GPU.
+        DeviceArray<T> clone() const {
+            DeviceArray<T> copy(dims_);
+            SAFE_CALL(cudaMemcpy(copy.dev_ptr_.get(), dev_ptr_.get(), bytes(),
+                                 cudaMemcpyDeviceToDevice));
+            return copy;
+        }
+
+        /// Move constructor for efficient transfer of ownership.
         DeviceArray(DeviceArray<T> &&rhs) = default;
 
-        // move assignment operator
+        /// Move assignment operator for efficient transfer of ownership.
         DeviceArray<T> &operator=(DeviceArray<T> &&rhs) = default;
 
-        // access to the beginning of the array
+        /// Returns pointer to beginning of device memory.
         T *begin() { return dev_ptr_.get(); };
+        /// Returns const pointer to beginning of device memory.
         const T *begin() const { return dev_ptr_.get(); };
 
-        // access to the end of the array
+        /// Returns pointer to one past the end of device memory.
         T *end() { return dev_ptr_.get() + size_; };
+        /// Returns const pointer to one past the end of device memory.
         const T *end() const { return dev_ptr_.get() + size_; };
 
-        // size of the array
+        /// Returns total number of elements in the array.
         [[nodiscard]] size_t size() const { return size_; }
 
-        // bytes of the array
+        /// Returns total size in bytes of the array.
         [[nodiscard]] size_t bytes() const { return sizeof(T) * size_; }
 
-        // get array dims
+        /// Returns dimensions (n1, n2, n3) of the 3D array.
         [[nodiscard]] dims_t dims() const { return dims_; }
 
-        // get number of slices
+        /// Returns number of slices (first dimension).
         [[nodiscard]] size_t nslices() const { return dims_.n1; }
 
-        // get number of rows
+        /// Returns number of rows (second dimension).
         [[nodiscard]] size_t nrows() const { return dims_.n2; }
 
-        // get number of columns
+        /// Returns number of columns (third dimension).
         [[nodiscard]] size_t ncols() const { return dims_.n3; }
     };
 

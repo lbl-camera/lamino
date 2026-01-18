@@ -18,20 +18,45 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef DEVICE_PTR__H
-#define DEVICE_PTR__H
+#ifndef DEVICE_PTR_H
+#define DEVICE_PTR_H
 
 #include <cstdint>
 #include <cuda_runtime.h>
 
-#include "gpu/device_array.h"
+#include "dtypes.h"
 
 namespace tomocam::gpu {
 
-    /// A non-owining view of device pointer with 3D indexing
-    template <class T>
-    class DevicePtr {
+    /// Concept for containers compatible with DevicePtr wrapping.
+    /// Requires containers to provide:
+    /// - begin() method returning a pointer to value_type
+    /// - dims() method returning dims_t with dimensions information
+    template <class C>
+    concept WappableToDevicePtr = requires(C c) {
+        { c.begin() } -> std::convertible_to<typename C::value_type *>;
+        { c.dims() } -> std::convertible_to<dims_t>;
+    };
 
+    /// Non-owning view wrapper for GPU device pointers with 3D indexing support.
+    /// Designed for implicit construction in CUDA kernel invocations. Provides
+    /// convenient multi-dimensional indexing for GPU data while maintaining a
+    /// lightweight wrapper around raw device pointers.
+    ///
+    /// @tparam T Element type of the device array
+    ///
+    /// Usage:
+    /// @code
+    /// __global__ void my_kernel(DevicePtr<float> data) {
+    ///     float val = data(i, j, k);  // 3D indexing
+    ///     float val2 = data[i*n2*n3 + j*n3 + k];  // Linear indexing
+    /// }
+    ///
+    /// DeviceArray<float> dev_array(...);
+    /// my_kernel<<<blocks, threads>>>(dev_array);  // Implicit conversion
+    /// @endcode
+    template <typename T>
+    class DevicePtr {
       private:
         T *dev_ptr_;
         dims_t dims_;
@@ -42,42 +67,47 @@ namespace tomocam::gpu {
         }
 
       public:
-        // implicit constructor from non-const DeviceArray
-        __host__ DevicePtr(const DeviceArray<T> &dev_array)
-            : dev_ptr_(dev_array.begin()), dims_(dev_array.dims()) {}
+        /// Implicitly constructs DevicePtr from compatible containers in kernel
+        /// calls.
+        template <WappableToDevicePtr C>
+        __host__ DevicePtr(C &container)
+            : dev_ptr_(container.begin()), dims_(container.dims()) {}
 
+        /// Returns dimensions of the underlying 3D array.
         __host__ __device__ [[nodiscard]] auto dims() const { return dims_; }
+
+        /// Returns total number of elements in the array.
         __host__ __device__ [[nodiscard]] size_t size() const {
             return (dims_.n1 * dims_.n2 * dims_.n3);
         }
 
-        // obj indexing
-        __host__ __device__ T &operator[](int3 idx3) {
+        /// Accesses element via 3D index struct.
+        __host__ __device__ T &operator[](uint3 idx3) {
             auto idx = flat_idx(idx3.x, idx3.y, idx3.z);
             return dev_ptr_[idx];
         }
 
-        // const obj indexing
-        __host__ __device__ const T &operator[](int3 idx3) const {
+        /// Accesses element via 3D index struct (const version).
+        __host__ __device__ const T &operator[](uint3 idx3) const {
             auto idx = flat_idx(idx3.x, idx3.y, idx3.z);
             return dev_ptr_[idx];
         }
 
-        // linear indexing
+        /// Accesses element via linear index.
         __host__ __device__ T &operator[](size_t idx) { return dev_ptr_[idx]; }
 
-        // const linear indexing
+        /// Accesses element via linear index (const version).
         __host__ __device__ const T &operator[](size_t idx) const {
             return dev_ptr_[idx];
         }
 
-        // three-dim indexing
+        /// Accesses element via 3D indices (i, j, k).
         __host__ __device__ T &operator()(int i, int j, int k) {
             auto idx = flat_idx(i, j, k);
             return dev_ptr_[idx];
         }
 
-        // const three-dim indexing
+        /// Accesses element via 3D indices (i, j, k) (const version).
         __host__ __device__ const T &operator()(int i, int j, int k) const {
             auto idx = flat_idx(i, j, k);
             return dev_ptr_[idx];
@@ -86,4 +116,4 @@ namespace tomocam::gpu {
 
 } // namespace tomocam::gpu
 
-#endif // DEVICE_PTR__H
+#endif // DEVICE_PTR_H

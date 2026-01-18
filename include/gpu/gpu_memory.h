@@ -27,57 +27,51 @@
 #include <cuda_runtime.h>
 #include <string>
 
-namespace tomocam::gpu::memory {
-    struct cudaDelete {
-        void operator()(void *ptr) const noexcept {
-            if (ptr != nullptr) {
-                auto err = cudaFree(ptr);
-                if (err != cudaSuccess) {
-                    std::cerr << "cudaFree failed: " << cudaGetErrorString(err)
-                              << '\n';
+namespace tomocam::gpu {
+
+    namespace memory {
+        struct cudaDelete {
+            void operator()(void *ptr) const noexcept {
+                if (ptr != nullptr) {
+                    auto err = cudaFree(ptr);
+                    if (err != cudaSuccess) {
+                        std::cerr << "cudaFree failed: " << cudaGetErrorString(err)
+                                  << '\n';
+                    }
                 }
             }
-        }
-    };
+        };
 
-    template <typename T>
-    using cunique_ptr = std::unique_ptr<T, cudaDelete>;
+        template <typename T>
+        using cunique_ptr = std::unique_ptr<T, cudaDelete>;
 
-    template <typename T>
-    cunique_ptr make_cunique_ptr(std::size_t count) {
-        T *raw = nullptr;
-        auto err = cudaMalloc(&raw, sizeof(T) * count);
-        if (err != cudaSuccess) {
-            throw std::runtime_error(std::string("failed to allocated gpu memory"));
-        }
-        return cunique_ptr<T>(raw);
-    }
-
-    struct pinnedDelete {
-        void operator()(void *ptr) const noexcept {
-            if (ptr != nullptr) {
-                auto err = cudaFreeHost(ptr);
-                if (err != cudaSuccess) {
-                    std::cerr << "cudaFreeHost failed: " << cudaGetErrorString(err)
-                              << '\n';
-                }
+        template <typename T>
+        cunique_ptr<T> make_cunique_ptr(std::size_t count) {
+            T *raw = nullptr;
+            auto err = cudaMalloc(&raw, sizeof(T) * count);
+            if (err != cudaSuccess) {
+                throw std::runtime_error(
+                    std::string("failed to allocated gpu memory"));
             }
+            return cunique_ptr<T>(raw);
         }
-    };
+    } // namespace memory
 
-    template <typename T>
-    using pinned_ptr = std::unique_ptr<T, pinnedDelete>;
-
-    template <typename T>
-    pinned_ptr<T> make_pinned_ptr(std::size_t count) {
-        T *raw = nullptr;
-        auto err = cudaMallocHost(&raw, sizeof(T) * count);
+    inline void copy_to_device(void *d_ptr, const void *ptr, size_t size) {
+        auto err = cudaMemcpy(d_ptr, ptr, size, cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
-            throw std::runtime_error(
-                std::string("failed to allocated pinned host memory"));
+            throw std::runtime_error(std::string("failed to copy data to device: ") +
+                                     cudaGetErrorString(err));
         }
-        return pinned_ptr<T>(raw);
     }
-} // namespace tomocam::gpu::memory
+
+    inline void copy_to_host(void *ptr, const void *d_ptr, size_t size) {
+        auto err = cudaMemcpy(ptr, d_ptr, size, cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            throw std::runtime_error(std::string("failed to copy data to host: ") +
+                                     cudaGetErrorString(err));
+        }
+    }
+} // namespace tomocam::gpu
 
 #endif // GPUMEMORY__H
