@@ -107,6 +107,10 @@ namespace tomocam {
 #endif
 
         // get contiguous view to part or whole array
+        Slice<T> slice() { return Slice<T>(ptr_.get(), dims_); }
+
+        const Slice<T> slice() const { return Slice<T>(ptr_.get(), dims_); }
+
         Slice<T> slice(size_t begin, size_t end) {
             dims_t d{end - begin, dims_.n2, dims_.n3};
             T *ptr = ptr_.get() + (begin * dims_.n2 * dims_.n3);
