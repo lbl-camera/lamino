@@ -23,8 +23,12 @@
 #include <stdexcept>
 #include <tuple>
 
+#ifdef __CUDACC__
+#include <cuda_runtime.h>
+#endif
+
 #ifndef DTYPES__H
-    #define DTYPES__H
+#define DTYPES__H
 
 namespace tomocam {
 
@@ -37,6 +41,15 @@ namespace tomocam {
         dims_t() : n1(0), n2(0), n3() {}
         dims_t(size_t a, size_t b, size_t c) : n1(a), n2(b), n3(c) {}
 
+#ifdef __CUDACC__
+        __host__ __device__ operator dim3() const {
+            return dim3(static_cast<unsigned int>(n1), static_cast<unsigned int>(n2),
+                        static_cast<unsigned int>(n3));
+        }
+        __host__ __device__ bool operator>(const dim3 &v) const {
+            return (n1 > v.x) && (n2 > v.y) && (n3 > v.z);
+        }
+#endif
         [[nodiscard]] std::tuple<size_t, size_t, size_t>
         unravel_idx(size_t idx) const {
             size_t i = idx / n2 / n3;
@@ -44,11 +57,6 @@ namespace tomocam {
             size_t k = idx % n3;
             return std::make_tuple(i, j, k);
         }
-
-        // change individual dims (needed in padding)
-        void set_x(size_t v) { n1 = v; }
-        void set_y(size_t v) { n2 = v; }
-        void set_z(size_t v) { n3 = v; }
 
         [[nodiscard]] size_t size() const { return (n1 * n2 * n3); }
 

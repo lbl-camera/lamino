@@ -76,9 +76,9 @@ namespace tomocam {
 
         [[nodiscard]] dims_t dims() const { return dims_; }
         [[nodiscard]] size_t size() const { return size_; }
-        [[nodiscard]] size_t nslices() const { return dims_.x(); }
-        [[nodiscard]] size_t nrows() const { return dims_.y(); }
-        [[nodiscard]] size_t ncols() const { return dims_.z(); }
+        [[nodiscard]] size_t nslices() const { return dims_.n1; }
+        [[nodiscard]] size_t nrows() const { return dims_.n2; }
+        [[nodiscard]] size_t ncols() const { return dims_.n3; }
 
         // indexing
         T &operator[](size_t i) { return ptr_[i]; }
@@ -86,8 +86,7 @@ namespace tomocam {
 
         // indexing for total-variation regularization (with OOB handling)
         T at(size_t i, size_t j, size_t k) const {
-            if (i < 0 || i >= dims_.x() || j < 0 || j >= dims_.y() || k < 0 ||
-                k >= dims_.z()) {
+            if (i >= dims_.n1 || j >= dims_.n2 || k >= dims_.n3) {
                 return T(0); // for out-of-bounds, return zero
             }
             return ptr_[flatIdx(i, j, k)];
@@ -101,9 +100,9 @@ namespace tomocam {
             return ptr_[flatIdx(i, j, k)];
         }
 #else
-        T &operator[](dims_t i) { return ptr_[flatIdx(i.x(), i.y(), i.z())]; }
+        T &operator[](dims_t i) { return ptr_[flatIdx(i.n1, i.n2, i.n3)]; }
         const T &operator[](dims_t i) const {
-            return ptr_[flatIdx(i.x(), i.y(), i.z())];
+            return ptr_[flatIdx(i.n1, i.n2, i.n3)];
         }
 #endif
 
