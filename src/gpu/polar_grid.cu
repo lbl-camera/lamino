@@ -20,45 +20,51 @@
 #include <cmath>
 #include <cuda_runtime.h>
 
-#include "gpu/device_ptr.cuh"
-#include "gpu/utils.cuh"
+#include "gpu/utils.h"
+#include "gpu/device_ptr.h"
+#include "gpu/device_array.h"
+#include "gpu/polar_grid_kernel.h"
 
 namespace tomocam::gpu {
 
     template <typename T>
-    __global__ void make_polar_grid(DevicePtr<T> x, DevicePtr<T> y,
-        DevicePtr<T> z, float *angles) {
+    __global__ void polar_grid_kenrel(DevicePtr<T> x, DevicePtr<T> y,
+        DevicePtr<T> z, T *angles, T gamma) {
 
         auto dims = x.dims();
         uint3 idx = Index3D();
         if (idx < dims) {
             T cos_t = cos(angles[idx.x]);
             T sin_t = sin(angles[idx.x]);
+            T cos_g = cos(gamma);
+            T sin_g = sin(gamma);
 
-            T dx = (2 * M_PI) / static_cast<T>(dims.x());
-            T dr = (2 * M_PI) / static_cast<T>(dims.y());
+            T dx = (2 * M_PI) / static_cast<T>(dims.n3);
+            T dr = (2 * M_PI) / static_cast<T>(dims.n2);
 
-            x[idx] = dims.z() * dx - M_PI;
-            y[idx] = (dims.y() * dr - M_PI) * sin_t;
-            z[idx] = (dims.y() * dr - M_PI) * cos_t;
+            auto xcrd = idx.z * dx;
+            auto ycrd = (idx.y * dr - M_PI) * cos_t;
+            auto zcrd = (idx.y * dr - M_PI) * sin_t;
+            // gama rotation
+            x[idx] = xcrd * cos_g - ycrd * sin_g;
+            y[idx] = xcrd * sin_g + ycrd * cos_g;
+            z[idx] = zcrd;
         }
     }
-
 
     template <typename T>
-    __global__ void rotate_polar_grid(DevicePtr<T> x, DevicePtr<T> y, T gamma) {
+    void calc_polar_grid(DeviceArray<T> &x, DeviceArray<T> &y,
+        DeviceArray<T> &z, std::vector<T> &angles, T gamma) {
 
-        auto dims = x.dims();
-        uint3 idx = Index3D();
-        if (idx < dims) {
-            auto cos_g = cos(gamma);
-            auto sin_g = sin(gamma);
-            auto rx = x[idx];
-            auto ry = y[idx];
-
-            x[idx] = rx * cos_g - ry * sin_g;
-            y[idx] = rx * sin_g + ry * cos_g;
-        }
+        dim3 block(1, 32, 32);
+        dim3 grid = make_grid(x.dims(), block);
+        polar_grid_kenrel<T><<<grid, block>>>(x, y, z, angles.data(), gamma);
+        SAFE_CALL(cudaGetLastError());
     }
+    // explicit template instantiation
+    template void calc_polar_grid<float>(DeviceArray<float> &x, DeviceArray<float> &y,
+        DeviceArray<float> &z, std::vector<float> &angles, float gamma);
+    template void calc_polar_grid<double>(DeviceArray<double> &x, DeviceArray<double> &y,
+        DeviceArray<double> &z, std::vector<double> &angles, double gamma);
 
 } // namespace tomocam::gpu

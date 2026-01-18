@@ -17,8 +17,8 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
-#ifndef POLAR_GRID__H
-#define POLAR_GRID__H
+#ifndef POLAR_GRID_H
+#define POLAR_GRID_H
 
 #include <cmath>
 #include <cstddef>
@@ -27,15 +27,27 @@
 #include <vector>
 
 #include "array.h"
+
+#ifdef USE_CUDA
+#include "gpu/device_array.h"
+#include "gpu/polar_grid_kernel.h"
+#endif
+
 namespace tomocam {
 
     template <typename T>
     struct PolarGrid {
         size_t npts;
         std::vector<T> theta;
+#ifdef USE_CUDA
+        gpu::DeviceArray<T> x;
+        gpu::DeviceArray<T> y;
+        gpu::DeviceArray<T> z;
+#else
         Array<T> x;
         Array<T> y;
         Array<T> z;
+#endif
 
         // default constructor
         PolarGrid() : npts(0) {}
@@ -46,11 +58,16 @@ namespace tomocam {
 
             theta = angles;
             dims_t dims = dims_t{theta.size(), nrows, ncols};
+            npts = dims.n1 * dims.n2 * dims.n3;
+#ifdef USE_CUDA
+            x = gpu::DeviceArray<T>(dims);
+            y = gpu::DeviceArray<T>(dims);
+            z = gpu::DeviceArray<T>(dims);
+            gpu::calc_polar_grid<T>(x, y, z, theta, gamma);
+#else
             x = Array<T>(dims);
             y = Array<T>(dims);
             z = Array<T>(dims);
-            npts = dims.size();
-
             // rotation matrix
             T cos_gamma = std::cos(gamma);
             T sin_gamma = std::sin(gamma);
@@ -74,6 +91,7 @@ namespace tomocam {
                     }
                 }
             }
+#endif
         }
         // delete copy constructor and assignment
         PolarGrid(const PolarGrid<T> &) = delete;
@@ -104,20 +122,6 @@ namespace tomocam {
             return out;
         }
 
-        PolarGrid<T> rotate(T angle) const {
-
-            PolarGrid<T> out = this->clone();
-            T cos_t = std::cos(angle);
-            T sin_t = std::sin(angle);
-
-            auto dims = this->dims();
-            for (size_t i = 0; i < x.size(); i++) {
-                out.x[i] = x[i] * cos_t - y[i] * sin_t;
-                out.y[i] = x[i] * sin_t + y[i] * cos_t;
-            }
-            return out;
-        }
-
         // array dimensions for non-uniform points
         [[nodiscard]] dims_t dims() const { return x.dims(); }
 
@@ -133,4 +137,4 @@ namespace tomocam {
 
 } // namespace tomocam
 
-#endif // POLAR_GRID__H
+#endif // POLAR_GRID_H
