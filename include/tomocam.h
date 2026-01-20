@@ -39,9 +39,18 @@ namespace tomocam {
     template <typename T>
     concept Float = std::is_floating_point<T>::value;
 
+    /**
+     * @brief Composition of backprojection and projection operators defined as a
+     * system matrix.
+     *
+     * @param x 3D vector field represented as an array of three components.
+     * @param grid The polar grid defining the projection geometry.
+     * @param gamma Sample orientation in plane normal to beam direction.
+     * @return  \f$ A x = R^T R x \f$
+     */
     template <typename Float>
-    Array<Float> sysmat(const std::array<Array<Float>, 3> &x,
-                        const PolarGrid<Float> &grid);
+    std::array<Array<Float>, 3> sysmat(const std::array<Array<Float>, 3> &x,
+                                       const PolarGrid<Float> &grid, Float gamma);
 
     /**
      * @brief Computes the gradient of the objective function for iterative
