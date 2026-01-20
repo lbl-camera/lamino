@@ -76,6 +76,7 @@ namespace tomocam {
 
         [[nodiscard]] dims_t dims() const { return dims_; }
         [[nodiscard]] size_t size() const { return size_; }
+        [[nodiscard]] size_t bytes() const { return size_ * sizeof(T); }
         [[nodiscard]] size_t nslices() const { return dims_.n1; }
         [[nodiscard]] size_t nrows() const { return dims_.n2; }
         [[nodiscard]] size_t ncols() const { return dims_.n3; }
