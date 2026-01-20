@@ -21,13 +21,15 @@
 #ifndef CUFINUFFT_PLAN_H
 #define CUFINUFFT_PLAN_H
 
-#include <cuda/std/complex>
+#include <array>
+#include <cuComplex.h>
 #include <cufinufft.h>
+#include <stdexcept>
 #include <type_traits>
 
 #include "polar_grid.h"
 
-namespace tomocam::nufft {
+namespace tomocam::gpu::nufft {
 
     template <typename T>
     struct CufinufftTraits;
@@ -35,7 +37,7 @@ namespace tomocam::nufft {
     template <>
     struct CufinufftTraits<double> {
         using plan_type = cufinufft_plan;
-        using complex_type = std::complex<double>;
+        using complex_type = cuDoubleComplex;
 
         static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
                             int ntrans, plan_type *plan, cufinufft_opts *opts) {
@@ -59,7 +61,7 @@ namespace tomocam::nufft {
     template <>
     struct CufinufftTraits<float> {
         using plan_type = cufinufftf_plan;
-        using complex_type = std::complex<float>;
+        using complex_type = cuFloatComplex;
 
         static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
                             int ntrans, plan_type *plan, cufinufft_opts *opts) {
@@ -121,7 +123,7 @@ namespace tomocam::nufft {
             if (ierr != 0) { throw std::runtime_error("Error in cufinufft_setpts"); }
         }
 
-        int execute(std::complex<T> *cz, std::complex<T> *fz) {
+        int execute(cuda::std::complex<T> *cz, cuda::std::complex<T> *fz) {
             if (!initialized) {
                 throw std::runtime_error(
                     "CufinufftPlanWrapper::execute called before make_plan");
@@ -155,6 +157,6 @@ namespace tomocam::nufft {
         }
     };
 
-} // namespace tomocam::nufft
+} // namespace tomocam::gpu::nufft
 
 #endif // CUFINUFFT_PLAN__H
