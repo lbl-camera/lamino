@@ -106,7 +106,7 @@ namespace tomocam {
     std::array<Array<T>, 3> gradient(const std::array<Array<T>, 3> &f,
                                      const std::array<Array<T>, 3> &yT,
                                      const PolarGrid<T> &grid, T gamma) {
-        auto AAx = sysmat(f, grid, gamma);
+        auto AAx = sysmat<T>(f, grid, gamma);
         std::array<Array<T>, 3> result;
         for (size_t i = 0; i < 3; ++i) { result[i] = AAx[i] - yT[i]; }
         return result;
@@ -124,7 +124,7 @@ namespace tomocam {
     template <typename T>
     T residual(const std::array<Array<T>, 3> &f, const std::array<Array<T>, 3> &yT,
                const PolarGrid<T> &grid, T yTy, T gamma) {
-        auto AAx = sysmat(f, grid, gamma);
+        auto AAx = sysmat<T>(f, grid, gamma);
         T err = T(0);
         for (size_t i = 0; i < 3; ++i) {
             auto xAAx = array::dot(f[i], AAx[i]);
