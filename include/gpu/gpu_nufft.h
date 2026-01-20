@@ -31,18 +31,18 @@
 #include "dtypes.h"
 #include "polar_grid.h"
 
-namespace tomocam::nufft {
+namespace tomocam::gpu::nufft {
 
     // 3D Type-1 NUFFT (GPU): nonuniform points to uniform grid
     template <typename T>
-    void gpu_nufft3d1(const Array<std::complex<T>> &cz, Array<std::complex<T>> &fz,
-                      const PolarGrid<T> &pg) {
+    void nufft3d1(const Array<std::complex<T>> &cz, Array<std::complex<T>> &fz,
+                  const PolarGrid<T> &pg) {
 
         using complex_t = cuda::std::complex<T>;
 
         std::array<int64_t, 3> n_modes = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                                           (int64_t)fz.nslices()};
-        auto &plan = plans::cu_cache<T>.get_plan(1, 3, n_modes, 1);
+        auto &plan = plans::cache<T>.get_plan(2, 3, n_modes, 1);
         plan.set_points(pg);
 
         // input array on device
@@ -52,29 +52,35 @@ namespace tomocam::nufft {
         // output array on device
         DeviceArray<complex_t> d_fz(fz.dims());
 
-        int ierr = plan.execute((std::complex<T> *)cz.begin(),
-                                (std::complex<T> *)fz.begin());
+        int ierr = plan.execute(d_cz.begin(), d_fz.begin());
+        if (ierr != 0) { throw std::runtime_error("Error in cufinufft_execute"); }
+
         // copy
         gpu::copy_to_host(fz.begin(), d_fz.begin(), fz.bytes());
-
-        if (ierr != 0) { throw std::runtime_error("Error in cufinufft_execute"); }
     }
 
     // 3D Type-2 NUFFT (GPU): uniform grid to nonuniform points
     template <typename T>
-    void gpu_nufft3d2(Array<std::complex<T>> &cz, const Array<std::complex<T>> &fz,
-                      const PolarGrid<T> &pg) {
+    void nufft3d2(Array<std::complex<T>> &cz, const Array<std::complex<T>> &fz,
+                  const PolarGrid<T> &pg) {
+
+        using complex_t = cuda::std::complex<T>;
 
         std::array<int64_t, 3> n_modes = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                                           (int64_t)fz.nslices()};
-        auto &plan = plans::cu_cache<T>.get_plan(2, 3, n_modes, -1);
+        auto &plan = plans::cache<T>.get_plan(2, 3, n_modes, -1);
         plan.set_points(pg);
 
-        int ierr = plan.execute((std::complex<T> *)cz.begin(),
-                                (std::complex<T> *)fz.begin());
-        if (ierr != 0) { throw std::runtime_error("Error in cufinufft_execute"); }
-    }
+        DeviceArray<complex_t> d_fz(fz.dims());
+        gpu::copy_to_device(d_fz.begin(), fz.begin(), fz.bytes());
+        DeviceArray<complex_t> d_cz(cz.dims());
 
-} // namespace tomocam::nufft
+        int ierr = plan.execute(d_cz.begin(), d_fz.begin());
+        if (ierr != 0) { throw std::runtime_error("Error in cufinufft_execute"); }
+
+        // copy data back to host
+        gpu::copy_to_host(cz.begin(), d_cz.begin(), cz.bytes());
+    }
+} // namespace tomocam::gpu::nufft
 
 #endif // GPU_NUFFT__H
