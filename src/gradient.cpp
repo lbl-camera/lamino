@@ -28,6 +28,10 @@
 #include "polar_grid.h"
 #include "tomocam.h"
 
+#ifdef USE_CUDA
+#include "gpu/gpu_nufft.h"
+#endif
+
 namespace tomocam {
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
@@ -49,7 +53,11 @@ namespace tomocam {
         for (size_t i = 0; i < 3; ++i) {
             auto x_cmplx = array::to_complex(x[i]);
             c_components[i] = Array<complex_t>::zeros(grid.dims());
+#ifdef __CUDACC__
+            gpu::nufft::nufft3d2(c_components[i], x_cmplx, grid);
+#else
             nufft::nufft3d2(c_components[i], x_cmplx, grid);
+#endif
         }
 
         // Step 2: Matrix multiplication with coeff.T * coeff
@@ -90,7 +98,11 @@ namespace tomocam {
         std::array<Array<T>, 3> output;
         for (size_t i = 0; i < 3; ++i) {
             auto out_cmplx = Array<complex_t>(x[i].dims());
+#ifdef USE_CUDA
+            gpu::nufft::nufft3d1(result_components[i], out_cmplx, grid);
+#else
             nufft::nufft3d1(result_components[i], out_cmplx, grid);
+#endif
             output[i] = array::to_real(out_cmplx) / scale;
         }
         return output;
