@@ -28,7 +28,7 @@
 
 #include "cufinufft_plan.h"
 
-namespace tomocam::nufft {
+namespace tomocam::gpu::nufft {
 
     template <typename T>
     class CufinufftPlanCache {
@@ -47,8 +47,8 @@ namespace tomocam::nufft {
         CufinufftPlanCache(CufinufftPlanCache &&) = delete;
         CufinufftPlanCache &operator=(CufinufftPlanCache &&) = delete;
 
-        CufinufftPlanWrapper<T> &get_plan(int type, int dim,
-                                          std::array<int64_t, 3> n_modes, int iflag) {
+        CufinufftPlanWrapper<T> &
+        get_plan(int type, int dim, std::array<int64_t, 3> n_modes, int iflag) {
             if (type == 1) {
                 std::call_once(type1_init_flag_, [&]() {
                     type1_plan_.make_plan(1, dim, n_modes, iflag);
@@ -68,9 +68,9 @@ namespace tomocam::nufft {
 
     namespace plans {
         template <typename T>
-        inline CufinufftPlanCache<T> cu_cache;
+        inline CufinufftPlanCache<T> cache;
     }
 
-} // namespace tomocam::nufft
+} // namespace tomocam::gpu::nufft
 
 #endif // CUFINUFFT_PLAN_CACHE_H
