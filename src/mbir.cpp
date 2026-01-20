@@ -34,13 +34,13 @@
 
 namespace tomocam {
 
-    constexpr double PAD_FACTOR = 1.42;
     template <typename T>
     std::array<Array<T>, 3> MBIR(const Array<T> &proj, const std::vector<T> &angles,
                                  T gamma, const dims_t &recon_dims, size_t max_iter,
                                  T sigma, T p, T tol, T xtol) {
 
         // padding factor
+        constexpr double PAD_FACTOR = 1.42;
         T padding = static_cast<T>(PAD_FACTOR);
 
         // adjust reconstruction dimensions
