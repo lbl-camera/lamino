@@ -71,24 +71,6 @@ namespace tomocam::opt {
                          const VecArray<T> &x0, size_t max_iter, T tol);
 
     /**
-     * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term
-     * @param grad Gradient function
-     * @param loss Loss function
-     * @param x Initial solution
-     * @param max_iters Maximum number of iterations
-     * @param lipschitz Lipschitz constant of the gradient
-     * @param tol Tolerance for convergence based on loss change
-     * @param xtol Tolerance for convergence based on solution change
-     * @param max_inner_iters Maximum number of inner iterations for line search
-     * @param logger Logger instance for output control
-     * @return Optimized solution
-     */
-    template <typename T>
-    Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
-                    size_t max_iters, T lipschitz, T tol, T xtol,
-                    size_t max_inner_iters = 20, Logger *logger = nullptr);
-
-    /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
      * version)
      * @param grad Gradient function for vector reconstruction
