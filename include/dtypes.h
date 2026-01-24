@@ -24,7 +24,7 @@
 #include <tuple>
 
 #ifndef DTYPES__H
-    #define DTYPES__H
+#define DTYPES__H
 
 namespace tomocam {
 
@@ -36,6 +36,11 @@ namespace tomocam {
       public:
         dims_t() : n1(0), n2(0), n3() {}
         dims_t(size_t a, size_t b, size_t c) : n1(a), n2(b), n3(c) {}
+        dims_t(const std::array<size_t, 3> &arr) {
+            n1 = arr[0];
+            n2 = arr[1];
+            n3 = arr[2];
+        }
 
         [[nodiscard]] std::tuple<size_t, size_t, size_t>
         unravel_idx(size_t idx) const {
