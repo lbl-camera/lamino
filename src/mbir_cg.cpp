@@ -37,7 +37,7 @@ namespace tomocam {
     template <typename T>
     std::array<Array<T>, 3>
     MBIRCG(const Array<T> &proj, const std::vector<T> &angles, T gamma,
-           const dims_t &recon_dims, size_t max_iter, T sigma, T p, T tol, T xtol) {
+           const dims_t &recon_dims, size_t max_iter, T tol) {
 
         // padding factor
         constexpr double PAD_FACTOR = 1.42;
@@ -98,11 +98,9 @@ namespace tomocam {
     // Explicit template instantiations
     template std::array<Array<float>, 3>
     MBIRCG(const Array<float> &proj, const std::vector<float> &angles, float gamma,
-           const dims_t &recon_dims, size_t max_iter, float sigma, float p,
-           float tol, float xtol);
+           const dims_t &recon_dims, size_t max_iter, float tol);
     template std::array<Array<double>, 3>
     MBIRCG(const Array<double> &proj, const std::vector<double> &angles,
-           double gamma, const dims_t &recon_dims, size_t max_iter, double sigma,
-           double p, double tol, double xtol);
+           double gamma, const dims_t &recon_dims, size_t max_iter, double tol);
 
 } // namespace tomocam
