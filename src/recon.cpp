@@ -33,58 +33,44 @@ int main(int argc, char **argv) {
     if (argc < 2) {
         std::cerr << std::format("Usage: {} <input.toml>\n", argv[0]);
         std::cerr << "Please see config_template.toml for an example input file.\n";
-        tomocam::ReconParams::dump_config();
+        tomocam::dump_config();
         return 1;
     }
-    auto params = tomocam::ReconParams::from_toml(argv[1]);
-    auto projs = tomocam::tiff::read(params.input_file_path);
 
-    // read projection angles
-    std::ifstream fp(params.angles_file_path);
-    if (!fp.is_open()) {
-        std::cerr << std::format("Error: Could not open angles file {}\n",
-                                 params.angles_file_path);
-        return 1;
-    }
-    std::vector<float> angles;
-    float angle;
-    while (fp >> angle) { angles.push_back(angle); }
-    fp.close();
-    // ensure angles are in radians
-    auto max_angle = *std::max_element(angles.begin(), angles.end());
-    if (std::abs(max_angle) > 2 * M_PI) {
-        for (auto &angle : angles) { angle = angle * M_PI / 180.0f; }
-    }
+    // read parameters from toml file
+    auto config = tomocam::read_toml_file(argv[1]);
+    auto datasets = tomocam::parse_input_datasets<float>(config);
+    auto params = tomocam::ReconParams(config);
+    auto output = tomocam::OutputParams(config);
 
-    // find keys in json, else set default values
-    float gamma = params.orientation;
     size_t max_iter = params.maxIters;
     float sigma = params.sigma;
     float p = 1.2;
     float tol = params.tol;
     float xtol = params.xtol;
-    size_t thickness = params.thickness;
+    auto dims = params.recon_dims;
 
     // log parameters
-    params.print_toml(std::cout);
+    params.print(std::cout);
+    std::exit(1);
 
     // set reconstruction dimensions
-    tomocam::dims_t rec_dims = {thickness, projs.nrows(), projs.ncols()};
+    tomocam::dims_t recon_dims = {dims[0], dims[1], dims[2]};
 
     tomocam::Timer t0;
     t0.start();
-    auto recon = tomocam::MBIR<float>(projs, angles, gamma, rec_dims, max_iter,
-                                      sigma, p, tol, xtol);
+    auto recon = tomocam::MBIR_CGLS<float>(datasets, recon_dims, max_iter, tol);
     t0.stop();
     std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
                              t0.seconds());
 
     // save result to tiff
-    auto base_dir = std::filesystem::path(params.output_file_path).parent_path();
+    auto base_dir = std::filesystem::path(output.filepath).parent_path();
     if (!std::filesystem::exists(base_dir)) {
         std::filesystem::create_directories(base_dir);
     }
-    tomocam::tiff::write3(params.output_file_path, recon);
-    tomocam::vti::write_vectors(params.output_file_path, recon);
+
+    tomocam::tiff::write3(output.filepath, recon);
+    tomocam::vti::write_vectors(output.filepath, recon);
     return 0;
 }
