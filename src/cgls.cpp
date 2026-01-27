@@ -76,6 +76,8 @@ namespace tomocam::opt {
                 res_norm += array::dot(r_new[i], r_new[i]);
             }
             if (res_norm < tol * tol) { break; }
+            std::cout << std::format("Iteration {}: Residual norm = {:.6e}\n",
+                                     iter + 1, std::sqrt(res_norm));
 
             // update r and p
             T beta = res_norm / r_norm;
