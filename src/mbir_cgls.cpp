@@ -87,16 +87,18 @@ namespace tomocam {
             // setup polar grid
             size_t nrows = y.nrows();
             size_t ncols = y.ncols();
-            auto polar_grid = PolarGrid<T>(angles, nrows, ncols, gamma);
+            auto polar_grid =
+                std::make_shared<PolarGrid<T>>(angles, nrows, ncols, gamma);
 
             // backproject measurements to get yT
-            auto yT = adjoint(y, polar_grid, out_dims, gamma);
+            auto yT = adjoint(y, *polar_grid.get(), out_dims, gamma);
             yTs.push_back(std::move(yT));
 
             // setup gradient operator
-            opt::Function<T> A = [&](const std::array<Array<T>, 3> &x) {
+            opt::Function<T> A = [pg = polar_grid,
+                                  gamma](const std::array<Array<T>, 3> &x) {
                 // gradient data
-                return sysmat(x, polar_grid, gamma);
+                return sysmat(x, *pg.get(), gamma);
             };
             sysmats.push_back(std::move(A));
         }
