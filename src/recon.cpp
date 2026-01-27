@@ -52,7 +52,6 @@ int main(int argc, char **argv) {
 
     // log parameters
     params.print(std::cout);
-    std::exit(1);
 
     // set reconstruction dimensions
     tomocam::dims_t recon_dims = {dims[0], dims[1], dims[2]};
