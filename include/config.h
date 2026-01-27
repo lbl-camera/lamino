@@ -114,12 +114,11 @@ namespace tomocam {
 
     // Reconstruction parameters
     struct ReconParams {
-        std::array<size_t, 3> recon_dims = {51, 511,
-                                            511}; // Reconstruction dimensions
-        size_t maxIters = 50;                     // Maximum number of iterations
-        float sigma = 1000.0f;                    // Regularization parameter
-        float tol = 1e-5f;                        // Tolerance for convergence
-        float xtol = 1e-5f;                       // Tolerance for solution change
+        std::array<size_t, 3> recon_dims = {0, 0, 0}; // Reconstruction dimensions
+        size_t maxIters = 50;                         // Maximum number of iterations
+        float sigma = 1000.0f;                        // Regularization parameter
+        float tol = 1e-5f;                            // Tolerance for convergence
+        float xtol = 1e-5f; // Tolerance for solution change
 
         ReconParams() = default;
         ReconParams(const toml::table &config) {
@@ -130,11 +129,18 @@ namespace tomocam {
                 throw std::runtime_error(
                     "Missing [recon_params] section in config file");
             }
+            // read max_iters
             maxIters = recon["max_iters"].value_or<size_t>(50);
+
+            // read recon_dims
             const auto *dims = recon["recon_dims"].as_array();
             if (dims && dims->size() == 3) {
                 for (size_t i = 0; i < 3; ++i) {
-                    recon_dims[i] = (*dims)[i].value_or<size_t>(0);
+                    size_t temp = (*dims)[i].value_or<size_t>(0);
+                    if (temp % 2 == 0) {
+                        temp -= 1; // make sure it's odd
+                    }
+                    recon_dims[i] = temp;
                 }
             } else {
                 throw std::runtime_error("[recon_params] 'recon_dims' must be an "
