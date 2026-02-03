@@ -35,9 +35,9 @@
 namespace tomocam {
 
     template <typename T>
-    std::array<Array<T>, 3> MBIR(const Array<T> &proj, const std::vector<T> &angles,
-                                 T gamma, const dims_t &recon_dims, size_t max_iter,
-                                 T sigma, T p, T tol, T xtol) {
+    std::array<Array<T>, 3>
+    MBIRCG(const Array<T> &proj, const std::vector<T> &angles, T gamma,
+           const dims_t &recon_dims, size_t max_iter, T tol) {
 
         // padding factor
         constexpr double PAD_FACTOR = 1.42;
@@ -75,40 +75,16 @@ namespace tomocam {
         auto yT = adjoint(y, polar_grid, out_dims, gamma);
 
         // setup gradient operator
-        std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
-            grad = [&](const std::array<Array<T>, 3> &x) {
-                // gradient data
-                auto g_data = gradient(x, yT, polar_grid, gamma);
-
-                // apply qggmrf penalty
-                for (size_t i = 0; i < 3; ++i) {
-                    opt::qggmrf(x[i], g_data[i], sigma, p);
-                }
-                return g_data;
-            };
-
-        // setup loss function
-        std::function<T(const std::array<Array<T>, 3> &)> loss =
-            [&](const std::array<Array<T>, 3> &x) {
-                return array::norm2(forward(x, polar_grid, gamma) - y);
-            };
-
-        // lipshitz constant
-        std::array<Array<T>, 3> xtmp;
-        for (size_t i = 0; i < 3; ++i) { xtmp[i] = Array<T>::ones(out_dims); }
-        auto Axtmp = forward(xtmp, polar_grid, gamma);
-        auto gtmp = adjoint(Axtmp, polar_grid, out_dims, gamma);
-        T L = 0;
-        for (size_t i = 0; i < 3; ++i) {
-            // estimate lipshitz constant
-            L = std::max(L, array::max(array::abs(gtmp[i])));
-        }
+        opt::Function<T> A = [&](const std::array<Array<T>, 3> &x) {
+            // gradient data
+            return sysmat(x, polar_grid, gamma);
+        };
 
         // initial guess
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::ones(out_dims) * 0.9; }
 
-        auto recon_m = opt::nagopt(grad, loss, x0, max_iter, L, tol, xtol);
+        auto recon_m = opt::cgsolver<T>(A, yT, x0, max_iter, tol);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;
@@ -120,14 +96,11 @@ namespace tomocam {
     }
 
     // Explicit template instantiations
-    template std::array<Array<float>, 3> MBIR(const Array<float> &proj,
-                                              const std::vector<float> &angles,
-                                              float gamma, const dims_t &recon_dims,
-                                              size_t max_iter, float sigma, float p,
-                                              float tol, float xtol);
+    template std::array<Array<float>, 3>
+    MBIRCG(const Array<float> &proj, const std::vector<float> &angles, float gamma,
+           const dims_t &recon_dims, size_t max_iter, float tol);
     template std::array<Array<double>, 3>
-    MBIR(const Array<double> &proj, const std::vector<double> &angles, double gamma,
-         const dims_t &recon_dims, size_t max_iter, double sigma, double p,
-         double tol, double xtol);
+    MBIRCG(const Array<double> &proj, const std::vector<double> &angles,
+           double gamma, const dims_t &recon_dims, size_t max_iter, double tol);
 
 } // namespace tomocam

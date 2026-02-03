@@ -18,13 +18,14 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef OPTIMIZE__H
-#define OPTIMIZE__H
+#ifndef TOMOCAM_OPT_H
+#define TOMOCAM_OPT_H
 
 #include <cmath>
 #include <iostream>
 
 #include "array.h"
+#include "array_ops.h"
 #include "logger.h"
 #include "tomocam.h"
 
@@ -32,6 +33,17 @@ namespace tomocam::opt {
 
     template <typename T>
     using VecArray = std::array<Array<T>, 3>;
+
+    // addtion operator for VecArray
+    template <typename T>
+    VecArray<T> operator+(const VecArray<T> &a, const VecArray<T> &b) {
+        return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
+    }
+    // subtraction operator for VecArray
+    template <typename T>
+    VecArray<T> operator-(const VecArray<T> &a, const VecArray<T> &b) {
+        return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+    }
 
     template <typename T>
     using Function = std::function<VecArray<T>(const VecArray<T> &)>;
@@ -58,6 +70,23 @@ namespace tomocam::opt {
                            T xtol);
 
     /**
+     * @brief Conjugate Gradient Least Squares (CGLS) method for solving the
+     * linear system [A1, A2, ...]^T x = [b1, b2, ...]^T, where A1, A2 are
+     * self-adjoint operators.
+     *
+     * @param As Vector of functions representing the self-adjoint operators A1, A2,
+     * ...
+     * @param bs Vector of right-hand side vectors b1, b2, ...
+     * @param x0 Initial guess for the solution
+     * @param max_iters Maximum number of iterations
+     * @param tol Tolerance for convergence based on residual norm
+     * @return Approximate solution vector
+     */
+    template <typename T>
+    VecArray<T> cgls(const Function<T> &A1, const Function<T> &A2,
+                     const VecArray<T> &b1, const VecArray<T> &b2,
+                     const VecArray<T> &x0, size_t max_iters, T tol);
+    /**
      * @brief Conjugate Gradient Solver for linear systems
      * @param A Function representing the system matrix
      * @param y Right-hand side vector
@@ -69,24 +98,6 @@ namespace tomocam::opt {
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol);
-
-    /**
-     * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term
-     * @param grad Gradient function
-     * @param loss Loss function
-     * @param x Initial solution
-     * @param max_iters Maximum number of iterations
-     * @param lipschitz Lipschitz constant of the gradient
-     * @param tol Tolerance for convergence based on loss change
-     * @param xtol Tolerance for convergence based on solution change
-     * @param max_inner_iters Maximum number of inner iterations for line search
-     * @param logger Logger instance for output control
-     * @return Optimized solution
-     */
-    template <typename T>
-    Array<T> nagopt(const Function<T> &grad, const Residual<T> &loss, Array<T> &x,
-                    size_t max_iters, T lipschitz, T tol, T xtol,
-                    size_t max_inner_iters = 20, Logger *logger = nullptr);
 
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
@@ -136,4 +147,4 @@ namespace tomocam::opt {
 
 } // namespace tomocam::opt
 
-#endif // TOMOCAM_OPTIMIZE__H
+#endif // TOMOCAM_OPT_H
