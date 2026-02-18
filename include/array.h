@@ -121,6 +121,13 @@ namespace tomocam {
         }
 
         // multiplication operators
+        Array<T> operator*(const Array<T> &v) {
+            auto tmp = this->clone();
+            std::transform(std::execution::par_unseq, tmp.begin(), tmp.end(),
+                           v.ptr_.get(), tmp.begin(), std::multiplies<T>());
+            return tmp;
+        }
+
         Array<T> &operator*=(T v) {
             std::transform(std::execution::par_unseq, this->begin(), this->end(),
                            this->begin(), [v](T x) { return x * v; });
@@ -151,6 +158,11 @@ namespace tomocam {
                                return x / y;
                            });
             return *this;
+        }
+        Array<T> operator/(const Array<T> &v) const {
+            auto tmp = this->clone();
+            tmp /= v;
+            return tmp;
         }
         Array<T> operator/(T scalar) const {
             auto rv = this->clone();
