@@ -120,14 +120,6 @@ namespace tomocam {
     }
 
     // Explicit template instantiations
-    template std::array<Array<float>, 3> MBIR(const Array<float> &proj,
-                                              const std::vector<float> &angles,
-                                              float gamma, const dims_t &recon_dims,
-                                              size_t max_iter, float sigma, float p,
-                                              float tol, float xtol);
-    template std::array<Array<double>, 3>
-    MBIR(const Array<double> &proj, const std::vector<double> &angles, double gamma,
-         const dims_t &recon_dims, size_t max_iter, double sigma, double p,
-         double tol, double xtol);
+    template std::array<Array<float>, 3> MBIR(const
 
 } // namespace tomocam

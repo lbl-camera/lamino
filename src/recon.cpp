@@ -52,13 +52,14 @@ int main(int argc, char **argv) {
 
     // log parameters
     params.print(std::cout);
+    std::exit(0);
 
     // set reconstruction dimensions
     tomocam::dims_t recon_dims = {dims[0], dims[1], dims[2]};
 
     tomocam::Timer t0;
     t0.start();
-    auto recon = tomocam::MBIR_CGLS<float>(datasets, recon_dims, max_iter, tol);
+    auto recon = tomocam::MBIR<float>(datasets, recon_dims, params);
     t0.stop();
     std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
                              t0.seconds());
@@ -69,7 +70,11 @@ int main(int argc, char **argv) {
         std::filesystem::create_directories(base_dir);
     }
 
-    tomocam::tiff::write3(output.filepath, recon);
-    tomocam::vti::write_vectors(output.filepath, recon);
+    if (output.has_format("tiff")) {
+        tomocam::tiff::write3(output.filepath, recon);
+    }
+    if (output.has_format("vti")) {
+        tomocam::vti::write_vectors(output.filepath, recon);
+    }
     return 0;
 }

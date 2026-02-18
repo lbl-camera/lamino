@@ -24,12 +24,11 @@
 #include <vector>
 
 #include "array.h"
+#include "config.h"
 #include "dtypes.h"
-#include "optimize.h"
 #include "padding.h"
 #include "polar_grid.h"
 #include "projection.h"
-#include "config.h"
 #include "tiff.h"
 #include "timer.h"
 #include "write_vti.h"
@@ -86,80 +85,32 @@ namespace tomocam {
      * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
      * tomographic imaging.
      *
-     * Reconstructs 3D volumetric data from projection images using a regularized
-     * optimization approach with QGGMRF (q-Generalized Gaussian Markov Random Field)
-     * penalty. The algorithm operates in a padded domain (sqrt(2) factor) to avoid
-     * aliasing artifacts during backprojection, then crops the result to the desired
-     * dimensions. The reconstruction uses Nesterov's Accelerated Gradient (NAG)
-     * method for optimization.
-     *
-     * The QGGMRF penalty provides edge-preserving regularization, with the parameter
-     * p controlling the degree of edge preservation.
+     * Reconstructs 3D volumetric data from set of projection images using a
+     * regularized optimization. There are two options for regularization: 1).
+     * Split-Bregram method with l1-regularization, 2). q-generalized Gaussian Markov
+     * Random Field (QGGMRF) edge-preserving The algorithm operates in a padded
+     * domain (sqrt(2) factor) to avoid aliasing artifacts during backprojection,
+     * then crops the result to the desired dimensions. The reconstruction uses
+     * Nesterov's Accelerated Gradient (NAG) method for optimization.
      *
      * @tparam T Floating-point type (float or double).
-     * @param proj Input projection data as an Array containing measurements from
-     * multiple viewing angles.
-     * @param angles Vector of projection angles corresponding to each projection in
-     * radians (or degrees depending on convention).
-     * @param gamma Laminography angle parameter controlling the tilt geometry of the
-     * imaging system. For standard tomography, gamma = 0.
-     * @param recon_dims Desired output dimensions (n1, n2, n3) for the reconstructed
-     * volume. The algorithm internally uses padded dimensions.
-     * @param max_iter Maximum number of NAG optimization iterations.
-     * @param sigma Regularization strength parameter for QGGMRF penalty. Larger
-     * values increase smoothing (default is 1000).
-     * @param p Power parameter for QGGMRF penalty controlling edge preservation
-     * characteristics (default is 1.2).
-     * @param tol Convergence tolerance for the loss function (residual norm).
-     * Algorithm stops if relative change in loss falls below this threshold.
-     * @param xtol Convergence tolerance for solution updates. Algorithm stops if
-     * relative change in reconstruction falls below this threshold.
-     a @return std::array<Array<T>, 3> containing three reconstructed volumes
-     * representing the three spatial components of magnetization or multi-channel
-     * data. Each component is an Array with dimensions specified by recon_dims.
-     */
-    template <typename Float>
-    std::array<Array<Float>, 3> MBIR(const Array<Float> &proj,
-                                     const std::vector<Float> &angles, Float gamma,
-                                     const dims_t &recon_dims, size_t max_iter,
-                                     Float sigma, Float p, Float tol, Float xtol);
-
-    /**
-     * @brief Performs Model-Based Iterative Reconstruction using Conjugate Gradient
-     * (MBIRCG) for vector tomographic imaging.
-     *
-     *@tparam T Floating-point type (float or double).
-     * @param proj Input projection data as an Array containing measurements from
-     * multiple viewing angles.
-     * @param angles Vector of projection angles corresponding to each projection in
-     * degrees
-     * @param gamma Laminography angle parameter controlling the tilt geometry of the
-     * imaging system. For standard tomography, gamma = 0.
-     * @param recon_dims Desired output dimensions (n1, n2, n3) for the reconstructed
-     * volume. The algorithm internally uses padded dimensions.
-     * @param max_iter Maximum number of Conjugate Gradient optimization iterations.
-     * @param sigma Regularization strength parameter for QGGMRF penalty (Igronored
-     *in CG).
-     * @param p Power parameter for QGGMRF penalty controlling edge preservation
-     *(Ignored in CG).
-     * @param tol Convergence tolerance for the loss function (residual norm).
-     * Algorithm stops if relative change in loss falls below this threshold.
-     * @param xtol Convergence tolerance for solution updates. Algorithm stops if
-     * relative change in reconstruction falls below this threshold (Ignored in CG).
-     * @return std::array<Array<T>, 3> containing three reconstructed volumes
-     * representing the three spatial components of magnetization or multi-channel
-     * data. Each component is an Array with dimensions specified by recon_dims.
+     * @param datasets A vector of tuples, where each tuple contains:
+     *   1). An Array representing projection data
+     *   2). A vector of representing the projection angles for the dataset
+     *   3). A orientation angle (gamma), a proxy for angle between the sample
+     * magnetization and the beam polarization direction.
+     * @param recon_dims The dimensions of the reconstructed volume as a tuple
+     * (nslice, nrow, ncol).
+     * @param params Reconstruction parameters including regularization type, and
+     * optimization parameters.
+     * @return A array of three components representing the reconstructed 3D vector
+     * field, cropped to the specified dimensions.
      */
     template <typename Float>
     std::array<Array<Float>, 3>
-    MBIRCG(const Array<Float> &proj, const std::vector<Float> &angles, Float gamma,
-           const dims_t &recon_dims, size_t max_iter, Float tol);
-
-    template <typename Float>
-    std::array<Array<Float>, 3>
-    MBIR_CGLS(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
-                  &datasets,
-              const dims_t &recon_dims, size_t max_iter, Float tol);
+    MBIR(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
+             &datasets,
+         const dims_t &recon_dims, const ReconParams &params);
 
 } // namespace tomocam
 
