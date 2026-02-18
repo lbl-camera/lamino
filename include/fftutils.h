@@ -101,6 +101,7 @@ namespace tomocam::fft {
 
         size_t d = dims.n3 / 2;
         if (dims.n3 % 2 == 1) { d += 1; }
+#pragma omp parallel for collapse(2)
         for (size_t i = 0; i < dims.n1; ++i) {
             for (size_t j = 0; j < dims.n2; ++j) {
                 for (size_t k = 0; k < dims.n3; ++k) {

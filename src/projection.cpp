@@ -35,7 +35,6 @@
 #include "nufft.h"
 #include "padding.h"
 #include "polar_grid.h"
-#include "tomocam.h"
 
 namespace tomocam {
 
