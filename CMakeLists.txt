@@ -16,12 +16,12 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 set(SRC
+    src/bregman.cpp
+    src/finitediff.cpp
     src/cgls.cpp
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/mbir.cpp
-    src/mbir_cg.cpp
     src/mbir_cgls.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
