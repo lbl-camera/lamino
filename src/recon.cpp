@@ -29,7 +29,7 @@
 
 int main(int argc, char **argv) {
 
-    // paser JSON input
+    // check for input file (toml)
     if (argc < 2) {
         std::cerr << std::format("Usage: {} <input.toml>\n", argv[0]);
         std::cerr << "Please see config_template.toml for an example input file.\n";
@@ -70,9 +70,7 @@ int main(int argc, char **argv) {
         std::filesystem::create_directories(base_dir);
     }
 
-    if (output.has_format("tiff")) {
-        tomocam::tiff::write3(output.filepath, recon);
-    }
+    if (output.has_format("tiff")) { tomocam::tiff::write3(output.filepath, recon); }
     if (output.has_format("vti")) {
         tomocam::vti::write_vectors(output.filepath, recon);
     }

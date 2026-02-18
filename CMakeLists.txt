@@ -50,7 +50,6 @@ find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS CXX)
 find_package(TIFF REQUIRED)
-find_package(nlohmann_json REQUIRED)
 
 # finufft
 find_package(finufft REQUIRED)
