@@ -19,6 +19,9 @@
  */
 
 #include <array>
+#include <cmath>
+#include <format>
+#include <iostream>
 
 #include "array.h"
 #include "optimize.h"

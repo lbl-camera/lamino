@@ -52,7 +52,7 @@ namespace tomocam::opt {
             VecArray<T> Ap = A(p);
             T pAp = 0;
             for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
-            if (std::abs(pAp) < 1.e-15) {
+            if (std::abs(pAp) < 1.e-10) {
                 std::cerr << "pAp is close to zero\n";
                 break;
             }
