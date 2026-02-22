@@ -1,11 +1,11 @@
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <ostream>
 #include <string>
-using json = nlohmann::json;
+#include <toml++/toml.h>
 
 #include "padding.h"
 #include "polar_grid.h"
@@ -16,39 +16,52 @@ using json = nlohmann::json;
 constexpr double PADDING = 1.4142;
 
 void usage(char **argv) {
-    std::cout << "Usage: " << argv[0] << " JSON input configuration" << std::endl;
+    std::cout << "Usage: " << argv[0] << " TOML input configuration" << std::endl;
     exit(0);
 }
 
 int main(int argc, char **argv) {
 
-    // sanity check
+    // parse TOML input
     if (argc < 2) usage(argv);
-
-    // read data
-    std::ifstream json_file(argv[1]);
-    if (!json_file.is_open()) {
-        std::cerr << std::format("Usage: {} JSON input configuration\n", argv[0]);
+    std::string config_file = argv[1];
+    toml::table config;
+    try {
+        config = toml::parse_file(config_file);
+    } catch (const toml::parse_error &err) {
+        std::cerr << "Error parsing TOML file:\n" << err << "\n";
         return 1;
     }
 
-    // get input data
-    json config = json::parse(json_file);
-    std::string filename = config["filename"];
-    std::string angles = config["angles"];
-    std::string output = config["output"];
-    float gamma = config["gamma"];
-    size_t thickness = config["thickness"];
-    json_file.close();
+    std::string filename = config["input"]["filename"].value_or("");
+    if (!std::filesystem::exists(filename)) {
+        std::cerr << std::format("Error: projection file '{}' does not exist\n",
+                                 filename);
+        return 1;
+    }
+    std::string angles = config["input"]["angles"].value_or("");
+    if (!std::filesystem::exists(angles)) {
+        std::cerr << std::format("Error: angles file '{}' does not exist\n", angles);
+        return 1;
+    }
+    std::string output = config["output"]["filename"].value_or("output.tiff");
+    size_t thickness = config["recon_params"]["thickness"].value_or(21);
 
     tomocam::Timer t0;
     t0.start();
     auto projs = tomocam::tiff::read(filename);
     t0.stop();
+
+    size_t nproj = projs.nslices();
+    size_t nrows = projs.nrows();
+    size_t ncols = projs.ncols();
+    tomocam::dims_t recon_dims = {thickness, nrows, ncols};
+
     std::cerr << std::format("Time to read data: {}(s)\n", t0.seconds());
-    std::cerr << std::format("Projections size: ({}, {})\n", projs.nrows(),
-                             projs.ncols());
-    std::cerr << std::format("No. of projections: {}\n", projs.nslices());
+    std::cerr << std::format("Projections size: ({}, {}, {})\n", nproj, nrows,
+                             ncols);
+    std::cerr << std::format("Reconstruction size: ({}, {}, {})\n", recon_dims.n1,
+                             recon_dims.n2, recon_dims.n3);
 
     std::vector<float> theta;
     std::ifstream angles_file(angles);
@@ -61,9 +74,15 @@ int main(int argc, char **argv) {
     angles_file.close();
     // convert degrees to radians
     for (auto &a : theta) { a = a * M_PI / 180.0f; }
-    std::cerr << std::format("Number of angles: {}\n", theta.size());
+    if (theta.size() != nproj) {
+        std::cerr << std::format(
+            "Number of angles ({}) does not match number of projections ({})\n",
+            theta.size(), nproj);
+        return 1;
+    }
 
-    // padd projections
+    // pad projections
+
     t0.start();
     auto projs2 = tomocam::pad2d<float>(projs, PADDING, tomocam::PadType::SYMMETRIC);
     t0.stop();
@@ -73,22 +92,20 @@ int main(int argc, char **argv) {
 
     // create a polar grid
     t0.start();
-    auto nrows = projs2.nrows();
-    auto ncols = projs2.ncols();
-    tomocam::PolarGrid<float> pgrid(theta, nrows, ncols);
+    tomocam::PolarGrid<float> pgrid(theta, projs2.nrows(), projs2.ncols());
     t0.stop();
-    std::cerr << std::format("Polar grid size: ({}, {})\n", nrows, ncols);
+    std::cerr << std::format("Polar grid size: ({}, {})\n", projs2.nrows(),
+                             projs2.ncols());
+    std::cerr << std::format("Time to create polar grid: {}(s)\n", t0.seconds());
 
-    // do the forward projection
-    tomocam::dims_t dims = {thickness, nrows, ncols};
-    std::cerr << std::format("Backprojecting to size: ({}, {}, {})\n", dims.n1,
-                             dims.n2, dims.n3);
+    float gamma = 0.0f;
     t0.start();
-    auto img = tomocam::backproj(projs2, pgrid, dims, gamma);
+    auto img = tomocam::backproj(projs2, pgrid, recon_dims, gamma);
     t0.stop();
     std::cerr << std::format("Time to backproject: {}(s)\n", t0.seconds());
 
     // crop the image to original size
+
     tomocam::dims_t crop_dims = {thickness, projs.nrows(), projs.ncols()};
     t0.start();
     img = tomocam::crop2d<float>(img, crop_dims, tomocam::PadType::SYMMETRIC);
