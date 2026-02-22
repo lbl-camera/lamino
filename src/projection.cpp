@@ -38,17 +38,18 @@ namespace tomocam {
     Array<T> forward(const Array<T> &volume, const PolarGrid<T> &pg, T gamma) {
 
         // cast double array to complex
-        auto Ft = array::to_complex(volume);
+        auto F = array::to_complex(volume);
         Array<std::complex<T>> C(pg.dims());
 
         // call NUFFT3d type-2
-        nufft::nufft3d2<T>(C, Ft, pg);
+        nufft::nufft3d2<T>(C, F, pg);
 
         // ifft
         C = fft::fftshift2(C);
         C = fft::ifft2(C);
         C = fft::ifftshift2(C);
 
+        // cast back to real and return
         return array::to_real<T>(C);
     }
     // Explicit instantiation forward
@@ -75,8 +76,7 @@ namespace tomocam {
         Array<std::complex<T>> F(recon_dims);
         nufft::nufft3d1<T>(C, F, pg);
 
-        // crop image
-        // scale
+        // cast back to real, scale, and return
         T scale = static_cast<T>(proj.ncols() * proj.size());
         return array::to_real<T>(F) / scale;
     }
