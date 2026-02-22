@@ -1,9 +1,7 @@
 #include <cstdint>
 #include <fstream>
+#include <toml++/toml.h>
 #include <vector>
-
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
 
 #include "shepplogan.h"
 #include "tiff.h"
@@ -33,23 +31,22 @@ float bilinear(float x, float y, const tomocam::Slice<float> &img) {
 
 int main(int argc, char **argv) {
 
-    size_t nslcs = 21;
-    size_t nrows = 511;
-    size_t ncols = 511;
-    float rot_ang = 0.f;
-    std::string outfile("shepp.tif");
-
-    if (argc > 1) {
-        std::fstream json_file(argv[1]);
-        if (json_file.is_open()) {
-            auto params = json::parse(json_file);
-            nslcs = params["nslices"];
-            nrows = params["nrows"];
-            ncols = params["ncols"];
-            rot_ang = params["rot_angle"];
-            outfile = params["output_filename"];
-        }
+    if (argc < 1) {
+        std::cerr << std::format("Usage: {} <config.toml>", argv[0]) << std::endl;
+        return 1;
     }
+    std::fstream toml_file(argv[1]);
+    if (!toml_file.is_open()) {
+        std::cerr << std::format("Error: Could not open TOML file '{}'", argv[1])
+                  << std::endl;
+        return 1;
+    }
+    auto params = toml::parse(toml_file);
+    size_t nslcs = params["nslices"].value_or(21);
+    size_t nrows = params["nrows"].value_or(511);
+    size_t ncols = params["ncols"].value_or(511);
+    float rot_ang = params["rot_angle"].value_or(0.0f);
+    std::string outfile = params["output"].value_or("shepplogan.tiff");
 
     tomocam::Array<float> data(nslcs, nrows, ncols);
 
