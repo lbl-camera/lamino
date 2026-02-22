@@ -1,10 +1,11 @@
 #include <cmath>
+#include <filesystem>
+#include <format>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <ostream>
 #include <string>
-using json = nlohmann::json;
+#include <toml++/toml.h>
 
 #include "padding.h"
 #include "tiff.h"
@@ -13,41 +14,70 @@ using json = nlohmann::json;
 
 constexpr double PADDING = 1.4142;
 
-void usage(char **argv) {
-    std::cout << "Usage: " << argv[0] << " JSON input configuration\n";
-    exit(0);
+void usage() {
+    std::cerr << std::format("Usage: <config.toml>\n");
+    std::cerr << "Example config.toml:\n";
+    std::cerr << R"(
+    filename = "/path/do/volume/data.tiff"
+    angles = "/path/to/angles/angles.txt"
+    output = "/path/to/output/proj.tiff"
+    gamma = 1.0
+)";
+    exit(1);
 }
 
 int main(int argc, char **argv) {
 
     // sanity check
-    if (argc < 2) { usage(argv); }
+    if (argc < 2) { usage(); }
+    const std::string toml_file = argv[1];
+    // read config file
+    std::ifstream ifs(toml_file);
+    if (!ifs.is_open()) {
+        std::cerr << std::format("error: can't open config file: {}\n", toml_file);
+        return 1;
+    }
+    auto config = toml::parse(ifs);
 
-    // read data
-    std::ifstream json_file(argv[1]);
-    if (!json_file.is_open()) {
-        std::cerr << "error: can't open JSON file: " << argv[1] << '\n';
+    // get input data
+    std::string filename = config["filename"].value_or("");
+    if (filename.empty()) {
+        std::cerr << "error: filename is not specified in config file\n";
+        return 1;
+    }
+    if (!std::filesystem::exists(filename)) {
+        std::cerr << std::format("error: file does not exist: {}\n", filename);
         return 1;
     }
 
-    // get input data
-    json config = json::parse(json_file);
-    std::string filename = config["filename"];
-    std::string angles = config["angles"];
-    std::string output = config["output"];
-    float gamma = config["gamma"];
+    std::string angles_file = config["angles"].value_or("");
+    if (angles_file.empty()) {
+        std::cerr << "error: angles file is not specified in config file\n";
+        return 1;
+    }
+    if (!std::filesystem::exists(angles_file)) {
+        std::cerr << std::format("error: angles file does not exist: {}\n",
+                                 angles_file);
+        return 1;
+    }
+
+    std::string output = config["output"].value_or("");
+    if (output.empty()) {
+        output = std::filesystem::path(filename).stem().string() + "_proj.tiff";
+    }
+    float gamma = config["gamma"].value_or(0.f);
 
     tomocam::Timer t0;
     t0.start();
     auto sample = tomocam::tiff::read(filename);
     t0.stop();
-    std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
+    std::cerr << std::format("Time to read data: {} (s)\n", t0.seconds());
 
     // read angles
     std::vector<float> theta;
-    std::ifstream fp(angles);
+    std::ifstream fp(angles_file);
     if (!fp.is_open()) {
-        std::cerr << "error: can't open angles file: " << angles << '\n';
+        std::cerr << std::format("error: can't open angles file: {}\n", angles_file);
         return 1;
     }
     float angle;
@@ -61,7 +91,7 @@ int main(int argc, char **argv) {
     auto sample2 =
         tomocam::pad3d<float>(sample, PADDING, tomocam::PadType::SYMMETRIC);
     t0.stop();
-    std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";
+    std::cerr << std::format("Time to pad data: {} (s)\n", t0.seconds());
 
     // create a polar grid
     t0.start();
@@ -70,13 +100,14 @@ int main(int argc, char **argv) {
     auto ncols = sample2.ncols();
     tomocam::PolarGrid<float> pgrid(theta, nrows, ncols);
     t0.stop();
-    std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
+    std::cerr << std::format("Time to build a polar grid: {} (s)\n", t0.seconds());
 
     // do the forward projection
     t0.start();
-    auto proj = tomocam::forward(sample2, pgrid, gamma);
+    auto proj = tomocam::forward<float>(sample2, pgrid, gamma);
     t0.stop();
-    std::cerr << "time to do forward projection: " << t0.seconds() << "(s)\n";
+    std::cerr << std::format("Time to do forward projection: {} (s)\n",
+                             t0.seconds());
 
     // crop the projection to original size
     tomocam::dims_t crop_dims = {theta.size(), sample.nrows(), sample.ncols()};
@@ -84,7 +115,7 @@ int main(int argc, char **argv) {
     auto proj2 =
         tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
     t0.stop();
-    std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
+    std::cerr << std::format("Time to crop data: {} (s)\n", t0.seconds());
     // save data to tiff-stack
     tomocam::tiff::write(output, proj2);
 
