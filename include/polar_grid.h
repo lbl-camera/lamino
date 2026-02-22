@@ -67,9 +67,18 @@ namespace tomocam {
             }
         }
 
+        PolarGrid<T> clone() const {
+            PolarGrid<T> out;
+            out.npts = npts;
+            out.x = x.clone();
+            out.y = y.clone();
+            out.z = z.clone();
+            return out;
+        }
+
         PolarGrid<T> rotate(T angle) const {
 
-            PolarGrid<T> out = *this;
+            PolarGrid<T> out = this->clone();
 
             T cos_t = std::cos(angle);
             T sin_t = std::sin(angle);
