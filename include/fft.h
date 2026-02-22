@@ -27,7 +27,7 @@
 #include "dtypes.h"
 
 #ifndef FFTDEFS__H
-    #define FFTDEFS__H
+#define FFTDEFS__H
 
 namespace tomocam::fft {
 
@@ -123,14 +123,14 @@ namespace tomocam::fft {
         Array<std::complex<T>> output(input.dims());
 
         int rank = 2;
-        int n[] = {static_cast<int>(dims.y()), static_cast<int>(dims.z())};
-        int idist = static_cast<int>(dims.y() * dims.z());
-        int odist = static_cast<int>(dims.y() * dims.z());
+        int n[] = {static_cast<int>(dims.n2), static_cast<int>(dims.n3)};
+        int idist = static_cast<int>(dims.n2 * dims.n3);
+        int odist = static_cast<int>(dims.n2 * dims.n3);
         int istride = 1;
         int ostride = 1;
         int *inembed = NULL;
         int *onembed = NULL;
-        int batches = static_cast<int>(dims.x());
+        int batches = static_cast<int>(dims.n1);
 
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
@@ -163,14 +163,14 @@ namespace tomocam::fft {
         Array<std::complex<T>> output(input.dims());
 
         int rank = 2;
-        int n[] = {static_cast<int>(dims.y()), static_cast<int>(dims.z())};
-        int idist = static_cast<int>(dims.y() * dims.z());
-        int odist = static_cast<int>(dims.y() * dims.z());
+        int n[] = {static_cast<int>(dims.n2), static_cast<int>(dims.n3)};
+        int idist = static_cast<int>(dims.n2 * dims.n3);
+        int odist = static_cast<int>(dims.n2 * dims.n3);
         int istride = 1;
         int ostride = 1;
         int *inembed = NULL;
         int *onembed = NULL;
-        int batches = static_cast<int>(dims.x());
+        int batches = static_cast<int>(dims.n1);
 
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
