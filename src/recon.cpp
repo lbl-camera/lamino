@@ -45,7 +45,7 @@ void dump_config() {
     outf << "\n";
     outf << "[recon_params]\n";
     outf << "max_iters = 50\n";
-    outf << "inner_iters = 5\n";
+    outf << "inner_iters = 3\n";
     outf << "tol = 1e-5\n";
     outf << "xtol = 1e-5\n";
     outf << "thickness = 21\n";
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
     opt::OptimizerConfig<float> opt_config;
     auto params = config["recon_params"].as_table();
     opt_config.outer_max = params ? (*params)["max_iters"].value_or(50) : 50;
-    opt_config.inner_max = params ? (*params)["inner_iters"].value_or(5) : 3;
+    opt_config.inner_max = params ? (*params)["inner_iters"].value_or(3) : 3;
     opt_config.tol = params ? (*params)["tol"].value_or(1e-5f) : 1e-5f;
     opt_config.xtol = params ? (*params)["xtol"].value_or(1e-5f) : 1e-5f;
     size_t thickness = (*params)["thickness"].value_or(21);
@@ -149,6 +149,7 @@ int main(int argc, char **argv) {
     std::cout << std::format("  Recon Dimensions: {} x {} x {}\n", thickness,
                              projs.nrows(), projs.ncols());
     std::cout << std::format("  Max iterations: {}\n", opt_config.outer_max);
+    std::cout << std::format("  Inner iterations: {}\n", opt_config.inner_max);
     std::cout << std::format("  Optimization method: {}\n", method);
     if (method == "nag_optimizer") {
         std::cout << std::format("  \u03C3: {:.2e}\n", opt_config.sigma);
@@ -162,6 +163,7 @@ int main(int argc, char **argv) {
 
     // set reconstruction dimensions
     tomocam::dims_t img_dims = {thickness, projs.nrows(), projs.ncols()};
+    std::exit(1);
 
     tomocam::Timer t0;
     t0.start();
