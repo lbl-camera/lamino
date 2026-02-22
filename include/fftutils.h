@@ -18,8 +18,8 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef FFTUTILS__H
-#define FFTUTILS__H
+#ifndef FFTUTILS_H
+#define FFTUTILS_H
 
 #include <algorithm>
 #include <cstddef>
@@ -161,4 +161,4 @@ namespace tomocam::fft {
     }
 } // namespace tomocam::fft
 
-#endif // FFTUTILS__H
+#endif // FFTUTILS_H
