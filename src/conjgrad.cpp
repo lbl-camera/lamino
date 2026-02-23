@@ -64,7 +64,7 @@ namespace tomocam::opt {
 
             T rs_new = 0;
             for (size_t i = 0; i < 3; i++) { rs_new += array::dot(r[i], r[i]); }
-            std::cout << std::format("iter: {}, residual: {}\n", iter,
+            std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
                                      std::sqrt(rs_new));
             if (std::sqrt(rs_new) < tol) { break; }
 
