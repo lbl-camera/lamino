@@ -106,7 +106,7 @@ namespace tomocam {
 
         // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::ones(out_dims) * 0.9; }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
         auto recon_m = opt::split_bregman<T>(sysmats, yTs, x0, recon_params.lambda,
                                              recon_params.mu, recon_params.maxIters,
                                              recon_params.innerIters,
