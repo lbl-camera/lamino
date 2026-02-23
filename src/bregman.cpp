@@ -91,6 +91,7 @@ namespace tomocam::opt {
             // compute shrinkage factor
             for (size_t i = 0; i < 3; ++i) {
                 sk[i] = Array<T>::zeros(dims);
+                sk[i] += EPSILON; // to avoid division by zero
                 for (size_t j = 0; j < 3; ++j) {
                     sk[i] += (grad_x[i][j] + b[i][j]) * (grad_x[i][j] + b[i][j]);
                 }
@@ -119,7 +120,7 @@ namespace tomocam::opt {
             T norm_diff = T(0);
             for (size_t i = 0; i < 3; ++i) {
                 norm_diff += array::norm2(x[i] - x_old[i]) /
-                             (array::norm2(x_old[i]) + EPSILON);
+                             (array::norm2(x_old[i]) + static_cast<T>(EPSILON));
             }
             std::cout << std::format(
                 "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
