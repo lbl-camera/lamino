@@ -164,7 +164,8 @@ namespace tomocam {
                     "Missing [recon_params] section in config file");
             }
             // read max_outer_iters
-            maxIters = recon["max_outer_iters"].value_or<size_t>(50);
+            maxIters = recon["max_iters"].value_or<size_t>(50);
+            innerIters = recon["inner_iters"].value_or<size_t>(3);
 
             // read recon_dims
             const auto *dims = recon["recon_dims"].as_array();
@@ -237,30 +238,23 @@ namespace tomocam {
 
         void print(std::ostream &os) const {
 
-            std::string method_str =
-                regularizer == Regularizer::qGGMRF ? "qGGMRF" : "Split-Bregman";
-
-            toml::table reg_params;
+            os << "Reconstruction Parameters:\n";
+            os << "  max_outer_iters: " << maxIters << "\n";
+            os << "  inner_iters: " << innerIters << "\n";
+            os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
+                              recon_dims[1], recon_dims[2]);
+            os << "  tol: " << tol << "\n";
+            os << "  xtol: " << xtol << "\n";
+            os << "  regularizer: "
+               << (regularizer == Regularizer::qGGMRF ? "qGGMRF" : "Split-Bregman")
+               << "\n";
             if (regularizer == Regularizer::qGGMRF) {
-                reg_params =
-                    toml::table{{"method", method_str},
-                                {"qGGMRF", toml::table{{"p", p}, {"sigma", sigma}}}};
+                os << "    sigma: " << sigma << "\n";
+                os << "    p: " << p << "\n";
             } else {
-                reg_params = toml::table{
-                    {"method", method_str},
-                    {"split_bregman", toml::table{{"lambda", lambda}, {"mu", mu}}}};
+                os << "    lambda: " << lambda << "\n";
+                os << "    mu: " << mu << "\n";
             }
-            std::string dims = "[";
-            for (const auto &d : recon_dims) { dims += std::to_string(d) + ", "; }
-            dims = dims.substr(0, dims.size() - 2) + "]";
-            auto config = toml::table{
-                {"recon_params",
-                 toml::table{{"max_outer_iters", static_cast<int64_t>(maxIters)},
-                             {"recon_dims", dims},
-                             {"tol", tol},
-                             {"xtol", xtol},
-                             {"regularizer", reg_params}}}};
-            os << config << std::endl;
         }
     };
 
