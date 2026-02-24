@@ -31,6 +31,9 @@
 
 namespace tomocam::fft {
 
+    template <typename T>
+    concept Real = std::floating_point<T>;
+
     template <typename Real>
     class FFTWPlanHandle {
       private:
