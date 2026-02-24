@@ -26,91 +26,10 @@
 #include "array.h"
 #include "dtypes.h"
 
-#ifndef FFTDEFS__H
-#define FFTDEFS__H
+#ifndef FFTDEFS_H
+#define FFTDEFS_H
 
 namespace tomocam::fft {
-
-    template <typename T>
-    Array<std::complex<T>> fft1(const Array<std::complex<T>> &input) {
-
-        // double or float
-        bool is_double = std::is_same_v<T, double>;
-
-        // create return array
-        dims_t dims = input.dims();
-        Array<std::complex<T>> output(dims);
-
-        int rank = 1;
-        int n[] = {static_cast<int>(dims.z())};
-        int idist = static_cast<int>(dims.z());
-        int odist = static_cast<int>(dims.z());
-        int istride = 1;
-        int ostride = 1;
-        int *inembed = NULL;
-        int *onembed = NULL;
-        int batches = static_cast<int>(dims.x() * dims.y());
-
-        if (is_double) {
-            auto *idata = (fftw_complex *)input.begin();
-            auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_many_dft(
-                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
-                ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
-            if (!plan) { throw std::bad_alloc(); }
-            fftw_execute(plan);
-            fftw_destroy_plan(plan);
-        } else {
-            auto *idata = (fftwf_complex *)input.begin();
-            auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_many_dft(
-                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
-                ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-        }
-        return output;
-    }
-
-    template <typename T>
-    Array<std::complex<T>> ifft1(const Array<std::complex<T>> &arr) {
-
-        // double or float
-        bool is_double = std::is_same_v<T, double>;
-
-        // create return array
-        dims_t dims = arr.dims();
-        Array<std::complex<T>> output(arr.dims());
-
-        int rank = 1;
-        int n[] = {static_cast<int>(dims.z())};
-        int idist = static_cast<int>(dims.z());
-        int odist = static_cast<int>(dims.z());
-        int istride = 1;
-        int ostride = 1;
-        int *inembed = NULL;
-        int *onembed = NULL;
-        int batches = static_cast<int>(dims.x() * dims.y());
-
-        if (is_double) {
-            auto *idata = (fftw_complex *)arr.begin();
-            auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_many_dft(
-                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
-                ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
-            fftw_execute(plan);
-            fftw_destroy_plan(plan);
-        } else {
-            auto *idata = (fftwf_complex *)arr.begin();
-            auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_many_dft(
-                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
-                ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-        }
-        return output;
-    }
 
     template <typename T>
     Array<std::complex<T>> fft2(const Array<std::complex<T>> &input) {
@@ -193,29 +112,40 @@ namespace tomocam::fft {
     }
 
     template <typename T>
-    Array<std::complex<T>> fft3(const Array<std::complex<T>> &input) {
+    Array<std::complex<T>> fft2_r2c(const Array<T> &input) {
 
         // double or float
         bool is_double = std::is_same_v<T, double>;
 
         // create return array
         dims_t dims = input.dims();
-        Array<std::complex<T>> output(input.dims());
+        Array<std::complex<T>> output(dims.n1, dims.n2, dims.n3 / 2 + 1);
+
+        int rank = 2;
+        int n[] = {static_cast<int>(dims.n2), static_cast<int>(dims.n3)};
+        int idist = static_cast<int>(dims.n2 * dims.n3);
+        int odist = static_cast<int>(dims.n2 * (dims.n3 / 2 + 1));
+        int istride = 1;
+        int ostride = 1;
+        int *inembed = NULL;
+        int *onembed = NULL;
+        int batches = static_cast<int>(dims.n1);
 
         if (is_double) {
-            auto *idata = (fftw_complex *)input.begin();
+            auto *idata = (double *)input.begin();
             auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
-                                              odata, -1, FFTW_ESTIMATE);
+            fftw_plan plan = fftw_plan_many_dft_r2c(rank, n, batches, idata, inembed,
+                                                    istride, idist, odata, onembed,
+                                                    ostride, odist, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
-            auto *idata = (fftwf_complex *)input.begin();
+            auto *idata = (float *)input.begin();
             auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
-                                                odata, -1, FFTW_ESTIMATE);
-            if (!plan) { throw std::bad_alloc(); }
+            fftwf_plan plan = fftwf_plan_many_dft_r2c(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -223,35 +153,44 @@ namespace tomocam::fft {
     }
 
     template <typename T>
-    Array<std::complex<T>> ifft3(const Array<std::complex<T>> &input) {
-
+    Array<T> fft2_c2r(const Array<std::complex<T>> &input, dims_t output_dims) {
         // double or float
         bool is_double = std::is_same_v<T, double>;
 
-        dims_t dims = input.dims();
-        Array<std::complex<T>> output(dims);
+        // create return array
+        Array<T> output(output_dims);
+
+        int rank = 2;
+        int n[] = {static_cast<int>(output_dims.n2),
+                   static_cast<int>(output_dims.n3)};
+        int idist = static_cast<int>(output_dims.n2 * (output_dims.n3 / 2 + 1));
+        int odist = static_cast<int>(output_dims.n2 * output_dims.n3);
+        int istride = 1;
+        int ostride = 1;
+        int *inembed = NULL;
+        int *onembed = NULL;
+        int batches = static_cast<int>(output_dims.n1);
 
         if (is_double) {
             auto *idata = (fftw_complex *)input.begin();
-            auto *odata = (fftw_complex *)output.begin();
-            fftw_plan plan = fftw_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
-                                              odata, 1, FFTW_ESTIMATE);
+            auto *odata = (double *)output.begin();
+            fftw_plan plan = fftw_plan_many_dft_c2r(rank, n, batches, idata, inembed,
+                                                    istride, idist, odata, onembed,
+                                                    ostride, odist, FFTW_ESTIMATE);
             if (!plan) { throw std::bad_alloc(); }
             fftw_execute(plan);
             fftw_destroy_plan(plan);
         } else {
             auto *idata = (fftwf_complex *)input.begin();
-            auto *odata = (fftwf_complex *)output.begin();
-            fftwf_plan plan = fftwf_plan_dft_3d(dims.x(), dims.y(), dims.z(), idata,
-                                                odata, 1, FFTW_ESTIMATE);
-            if (!plan) { throw std::bad_alloc(); }
+            auto *odata = (float *)output.begin();
+            fftwf_plan plan = fftwf_plan_many_dft_c2r(
+                rank, n, batches, idata, inembed, istride, idist, odata, onembed,
+                ostride, odist, FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
-
         return output;
     }
-
 } // namespace tomocam::fft
 
-#endif // FFTDEFS__H
+#endif // FFTDEFS_H
