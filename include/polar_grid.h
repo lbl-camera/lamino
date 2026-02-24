@@ -50,18 +50,18 @@ namespace tomocam {
             z = Array<T>(dims);
             npts = dims.size();
 
-            // rotation matrix
-            T dz = (2 * M_PI) / static_cast<T>(nrows - 1);
-            T dr = (2 * M_PI) / static_cast<T>(ncols - 1);
+            // compute the grid points
+            T dh = (2 * M_PI) / static_cast<T>(ncols - 1);
+            T dr = (2 * M_PI) / static_cast<T>(nrows - 1);
 
 #pragma omp parallel for collapse(3)
             for (size_t i = 0; i < dims.n1; ++i) {
                 for (size_t j = 0; j < dims.n2; ++j) {
                     for (size_t k = 0; k < dims.n3; ++k) {
                         T radius = j * dr - M_PI;
+                        x[{i, j, k}] = k * dh - M_PI;
                         y[{i, j, k}] = radius * std::cos(theta[i]);
                         z[{i, j, k}] = radius * std::sin(theta[i]);
-                        x[{i, j, k}] = k * dz - M_PI;
                     }
                 }
             }
