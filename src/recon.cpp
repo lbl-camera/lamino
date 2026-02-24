@@ -163,7 +163,6 @@ int main(int argc, char **argv) {
 
     // set reconstruction dimensions
     tomocam::dims_t img_dims = {thickness, projs.nrows(), projs.ncols()};
-    std::exit(1);
 
     tomocam::Timer t0;
     t0.start();
