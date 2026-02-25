@@ -28,6 +28,7 @@
 #include <execution>
 #include <memory>
 #include <random>
+#include <span>
 #include <tuple>
 #include <type_traits>
 
@@ -118,6 +119,16 @@ namespace tomocam {
             dims_t d{end - begin, dims_.n2, dims_.n3};
             T *ptr = ptr_.get() + (begin * dims_.n2 * dims_.n3);
             return Slice<T>(ptr, d);
+        }
+
+        std::span<T> row(size_t i, size_t j) {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
+        const std::span<T> row(size_t i, size_t j) const {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
         }
 
         // multiplication operators
