@@ -73,10 +73,9 @@ namespace tomocam::opt {
 
     /** implement Split Bregman method for L1-regularized optimization problems
      * @brief Split Bregman method for L1-regularized optimization problems
-     * @param As vector of Functions representing the R^T R operator for datasets 1,
-     * 2, ...
-     * @param yTs vector 3-component arrays representing the R^T y vectors for
-     * datasets 1, 2, ...
+     * @param A Function representing the R^T R operator for datasets 1, 2, ... (i.e.
+     * A(u) = [R1^T R1 u, R2^T R2 u, ...])
+     * @param yT 3-component arrays representing the R1^T y1 + R2^T y2 + ...
      * @param x0 Initial guess for the solution (std::array of 3 components)
      * @param lambda Regularization parameter
      * @param mu Bregman parameter
@@ -87,8 +86,7 @@ namespace tomocam::opt {
      * @return Reconstructed solution vector
      */
     template <typename T>
-    VecArray<T> split_bregman(const std::vector<Function<T>> &As,
-                              const std::vector<VecArray<T>> &yTs,
+    VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol);
 

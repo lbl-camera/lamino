@@ -112,6 +112,12 @@ namespace tomocam {
              &datasets,
          const dims_t &recon_dims, const ReconParams &params);
 
+    // temporary function
+    template <typename Float>
+    std::array<Array<Float>, 3>
+    MBIR2(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
+              &datasets,
+          const dims_t &recon_dims, const ReconParams &params);
 } // namespace tomocam
 
 #endif // TOMOCAM__H

@@ -33,6 +33,9 @@
 #include "polar_grid.h"
 #include "tomocam.h"
 
+// padding factor
+constexpr double PAD_FACTOR = 1.4142; // sqrt(2) to avoid aliasing
+
 namespace tomocam {
 
     /** Dataset_t type definition
@@ -48,35 +51,27 @@ namespace tomocam {
                                  const dims_t &recon_dims,
                                  const ReconParams &recon_params) {
 
-        // padding factor
-        constexpr double PAD_FACTOR = 1.42;
         T padding = static_cast<T>(PAD_FACTOR);
+        auto pad = [padding](size_t n) {
+            size_t npad = 2 * (static_cast<size_t>(n * (padding - 1)) / 2);
+            return n + npad;
+        };
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
-        out_dims.n1 = static_cast<size_t>(recon_dims.n1 * padding);
-        if (out_dims.n1 % 2 == 0) {
-            out_dims.n1 -= 1; // make sure n1 is odd
-        }
-
-        out_dims.n2 = static_cast<size_t>(recon_dims.n2 * padding);
-        if (out_dims.n2 % 2 == 0) {
-            out_dims.n2 -= 1; // make sure n2 is odd
-        }
-        out_dims.n3 = static_cast<size_t>(recon_dims.n3 * padding);
-        if (out_dims.n3 % 2 == 0) {
-            out_dims.n3 -= 1; // make sure n3 is odd
-        }
+        out_dims.n1 = pad(recon_dims.n1);
+        out_dims.n2 = pad(recon_dims.n2);
+        out_dims.n3 = pad(recon_dims.n3);
 
         // setup system matrices and backprojections
         size_t n_datasets = datasets.size();
-        std::vector<opt::Function<T>> sysmats;
-        std::vector<std::array<Array<T>, 3>> yTs;
-        std::vector<T> gammas;
-        for (auto &dataset : datasets) {
-            auto &[proj, angles, gamma_ref] = dataset;
-            T gamma = gamma_ref;
-            gammas.push_back(gamma);
+        std::array<Array<T>, 3> yT;
+        for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(out_dims); }
+        std::vector<T> gamma(n_datasets);
+        std::vector<PolarGrid<T>> polar_grid(n_datasets);
+        for (size_t j = 0; j < n_datasets; ++j) {
+            auto &[proj, angles, gamma_ref] = datasets[j];
+            gamma[j] = gamma_ref;
 
             // normalize projections
             T proj_max = array::max(proj);
@@ -88,29 +83,28 @@ namespace tomocam {
             // setup polar grid
             size_t nrows = y.nrows();
             size_t ncols = y.ncols();
-            auto polar_grid =
-                std::make_shared<PolarGrid<T>>(angles, nrows, ncols, gamma);
+            polar_grid[j] = std::move(PolarGrid<T>(angles, nrows, ncols, gamma[j]));
 
             // backproject measurements to get yT
-            auto yT = adjoint(y, *polar_grid.get(), out_dims, gamma);
-            yTs.push_back(std::move(yT));
-
-            // setup gradient operator
-            opt::Function<T> A = [pg = polar_grid,
-                                  gamma](const std::array<Array<T>, 3> &x) {
-                // gradient data
-                return sysmat(x, *pg.get(), gamma);
-            };
-            sysmats.push_back(std::move(A));
+            auto yTmp = adjoint(y, polar_grid[j], out_dims, gamma[j]);
+            for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
+        opt::Function<T> A = [&polar_grid,
+                              &gamma](const std::array<Array<T>, 3> &x) {
+            std::array<Array<T>, 3> Ax = sysmat(x, polar_grid[0], gamma[0]);
+            for (size_t j = 1; j < polar_grid.size(); ++j) {
+                auto Axtmp = sysmat(x, polar_grid[j], gamma[j]);
+                for (size_t i = 0; i < 3; ++i) { Ax[i] += Axtmp[i]; }
+            }
+            return Ax;
+        };
 
         // initial guess
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
-        auto recon_m = opt::split_bregman<T>(sysmats, yTs, x0, recon_params.lambda,
-                                             recon_params.mu, recon_params.maxIters,
-                                             recon_params.innerIters,
-                                             recon_params.tol, recon_params.xtol);
+        auto recon_m = opt::split_bregman<T>(
+            A, yT, x0, recon_params.lambda, recon_params.mu, recon_params.maxIters,
+            recon_params.innerIters, recon_params.tol, recon_params.xtol);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;

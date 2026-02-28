@@ -27,6 +27,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "config.h"
 #include "optimize.h"
 #include "padding.h"
 #include "polar_grid.h"
@@ -34,57 +35,82 @@
 
 namespace tomocam {
 
+    /** Dataset_t type definition
+     * @tparam T data type
+     * @brief Tuple containing projection data, projection angles, and orientation
+     * gamma
+     */
     template <typename T>
-    std::array<Array<T>, 3>
-    MBIRCG(const Array<T> &proj, const std::vector<T> &angles, T gamma,
-           const dims_t &recon_dims, size_t max_iter, T tol) {
+    using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
+
+    template <typename T>
+    std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
+                                  const dims_t &recon_dims,
+                                  const ReconParams &recon_params) {
 
         // padding factor
-        constexpr double PAD_FACTOR = 1.42;
+        constexpr double PAD_FACTOR = 0.4142;
         T padding = static_cast<T>(PAD_FACTOR);
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
-        out_dims.n1 = static_cast<size_t>(recon_dims.n1 * padding);
-        if (out_dims.n1 % 2 == 0) {
-            out_dims.n1 -= 1; // make sure n1 is odd
+        size_t n1_pad = 2 * (static_cast<size_t>(recon_dims.n1 * padding) / 2);
+        out_dims.n1 += n1_pad;
+
+        size_t n2_pad = 2 * (static_cast<size_t>(recon_dims.n2 * padding) / 2);
+        out_dims.n2 += n2_pad;
+
+        size_t n3_pad = 2 * (static_cast<size_t>(recon_dims.n3 * padding) / 2);
+        out_dims.n3 += n3_pad;
+
+        // setup system matrices and backprojections
+        size_t n_datasets = datasets.size();
+        std::vector<PolarGrid<T>> polar_grids(n_datasets);
+
+        // array for backprojected measurements
+        std::array<Array<T>, 3> yT;
+        for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(out_dims); }
+        std::vector<T> gammas(n_datasets);
+        for (size_t j = 0; j < n_datasets; ++j) {
+            auto &[proj, angles, gamma_ref] = datasets[j];
+            gammas[j] = gamma_ref;
+
+            // normalize projections
+            T proj_max = array::max(proj);
+            auto y = proj / proj_max;
+
+            // zero-pad projections by sqrt(2) to avoid aliasing
+            y = pad2d(y, padding, PadType::SYMMETRIC);
+
+            // setup polar grid
+            size_t nrows = y.nrows();
+            size_t ncols = y.ncols();
+            polar_grids[j] =
+                std::move(PolarGrid<T>(angles, nrows, ncols, gammas[j]));
+
+            // backproject measurements to get yT
+            auto yTmp = adjoint(y, polar_grids[j], out_dims, gammas[j]);
+            for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
 
-        out_dims.n2 = static_cast<size_t>(recon_dims.n2 * padding);
-        if (out_dims.n2 % 2 == 0) {
-            out_dims.n2 -= 1; // make sure n2 is odd
-        }
-        out_dims.n3 = static_cast<size_t>(recon_dims.n3 * padding);
-        if (out_dims.n3 % 2 == 0) {
-            out_dims.n3 -= 1; // make sure n3 is odd
-        }
-
-        // normalize projections
-        T proj_max = array::max(proj);
-        auto y = proj / proj_max;
-
-        // zero-pad projections by sqrt(2) to avoid aliasing
-        y = pad2d(y, padding, PadType::SYMMETRIC);
-
-        // setup polar grid
-        size_t nrows = y.nrows();
-        size_t ncols = y.ncols();
-        auto polar_grid = PolarGrid<T>(angles, nrows, ncols, gamma);
-
-        // backproject measurements to get yT
-        auto yT = adjoint(y, polar_grid, out_dims, gamma);
-
-        // setup gradient operator
-        opt::Function<T> A = [&](const std::array<Array<T>, 3> &x) {
-            // gradient data
-            return sysmat(x, polar_grid, gamma);
+        // setup the linear system for CG solver
+        opt::Function<T> A = [&polar_grids,
+                              &gammas](const std::array<Array<T>, 3> &x) {
+            std::array<Array<T>, 3> Ax = sysmat(x, polar_grids[0], gammas[0]);
+            for (size_t j = 1; j < polar_grids.size(); ++j) {
+                auto Atmp = sysmat(x, polar_grids[j], gammas[j]);
+                for (size_t i = 0; i < 3; ++i) { Ax[i] += Atmp[i]; }
+            }
+            return Ax;
         };
 
         // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::ones(out_dims) * 0.9; }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
 
-        auto recon_m = opt::cgsolver<T>(A, yT, x0, max_iter, tol);
+        // solve linear system using CG solver
+        std::array<Array<T>, 3> recon_m =
+            opt::cgsolver<T>(A, yT, x0, recon_params.maxIters, recon_params.tol);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;
@@ -92,15 +118,20 @@ namespace tomocam {
             recon_magnetisation[i] =
                 crop3d(recon_m[i], recon_dims, PadType::SYMMETRIC);
         }
+
+        // transpose to match expected output format
+        for (size_t i = 0; i < 3; ++i) {
+            recon_magnetisation[i] =
+                array::transpose(recon_magnetisation[i], {1, 2, 0});
+        }
         return recon_magnetisation;
     }
 
     // Explicit template instantiations
     template std::array<Array<float>, 3>
-    MBIRCG(const Array<float> &proj, const std::vector<float> &angles, float gamma,
-           const dims_t &recon_dims, size_t max_iter, float tol);
+    MBIR2(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
+          const ReconParams &recon_params);
     template std::array<Array<double>, 3>
-    MBIRCG(const Array<double> &proj, const std::vector<double> &angles,
-           double gamma, const dims_t &recon_dims, size_t max_iter, double tol);
-
+    MBIR2(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
+          const ReconParams &recon_params);
 } // namespace tomocam

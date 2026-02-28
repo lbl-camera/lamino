@@ -36,8 +36,7 @@ namespace tomocam::opt {
      * using split Bregman method
      */
     template <typename T>
-    VecArray<T> split_bregman(const std::vector<Function<T>> &As,
-                              const std::vector<VecArray<T>> &yTs,
+    VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol) {
 
@@ -64,19 +63,17 @@ namespace tomocam::opt {
         // update A^TA to add laplacian of x
         // Ap  = (A^TA  +   ∇^T∇) u
         Function<T> Ap = [&](const std::array<Array<T>, 3> &u) {
-            std::array<Array<T>, 3> result;
-            for (size_t i = 0; i < 3; ++i) { result[i] = laplacian(u[i]) * mu; }
-            for (auto &A : As) { result += A(u); }
-            return result;
+            auto du = A(u);
+            for (size_t i = 0; i < 3; ++i) { du[i] += laplacian<T>(u[i]) * mu; }
+            return du;
         };
 
         for (size_t iter = 0; iter < outer_max; ++iter) {
 
             // update RHS := R^T y1 + R^Ty2 + μ∇^T(d - b)
             std::array<Array<T>, 3> rhs;
-            for (size_t i = 0; i < 3; ++i) { rhs[i] = divergence(d[i] - b[i]) * mu; }
-            for (auto &yT : yTs) {
-                for (size_t i = 0; i < 3; ++i) { rhs[i] += yT[i]; }
+            for (size_t i = 0; i < 3; ++i) {
+                rhs[i] = yT[i] + divergence(d[i] - b[i]) * mu;
             }
 
             // use conjugate gradient to solve the linear system
@@ -130,16 +127,14 @@ namespace tomocam::opt {
         return x;
     }
     // Explicit template instantiation for float and double
-    template VecArray<float> split_bregman(const std::vector<Function<float>> &As,
-                                           const std::vector<VecArray<float>> &yTs,
+    template VecArray<float> split_bregman(const Function<float> &A,
+                                           const VecArray<float> &yT,
                                            const VecArray<float> &x0, float lambda,
                                            float mu, size_t outer_max,
                                            size_t inner_max, float tol, float xtol);
-    template VecArray<double> split_bregman(const std::vector<Function<double>> &As,
-                                            const std::vector<VecArray<double>> &yTs,
-                                            const VecArray<double> &x0,
-                                            double lambda, double mu,
-                                            size_t outer_max, size_t inner_max,
-                                            double tol, double xtol);
+    template VecArray<double>
+    split_bregman(const Function<double> &A, const VecArray<double> &yT,
+                  const VecArray<double> &x0, double lambda, double mu,
+                  size_t outer_max, size_t inner_max, double tol, double xtol);
 
 } // namespace tomocam::opt

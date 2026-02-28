@@ -27,6 +27,7 @@
 #include "array.h"
 #include "array_ops.h"
 #include "optimize.h"
+#include "precond.h"
 
 namespace tomocam::opt {
 
@@ -38,14 +39,20 @@ namespace tomocam::opt {
         VecArray<T> x;
         VecArray<T> r;
         VecArray<T> p;
+
+        auto precond = RampPreconditioner<T>(x0[0].dims());
+
         for (size_t i = 0; i < 3; i++) { x[i] = x0[i].clone(); }
         VecArray<T> tmp = A(x);
-        for (size_t i = 0; i < 3; i++) {
-            r[i] = y[i] - tmp[i];
-            p[i] = r[i].clone();
-        }
+        for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
+
         T rs_old = 0;
-        for (size_t i = 0; i < 3; i++) { rs_old += array::dot(r[i], r[i]); }
+        VecArray<T> z;
+        for (size_t i = 0; i < 3; i++) {
+            z[i] = precond.apply(r[i]);
+            p[i] = z[i].clone();
+            rs_old += array::dot(z[i], r[i]);
+        }
 
         for (size_t iter = 0; iter < max_iter; iter++) {
 
@@ -62,14 +69,18 @@ namespace tomocam::opt {
                 r[i] -= Ap[i] * alpha;
             }
 
+            // apply preconditioner
             T rs_new = 0;
-            for (size_t i = 0; i < 3; i++) { rs_new += array::dot(r[i], r[i]); }
+            for (size_t i = 0; i < 3; i++) {
+                z[i] = precond.apply(r[i]);
+                rs_new += array::dot(z[i], r[i]);
+            }
             std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
                                      std::sqrt(rs_new));
             if (std::sqrt(rs_new) < tol) { break; }
 
             for (size_t i = 0; i < 3; i++) {
-                p[i] = r[i] + p[i] * (rs_new / rs_old);
+                p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
             rs_old = rs_new;
         }
