@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
             b_vec[j][{0, 0, i}] = diagMat[i] * x_true[{0, 0, i}];
         }
     }
-    auto x_sol = tomocam::opt::cgsolver(A, b_vec, x, 1000, 1e-6f);
+    auto x_sol = tomocam::opt::cgsolver(A, b_vec, x, 1000, 1e-6f, 0.0f);
 
     return 0;
 }

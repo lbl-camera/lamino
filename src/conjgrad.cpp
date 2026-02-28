@@ -26,6 +26,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "demag.h"
 #include "optimize.h"
 #include "precond.h"
 
@@ -33,17 +34,24 @@ namespace tomocam::opt {
 
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &y,
-                         const VecArray<T> &x0, size_t max_iter, T tol) {
+                         const VecArray<T> &x0, size_t max_iter, T tol, T lambda) {
 
         // initialize
-        VecArray<T> x;
+        VecArray<T> x = {x0[0].clone(), x0[1].clone(), x0[2].clone()};
         VecArray<T> r;
         VecArray<T> p;
 
+        // add demagnetization
+        Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
+            VecArray<T> Ax = A(x);
+            VecArray<T> Dx = demag(x);
+            for (size_t i = 0; i < 3; i++) { Ax[i] += Dx[i] * lambda; }
+            return Ax;
+        };
+
         auto precond = RampPreconditioner<T>(x0[0].dims());
 
-        for (size_t i = 0; i < 3; i++) { x[i] = x0[i].clone(); }
-        VecArray<T> tmp = A(x);
+        VecArray<T> tmp = Ad(x);
         for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
 
         T rs_old = 0;
@@ -56,7 +64,7 @@ namespace tomocam::opt {
 
         for (size_t iter = 0; iter < max_iter; iter++) {
 
-            VecArray<T> Ap = A(p);
+            VecArray<T> Ap = Ad(p);
             T pAp = 0;
             for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
             if (std::abs(pAp) < 1.e-10) {
@@ -91,10 +99,10 @@ namespace tomocam::opt {
     template VecArray<float> cgsolver<float>(const Function<float> &A,
                                              const VecArray<float> &y,
                                              const VecArray<float> &x0,
-                                             size_t max_iter, float tol);
+                                             size_t max_iter, float tol, float lambda);
     template VecArray<double> cgsolver<double>(const Function<double> &A,
                                                const VecArray<double> &y,
                                                const VecArray<double> &x0,
-                                               size_t max_iter, double tol);
+                                               size_t max_iter, double tol, double lambda);
 
 } // namespace tomocam::opt

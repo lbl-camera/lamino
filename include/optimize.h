@@ -100,11 +100,12 @@ namespace tomocam::opt {
      * @param x0 Initial guess for the solution
      * @param max_iters Maximum number of iterations
      * @param tol Tolerance for convergence based on residual norm
+     * @param lambda Demagnetization constraint weight
      * @return Approximate solution vector
      */
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &b,
-                         const VecArray<T> &x0, size_t max_iters, T tol);
+                         const VecArray<T> &x0, size_t max_iters, T tol, T lambda);
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
      * version)

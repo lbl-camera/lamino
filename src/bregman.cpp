@@ -77,7 +77,7 @@ namespace tomocam::opt {
             }
 
             // use conjugate gradient to solve the linear system
-            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol);
+            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol, T(0.0));
 
             /* Isotropic TV shrinkage */
             // compute gradient of solution

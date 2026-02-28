@@ -108,9 +108,14 @@ namespace tomocam {
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
 
-        // solve linear system using CG solver
+        // demagnetization constraint weight
+        // Lambda controls divergence-free constraint: higher values enforce ∇·M ≈ 0
+        // Typical range: 0.001 - 0.1 (relative to data fidelity term)
+        T lambda = static_cast<T>(0.01);
+
+        // solve linear system using CG solver with demagnetization constraint
         std::array<Array<T>, 3> recon_m =
-            opt::cgsolver<T>(A, yT, x0, recon_params.maxIters, recon_params.tol);
+            opt::cgsolver<T>(A, yT, x0, recon_params.maxIters, recon_params.tol, lambda);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;

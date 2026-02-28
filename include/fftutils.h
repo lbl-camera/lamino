@@ -27,10 +27,26 @@
 #include <cstring>
 #include <execution>
 #include <stdexcept>
+#include <vector>
 
 #include "array.h"
 
 namespace tomocam::fft {
+
+    template <typename T>
+    std::vector<T> fftfreq(size_t n) {
+        std::vector<T> freqs(n);
+        size_t n2 = n % 2 == 0 ? n / 2 : n / 2 + 1;
+        for (size_t i = 0; i < n; ++i) {
+            if (i < n2) {
+                freqs[i] = static_cast<T>(i) / static_cast<T>(n);
+            } else {
+                freqs[i] = static_cast<T>(i - n) / static_cast<T>(n);
+            }
+        }
+        return freqs;
+    }
+
     template <typename T>
     Array<T> fftshift1(const Array<T> &input) {
         auto dims = input.dims();
