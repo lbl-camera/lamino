@@ -5,7 +5,7 @@ project(Testbed CXX)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 # C++ std
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -18,11 +18,11 @@ endif()
 set(SRC
     src/bregman.cpp
     src/finitediff.cpp
-    src/cgls.cpp
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/mbir_cgls.cpp
+    src/mbir_sb.cpp
+    src/mbir_cg.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
     src/recon.cpp
@@ -59,7 +59,7 @@ target_link_libraries(tomocam PUBLIC FFTW::float)
 target_link_libraries(tomocam PUBLIC finufft::finufft)
 target_link_libraries(tomocam PUBLIC TBB::tbb)
 target_link_libraries(tomocam PUBLIC TIFF::TIFF)
-set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
+set_property(TARGET tomocam PROPERTY CXX_STANDARD 23)
 
 # recon executable
 add_executable(recon src/recon.cpp)

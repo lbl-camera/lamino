@@ -50,15 +50,17 @@ int main(int argc, char **argv) {
     float xtol = params.xtol;
     auto dims = params.recon_dims;
 
-    // log parameters
+    // print parameters
+#ifdef DEBUG
     params.print(std::cout);
+#endif
 
     // set reconstruction dimensions
-    tomocam::dims_t recon_dims = {dims[0], dims[1], dims[2]};
+    tomocam::dims_t recon_dims = {dims[2], dims[0], dims[1]};
 
     tomocam::Timer t0;
     t0.start();
-    auto recon = tomocam::MBIR<float>(datasets, recon_dims, params);
+    auto recon = tomocam::MBIR2<float>(datasets, recon_dims, params);
     t0.stop();
     std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
                              t0.seconds());
