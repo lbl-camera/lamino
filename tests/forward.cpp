@@ -10,6 +10,7 @@
 
 #include <toml++/toml.hpp>
 
+#include "array_ops.h"
 #include "tomocam.h"
 
 constexpr double PADDING = 1.4142;
@@ -111,14 +112,19 @@ int main(int argc, char **argv) {
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
 
-    // save the original size
-    tomocam::dims_t dims = m_data[0].dims();
+    // transpose data [n1, n2, n3] -> [n3, n1, n2]
+    t0.start();
+    for (int i = 0; i < 3; ++i) {
+        m_data[i] = tomocam::array::transpose(m_data[i], {2, 0, 1});
+    }
+    t0.stop();
+    std::cerr << "Time to transpose data: " << t0.seconds() << "(s)\n";
 
     // pad the sample
     t0.start();
     for (int i = 0; i < 3; ++i) {
-        m_data[i] =
-            tomocam::pad3d<float>(m_data[i], PADDING, tomocam::PadType::SYMMETRIC);
+        m_data[i] = tomocam::pad3d<float>(m_data[i], PADDING - 1,
+                                          tomocam::PadType::SYMMETRIC);
     }
     t0.stop();
     std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";
@@ -126,11 +132,13 @@ int main(int argc, char **argv) {
     // create a polar grid
     t0.start();
     // oversample polar-grid
-    auto nrows = m_data[0].nrows();
+    auto nrows = m_data[0].nslices();
     auto ncols = m_data[0].ncols();
     tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma);
     t0.stop();
     std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
+    std::cerr << "Polar grid dimensions: [" << grid.dims().n1 << ", "
+              << grid.dims().n2 << ", " << grid.dims().n3 << "]\n";
 
     // do the forward projection
     t0.start();
@@ -139,12 +147,13 @@ int main(int argc, char **argv) {
     std::cerr << "time to do forward projection: " << t0.seconds() << "(s)\n";
 
     // crop the projection to original size
-    tomocam::dims_t crop_dims = {angles.size(), dims.n2, dims.n3};
+    tomocam::dims_t crop_dims = {angles.size(), 239, 239};
     t0.start();
     proj = tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
     t0.stop();
     std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
-    // save data to tiff-stack
+
+    //  save data to tiff-stack
     tomocam::tiff::write(output, proj);
 
     return 0;
