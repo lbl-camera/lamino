@@ -94,19 +94,10 @@ namespace tomocam {
             return ptr_[flatIdx(i, j, k)];
         }
 
-#if (__cplusplus == 202302L)
-        T &operator[](size_t i, size_t j, size_t k) {
-            return ptr_[flatIdx(i, j, k)];
-        }
-        T operator[](size_t i, size_t j, size_t k) const {
-            return ptr_[flatIdx(i, j, k)];
-        }
-#else
         T &operator[](dims_t i) { return ptr_[flatIdx(i.x(), i.y(), i.z())]; }
         const T &operator[](dims_t i) const {
             return ptr_[flatIdx(i.x(), i.y(), i.z())];
         }
-#endif
 
         // get contiguous view to part or whole array
         Slice<T> slice(size_t begin, size_t end) {

@@ -75,6 +75,12 @@ namespace tomocam {
             if (v == 0) { throw std::runtime_error("divide by zeros"); }
             return {n1 / v, n2 / v, n3 / v};
         }
+        bool operator==(const dims_t &v) const {
+            return n1 == v.n1 && n2 == v.n2 && n3 == v.n3;
+        }
+        bool operator!=(const dims_t &v) const {
+            return !(*this == v);
+        }
     };
 
     inline std::ostream &operator<<(std::ostream &outs, dims_t d) {

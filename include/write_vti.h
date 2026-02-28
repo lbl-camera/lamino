@@ -42,7 +42,7 @@ namespace tomocam::vti {
         std::filesystem::path filepath(filename);
         filepath.replace_extension(".vti");
 
-        std::ofstream file(filename, std::ios::binary);
+        std::ofstream file(filepath, std::ios::binary);
         if (!file) { throw std::runtime_error("Could not open file for writing"); }
 
         size_t nz = vectors[0].nslices();
