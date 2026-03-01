@@ -34,16 +34,24 @@
 namespace tomocam::fft {
 
     template <typename T>
-    std::vector<T> fftfreq(size_t n) {
-        std::vector<T> freqs(n);
-        size_t n2 = n % 2 == 0 ? n / 2 : n / 2 + 1;
-        for (size_t i = 0; i < n; ++i) {
+    std::vector<T> fftfreq(size_t n_modes) {
+        std::vector<T> freqs(n_modes);
+        int n = static_cast<int>(n_modes);
+        int n2 = n % 2 == 0 ? n / 2 : n / 2 + 1;
+        for (int i = 0; i < n; ++i) {
             if (i < n2) {
-                freqs[i] = static_cast<T>(i) / static_cast<T>(n);
+                freqs[i] = (T)i / (T)n;
             } else {
-                freqs[i] = static_cast<T>(i - n) / static_cast<T>(n);
+                freqs[i] = (T)(i - n) / (T)n;
             }
         }
+        return freqs;
+    }
+    template <typename T>
+    std::vector<T> rfftfreq(size_t n_modes) {
+        std::vector<T> freqs(n_modes / 2 + 1);
+        int n = static_cast<int>(n_modes);
+        for (int i = 0; i < n / 2 + 1; ++i) { freqs[i] = (T)i / (T)n; }
         return freqs;
     }
 

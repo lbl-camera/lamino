@@ -69,9 +69,9 @@ namespace tomocam {
                         T ycrd = radius * std::sin(theta[i]);
                         T zcrd = k * dh - M_PI;
                         // apply rotation
-                        x[{i, j, k}] = xcrd * cos_gamma - zcrd * sin_gamma;
+                        x[{i, j, k}] = zcrd * cos_gamma - xcrd * sin_gamma;
                         y[{i, j, k}] = ycrd;
-                        z[{i, j, k}] = xcrd * sin_gamma + zcrd * cos_gamma;
+                        z[{i, j, k}] = zcrd * sin_gamma + xcrd * cos_gamma;
                     }
                 }
             }
