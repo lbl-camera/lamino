@@ -26,6 +26,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "bregman.h"
 #include "demag.h"
 #include "optimize.h"
 #include "precond.h"
@@ -38,14 +39,15 @@ namespace tomocam::opt {
 
         // initialize
         VecArray<T> x = {x0[0].clone(), x0[1].clone(), x0[2].clone()};
-        VecArray<T> r;
+        VecArray<T> r = {Array<T>(x0[0].dims()), Array<T>(x0[1].dims()),
+                         Array<T>(x0[2].dims())};
         VecArray<T> p;
 
         // add demagnetization
         Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
             VecArray<T> Ax = A(x);
-            VecArray<T> Dx = demag(x);
-            for (size_t i = 0; i < 3; i++) { Ax[i] += Dx[i] * lambda; }
+            VecArray<T> Hx = demag(x);
+            for (size_t i = 0; i < 3; i++) { Ax[i] += Hx[i] * lambda; }
             return Ax;
         };
 
@@ -64,6 +66,7 @@ namespace tomocam::opt {
 
         for (size_t iter = 0; iter < max_iter; iter++) {
 
+            // compute Ap
             VecArray<T> Ap = Ad(p);
             T pAp = 0;
             for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
@@ -91,6 +94,21 @@ namespace tomocam::opt {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
             rs_old = rs_new;
+
+#ifdef DEBUG
+            // calculate ratio of data-fidelity to regularization
+            T data_fidelity = 0;
+            T regularization = 0;
+            auto Atx = A(x);
+            auto Htx = demag(x);
+            for (size_t i = 0; i < 3; i++) {
+                data_fidelity += array::norm2(Atx[i] - y[i]);
+                regularization += array::norm2(Htx[i] * lambda);
+            }
+            std::cout << std::format(
+                "\t\tData fidelity: {}, Regularization: {}, Ratio: {}\n",
+                data_fidelity, regularization, regularization / data_fidelity);
+#endif
         }
         return x;
     }
@@ -99,10 +117,12 @@ namespace tomocam::opt {
     template VecArray<float> cgsolver<float>(const Function<float> &A,
                                              const VecArray<float> &y,
                                              const VecArray<float> &x0,
-                                             size_t max_iter, float tol, float lambda);
+                                             size_t max_iter, float tol,
+                                             float lambda);
     template VecArray<double> cgsolver<double>(const Function<double> &A,
                                                const VecArray<double> &y,
                                                const VecArray<double> &x0,
-                                               size_t max_iter, double tol, double lambda);
+                                               size_t max_iter, double tol,
+                                               double lambda);
 
 } // namespace tomocam::opt
