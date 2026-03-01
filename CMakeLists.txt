@@ -65,8 +65,13 @@ set_property(TARGET tomocam PROPERTY CXX_STANDARD 23)
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
 
+# forward executable
+add_executable(forward src/forward.cpp)
+target_link_libraries(forward PUBLIC tomocam)
+target_link_libraries(forward PUBLIC TIFF::TIFF)
+
 # install executables and library
-install(TARGETS recon DESTINATION bin)
+install(TARGETS recon forward DESTINATION bin)
 install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)
