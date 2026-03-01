@@ -66,6 +66,7 @@ namespace tomocam::fft {
             fftwf_plan plan = fftwf_plan_many_dft(
                 rank, n, batches, idata, inembed, istride, idist, odata, onembed,
                 ostride, odist, FFTW_FORWARD, FFTW_ESTIMATE);
+            if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -105,6 +106,7 @@ namespace tomocam::fft {
             fftwf_plan plan = fftwf_plan_many_dft(
                 rank, n, batches, idata, inembed, istride, idist, odata, onembed,
                 ostride, odist, FFTW_BACKWARD, FFTW_ESTIMATE);
+            if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -148,6 +150,7 @@ namespace tomocam::fft {
             fftwf_plan plan = fftwf_plan_many_dft_r2c(
                 rank, n, batches, idata, inembed, istride, idist, odata, onembed,
                 ostride, odist, FFTW_ESTIMATE);
+            if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -188,6 +191,7 @@ namespace tomocam::fft {
             fftwf_plan plan = fftwf_plan_many_dft_c2r(
                 rank, n, batches, idata, inembed, istride, idist, odata, onembed,
                 ostride, odist, FFTW_ESTIMATE);
+            if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -221,6 +225,7 @@ namespace tomocam::fft {
             auto *odata = (fftwf_complex *)output.begin();
             fftwf_plan plan =
                 fftwf_plan_dft_r2c_3d(N1, N2, N3, idata, odata, FFTW_ESTIMATE);
+            if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
@@ -250,6 +255,7 @@ namespace tomocam::fft {
             auto *odata = (float *)output.begin();
             fftwf_plan plan =
                 fftwf_plan_dft_c2r_3d(N1, N2, N3, idata, odata, FFTW_ESTIMATE);
+            if (!plan) { throw std::bad_alloc(); }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
