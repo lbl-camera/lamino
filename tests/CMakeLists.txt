@@ -21,3 +21,6 @@ target_link_libraries(test_transpose PUBLIC tomocam)
 add_executable(test_demag test_demag.cpp)
 target_link_libraries(test_demag PUBLIC tomocam)
 
+add_executable(jeff_data jeff.cpp)
+target_link_libraries(jeff_data PUBLIC tomocam)
+
