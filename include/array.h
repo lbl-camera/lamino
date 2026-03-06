@@ -61,8 +61,21 @@ namespace tomocam {
 
         Array(const Array<T> &) = delete;
         Array<T> &operator=(const Array<T> &) = delete;
-        Array(Array<T> &&) noexcept = default;
-        Array<T> &operator=(Array<T> &&) noexcept = default;
+        Array(Array<T> &&rhs) noexcept {
+            dims_ = std::move(rhs.dims_);
+            size_ = std::move(rhs.size_);
+            ptr_ = std::move(rhs.ptr_);
+            rhs.ptr_ = nullptr;
+        }
+        Array<T> &operator=(Array<T> &&rhs) noexcept {
+            if (this != &rhs) {
+                dims_ = std::move(rhs.dims_);
+                size_ = std::move(rhs.size_);
+                ptr_ = std::move(rhs.ptr_);
+                rhs.ptr_ = nullptr;
+            }
+            return *this;
+        }
 
         [[nodiscard]] Array<T> clone() const {
             Array<T> rv(dims_);
