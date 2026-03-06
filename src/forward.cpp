@@ -13,7 +13,7 @@
 #include "array_ops.h"
 #include "tomocam.h"
 
-constexpr double PADDING = 1.4142;
+constexpr double PADDING = 2;
 
 int main(int argc, char **argv) {
 
@@ -42,13 +42,18 @@ int main(int argc, char **argv) {
 
     auto gamma = table["orientation"]["gamma"].value<float>().value();
     gamma = gamma * M_PI / 180.0f; // convert to radians
-    auto output = table["output"]["filename"].value<std::string>().value();
+    auto output_file = table["output"]["filename"].value<std::string>().value();
+    auto output_basedir = table["output"]["basedir"].value<std::string>().value();
     // sanity checks
+    std::filesystem::path out_basedir(output_basedir);
     // check if data path exists
-    if (!std::filesystem::exists(basedir)) {
-        std::cerr << "Data path does not exist: " << basedir << "\n";
+    if (!std::filesystem::exists(out_basedir)) {
+        std::cerr << "Data path does not exist: " << output_basedir << "\n";
         return 1;
     }
+    // set output path
+    auto output = (out_basedir / output_file).string();
+
     // check if components exist
     if (!std::filesystem::exists(std::filesystem::path(basedir) / comp1) ||
         !std::filesystem::exists(std::filesystem::path(basedir) / comp2) ||
@@ -78,15 +83,6 @@ int main(int argc, char **argv) {
         for (auto &a : angles) { a = a * M_PI / 180.0f; }
     }
 
-    // check if output path is valid
-    auto output_path = std::filesystem::path(output);
-    if (output_path.has_parent_path() &&
-        !std::filesystem::exists(output_path.parent_path())) {
-        std::cerr << "Output path does not exist: " << output_path.parent_path()
-                  << "\n";
-        return 1;
-    }
-
     // print parameters
     std::cerr << "----------------------------------------\n";
     std::cerr << "Data path: " << basedir << "\n";
@@ -109,6 +105,8 @@ int main(int argc, char **argv) {
         auto filename = (base_path / components[i]).string();
         m_data[i] = tomocam::tiff::read(filename);
     }
+    tomocam::vti::write_vectors((base_path / "sample.vti").string(), m_data);
+
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
     std::cerr << "Data dimensions: [" << m_data[0].nslices() << ", "
