@@ -43,11 +43,13 @@ namespace tomocam::opt {
                          Array<T>(x0[2].dims())};
         VecArray<T> p;
 
-        // add demagnetization
+        // add demagnetization and Tikhonov regularization to the operator
         Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
             VecArray<T> Ax = A(x);
-            // VecArray<T> Hx = demag(x);
-            // for (size_t i = 0; i < 3; i++) { Ax[i] += Hx[i] * lambda; }
+            /*
+            VecArray<T> Hx = demag(x);
+            for (size_t i = 0; i < 3; i++) { Ax[i] += Hx[i] * lambda; }
+            */
             return Ax;
         };
 
@@ -95,7 +97,7 @@ namespace tomocam::opt {
             }
             rs_old = rs_new;
 
-#ifdef DEBUG_REGULARIZATION
+#ifdef DEBUG
             // calculate ratio of data-fidelity to regularization
             T data_fidelity = 0;
             T regularization = 0;
@@ -108,7 +110,7 @@ namespace tomocam::opt {
             std::cout << std::format(
                 "\t\tData fidelity: {}, Regularization: {}, Ratio: {}\n",
                 data_fidelity, regularization, regularization / data_fidelity);
-#endif // DEBUG_REGULARIZATION
+#endif // DEBUG
         }
         return x;
     }
