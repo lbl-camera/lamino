@@ -35,12 +35,11 @@ namespace tomocam {
     template <typename T>
     auto pad1d(const Array<T> &arr, T factor, PadType pad_type) -> Array<T> {
 
-        // if fector is  <= 1, return copy of input array
-        if (factor - 1 < 1.e-06) { return arr.clone(); }
+        // if factor is zero, return copy of input array
+        if (factor < 1.e-06) { return arr.clone(); }
 
-        size_t n3 = static_cast<size_t>(factor * arr.ncols());
-        if (n3 % 2 == 0) { n3 -= 1; }
-        size_t pad_size = n3 - arr.ncols();
+        size_t pad_size = 2 * (static_cast<size_t>(arr.ncols() * factor) / 2);
+        size_t n3 = arr.ncols() + pad_size;
 
         // allocate return array
         dims_t dims = {arr.nslices(), arr.nrows(), n3};
@@ -91,13 +90,13 @@ namespace tomocam {
     template <typename T>
     Array<T> pad2d(const Array<T> &arr, T factor, PadType pad_type) {
 
-        // if fector is  <= 1, return copy of input array
-        if (factor - 1 < 1.e-06) { return arr.clone(); }
+        // if factor is zero, return copy of input array
+        if (factor < 1.e-06) { return arr.clone(); }
 
-        size_t n2 = static_cast<size_t>(factor * arr.nrows());
-        if (n2 % 2 == 0) { n2 -= 1; }
-        size_t n3 = static_cast<size_t>(factor * arr.ncols());
-        if (n3 % 2 == 0) { n3 -= 1; }
+        size_t n2_pad = 2 * (static_cast<size_t>(arr.nrows() * factor) / 2);
+        size_t n2 = arr.nrows() + n2_pad;
+        size_t n3_pad = 2 * (static_cast<size_t>(arr.ncols() * factor) / 2);
+        size_t n3 = arr.ncols() + n3_pad;
 
         // create and initialize return array
         dims_t dims{arr.nslices(), n2, n3};
@@ -162,15 +161,15 @@ namespace tomocam {
     template <typename T>
     auto pad3d(const Array<T> &arr, T factor, PadType pad_type) -> Array<T> {
 
-        if ((factor - 1) < 1.e-06) { return arr.clone(); }
+        if (factor < 1.e-06) { return arr.clone(); }
 
         // calculate new dims
-        auto n1 = static_cast<size_t>(static_cast<T>(arr.nslices() * factor));
-        if (n1 % 2 == 0) { n1 -= 1; }
-        auto n2 = static_cast<size_t>(static_cast<T>(arr.nrows() * factor));
-        if (n2 % 2 == 0) { n2 -= 1; }
-        auto n3 = static_cast<size_t>(static_cast<T>(arr.ncols() * factor));
-        if (n3 % 2 == 0) { n3 -= 1; }
+        size_t n1_pad = 2 * (static_cast<size_t>(arr.nslices() * factor) / 2);
+        auto n1 = arr.nslices() + n1_pad;
+        size_t n2_pad = 2 * (static_cast<size_t>(arr.nrows() * factor) / 2);
+        auto n2 = arr.nrows() + n2_pad;
+        size_t n3_pad = 2 * (static_cast<size_t>(arr.ncols() * factor) / 2);
+        auto n3 = arr.ncols() + n3_pad;
 
         // allocate return array
         dims_t dims{n1, n2, n3};

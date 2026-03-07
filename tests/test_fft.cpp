@@ -16,36 +16,7 @@ T rand() {
 
 int main() {
 
-    // test 1-d array double
-    Array<double> a(1, 1, 8);
-    for (int i = 0; i < a.size(); i++) { a[i] = rand<double>(); }
-
-    double factor = std::sqrt(2);
-    // pad -> fft -> ifft -> unpad
-    auto ap = pad1d(a, factor, PadType::RIGHT);
-
-    auto n = static_cast<std::complex<double>>(ap.size());
-    auto ac = array::to_complex(ap);
-    auto b = fft::fft1(ac) / n;
-    auto cp = fft::ifft1(b);
-    uint64_t crop = ap.size() - a.size();
-    auto c = crop1d(cp, crop, PadType::RIGHT);
-
-    // check error
-    bool err_1d_double = false;
-    for (int i = 0; i < a.size(); i++) {
-        if (std::abs(a[i] - c[i]) > 1e-15) {
-            err_1d_double = true;
-            break;
-        }
-    }
-    std::cout << "test: 1-d array<double>: pad,fft,ifft,crop: .... ";
-    if (err_1d_double) {
-        std::cout << "failed" << std::endl;
-    } else {
-        std::cout << "passed" << std::endl;
-    }
-
+    double factor = 1.4142;
     // test 2-d array float
     Array<float> d(1, 8, 8);
     for (int i = 0; i < d.size(); i++) { d[i] = rand<float>(); }

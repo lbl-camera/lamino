@@ -28,6 +28,7 @@
 #include <execution>
 #include <memory>
 #include <random>
+#include <span>
 #include <tuple>
 #include <type_traits>
 
@@ -60,8 +61,21 @@ namespace tomocam {
 
         Array(const Array<T> &) = delete;
         Array<T> &operator=(const Array<T> &) = delete;
-        Array(Array<T> &&) noexcept = default;
-        Array<T> &operator=(Array<T> &&) noexcept = default;
+        Array(Array<T> &&rhs) noexcept {
+            dims_ = std::move(rhs.dims_);
+            size_ = std::move(rhs.size_);
+            ptr_ = std::move(rhs.ptr_);
+            rhs.ptr_ = nullptr;
+        }
+        Array<T> &operator=(Array<T> &&rhs) noexcept {
+            if (this != &rhs) {
+                dims_ = std::move(rhs.dims_);
+                size_ = std::move(rhs.size_);
+                ptr_ = std::move(rhs.ptr_);
+                rhs.ptr_ = nullptr;
+            }
+            return *this;
+        }
 
         [[nodiscard]] Array<T> clone() const {
             Array<T> rv(dims_);
@@ -85,27 +99,10 @@ namespace tomocam {
         T &operator[](size_t i) { return ptr_[i]; }
         const T &operator[](size_t i) const { return ptr_[i]; }
 
-        // indexing for total-variation regularization (with OOB handling)
-        T at(size_t i, size_t j, size_t k) const {
-            if (i >= dims_.n1 || j >= dims_.n2 || k >= dims_.n3) {
-                return T(0); // for out-of-bounds, return zero
-            }
-            return ptr_[flatIdx(i, j, k)];
-        }
-
-#if (__cplusplus == 202302L)
-        T &operator[](size_t i, size_t j, size_t k) {
-            return ptr_[flatIdx(i, j, k)];
-        }
-        T operator[](size_t i, size_t j, size_t k) const {
-            return ptr_[flatIdx(i, j, k)];
-        }
-#else
         T &operator[](dims_t i) { return ptr_[flatIdx(i.n1, i.n2, i.n3)]; }
         const T &operator[](dims_t i) const {
             return ptr_[flatIdx(i.n1, i.n2, i.n3)];
         }
-#endif
 
         // get contiguous view to part or whole array
         Slice<T> slice() { return Slice<T>(ptr_.get(), dims_); }
@@ -124,7 +121,24 @@ namespace tomocam {
             return Slice<T>(ptr, d);
         }
 
+        std::span<T> row(size_t i, size_t j) {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
+        const std::span<T> row(size_t i, size_t j) const {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
         // multiplication operators
+        Array<T> operator*(const Array<T> &v) {
+            auto tmp = this->clone();
+            std::transform(std::execution::par_unseq, tmp.begin(), tmp.end(),
+                           v.ptr_.get(), tmp.begin(), std::multiplies<T>());
+            return tmp;
+        }
+
         Array<T> &operator*=(T v) {
             std::transform(std::execution::par_unseq, this->begin(), this->end(),
                            this->begin(), [v](T x) { return x * v; });
@@ -155,6 +169,11 @@ namespace tomocam {
                                return x / y;
                            });
             return *this;
+        }
+        Array<T> operator/(const Array<T> &v) const {
+            auto tmp = this->clone();
+            tmp /= v;
+            return tmp;
         }
         Array<T> operator/(T scalar) const {
             auto rv = this->clone();

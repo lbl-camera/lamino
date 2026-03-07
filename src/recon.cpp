@@ -29,7 +29,7 @@
 
 int main(int argc, char **argv) {
 
-    // paser JSON input
+    // check for input file (toml)
     if (argc < 2) {
         std::cerr << std::format("Usage: {} <input.toml>\n", argv[0]);
         std::cerr << "Please see config_template.toml for an example input file.\n";
@@ -50,15 +50,17 @@ int main(int argc, char **argv) {
     float xtol = params.xtol;
     auto dims = params.recon_dims;
 
-    // log parameters
+    // print parameters
+#ifdef DEBUG
     params.print(std::cout);
+#endif
 
     // set reconstruction dimensions
-    tomocam::dims_t recon_dims = {dims[0], dims[1], dims[2]};
+    tomocam::dims_t recon_dims = {dims[2], dims[0], dims[1]};
 
     tomocam::Timer t0;
     t0.start();
-    auto recon = tomocam::MBIR_CGLS<float>(datasets, recon_dims, max_iter, tol);
+    auto recon = tomocam::MBIR2<float>(datasets, recon_dims, params);
     t0.stop();
     std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
                              t0.seconds());
@@ -69,7 +71,9 @@ int main(int argc, char **argv) {
         std::filesystem::create_directories(base_dir);
     }
 
-    tomocam::tiff::write3(output.filepath, recon);
-    tomocam::vti::write_vectors(output.filepath, recon);
+    if (output.has_format("tiff")) { tomocam::tiff::write3(output.filepath, recon); }
+    if (output.has_format("vti")) {
+        tomocam::vti::write_vectors(output.filepath, recon);
+    }
     return 0;
 }

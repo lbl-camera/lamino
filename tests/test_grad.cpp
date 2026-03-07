@@ -48,7 +48,7 @@ int main() {
         auto &g2 = grad_adj[i];
         auto scale = array::dot<float>(g1, g2) / array::dot<float>(g2, g2);
         auto diff = g1 - g2 * scale;
-        std::cout << "Channel " << i << ":\n";
+        std::cout << "Component " << i << ":\n";
         std::cout << "  Scale factor: " << scale << std::endl;
         std::cout << "  Relative difference: "
                   << array::norm2(diff) / array::norm2(g1) << std::endl;

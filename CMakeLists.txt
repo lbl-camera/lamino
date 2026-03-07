@@ -14,7 +14,7 @@ endif()
 
 
 # C++ std
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -25,13 +25,13 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 set(SRC
-    src/cgls.cpp
+    src/bregman.cpp
+    src/finitediff.cpp
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/mbir.cpp
+    src/mbir_sb.cpp
     src/mbir_cg.cpp
-    src/mbir_cgls.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
     src/recon.cpp
@@ -97,14 +97,19 @@ if (USE_CUDA)
     target_link_libraries(tomocam PUBLIC CUDA::cufft)
     target_link_libraries(tomocam PUBLIC CUDA::cudart)
 endif()
-set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
+set_property(TARGET tomocam PROPERTY CXX_STANDARD 23)
 
 # recon executable
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
 
+# forward executable
+add_executable(forward src/forward.cpp)
+target_link_libraries(forward PUBLIC tomocam)
+target_link_libraries(forward PUBLIC TIFF::TIFF)
+
 # install executables and library
-install(TARGETS recon DESTINATION bin)
+install(TARGETS recon forward DESTINATION bin)
 install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)

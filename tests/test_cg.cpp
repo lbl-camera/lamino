@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "array.h"
+#include "optimize.h"
 #include "tiff.h"
 #include "tomocam.h"
 
@@ -28,17 +29,16 @@ int main(int argc, char **argv) {
 
     // Conjugate Gradient solver for diagonal matrix (vector version)
     using VecArray = std::array<tomocam::Array<float>, 3>;
-    std::function<VecArray(const VecArray &)> A =
-        [&](const VecArray &v) {
-            VecArray Av;
-            for (size_t j = 0; j < 3; j++) {
-                Av[j] = tomocam::Array<float>(dims);
-                for (size_t i = 0; i < N; i++) {
-                    Av[j][{0, 0, i}] = diagMat[i] * v[j][{0, 0, i}];
-                }
+    std::function<VecArray(const VecArray &)> A = [&](const VecArray &v) {
+        VecArray Av;
+        for (size_t j = 0; j < 3; j++) {
+            Av[j] = tomocam::Array<float>(dims);
+            for (size_t i = 0; i < N; i++) {
+                Av[j][{0, 0, i}] = diagMat[i] * v[j][{0, 0, i}];
             }
-            return Av;
-        };
+        }
+        return Av;
+    };
 
     // call CG solver
     // initialize guess
@@ -47,9 +47,11 @@ int main(int argc, char **argv) {
     for (size_t j = 0; j < 3; j++) {
         x[j] = tomocam::Array<float>::random(dims);
         b_vec[j] = tomocam::Array<float>(dims);
-        for (size_t i = 0; i < N; i++) { b_vec[j][{0, 0, i}] = diagMat[i] * x_true[{0, 0, i}]; }
+        for (size_t i = 0; i < N; i++) {
+            b_vec[j][{0, 0, i}] = diagMat[i] * x_true[{0, 0, i}];
+        }
     }
-    auto x_sol = tomocam::opt::cgsolver(A, b_vec, x, 1000, 1e-6f);
+    auto x_sol = tomocam::opt::cgsolver(A, b_vec, x, 1000, 1e-6f, 0.0f);
 
     return 0;
 }
