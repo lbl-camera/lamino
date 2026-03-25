@@ -40,18 +40,25 @@ namespace tomocam::fft {
         int n2 = n % 2 == 0 ? n / 2 : n / 2 + 1;
         for (int i = 0; i < n; ++i) {
             if (i < n2) {
-                freqs[i] = (T)i / (T)n;
+                freqs[i] = (T)i;
             } else {
-                freqs[i] = (T)(i - n) / (T)n;
+                freqs[i] = (T)(i - n);
             }
         }
+        // (-pi, pi) for odd, and [-pi, pi) for even, with the zero in the begining
+        T dk = 2 * M_PI / (T)n_modes;
+        for (auto &f : freqs) { f *= dk; }
         return freqs;
     }
     template <typename T>
     std::vector<T> rfftfreq(size_t n_modes) {
         std::vector<T> freqs(n_modes / 2 + 1);
         int n = static_cast<int>(n_modes);
-        for (int i = 0; i < n / 2 + 1; ++i) { freqs[i] = (T)i / (T)n; }
+        for (int i = 0; i < n / 2 + 1; ++i) { freqs[i] = (T)i; }
+
+        // [0, pi), with the zero in the begining
+        T dk = 2 * M_PI / (T)n_modes;
+        for (auto &f : freqs) { f *= dk; }
         return freqs;
     }
 
