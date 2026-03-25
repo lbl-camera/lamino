@@ -121,7 +121,7 @@ namespace tomocam::opt {
             }
             std::cout << std::format(
                 "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
-            for (size_t i = 0; i < 3; ++i) { x_old[i] = std::move(x[i]); }
+            for (size_t i = 0; i < 3; ++i) { x_old[i] = x[i].clone(); }
             if (norm_diff < xtol) { break; }
         }
         return x;
