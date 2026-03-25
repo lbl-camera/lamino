@@ -44,7 +44,7 @@ namespace tomocam {
     using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
 
     template <typename T>
-    std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
+    std::array<Array<T>, 3> MBIR1(const std::vector<Dataset_t<T>> &datasets,
                                   const dims_t &recon_dims,
                                   const ReconParams &recon_params) {
 
@@ -133,9 +133,9 @@ namespace tomocam {
 
     // Explicit template instantiations
     template std::array<Array<float>, 3>
-    MBIR2(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
+    MBIR1(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
           const ReconParams &recon_params);
     template std::array<Array<double>, 3>
-    MBIR2(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
+    MBIR1(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
           const ReconParams &recon_params);
 } // namespace tomocam

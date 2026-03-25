@@ -23,6 +23,7 @@ set(SRC
     src/gradient.cpp
     src/mbir_sb.cpp
     src/mbir_cg.cpp
+    src/mbir3.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
     src/recon.cpp

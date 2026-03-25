@@ -150,7 +150,7 @@ namespace tomocam::opt {
      * @param p Exponent parameter
      */
     template <typename T>
-    void qggmrf(const Array<T> &x, Array<T> &dx, T sigma, T p);
+    void qggmrf(Array<T> &g, const Array<T> &x, T sigma, T p);
 
 } // namespace tomocam::opt
 

@@ -138,12 +138,12 @@ namespace tomocam {
         return datasets;
     }
 
-    enum class Regularizer { qGGMRF, SPLIT_BREGMAN };
+    enum class Regularizer { qGGMRF, SPLIT_BREGMAN, UNCONSTRAINED };
 
     // Reconstruction parameters
     struct ReconParams {
         Regularizer regularizer =
-            Regularizer::SPLIT_BREGMAN;               // Regularization method
+            Regularizer::UNCONSTRAINED;               // Regularization method
         std::array<size_t, 3> recon_dims = {0, 0, 0}; // Reconstruction dimensions
         size_t maxIters = 50;                         // Maximum number of iterations
         size_t innerIters = 3;     // Number of inner iterations for Split-Bregman
@@ -159,17 +159,17 @@ namespace tomocam {
         ReconParams(const toml::table &config) {
 
             // Read [recon_params] section
-            auto recon = config["recon_params"];
+            auto recon = config["recon_params"].as_table();
             if (!recon) {
                 throw std::runtime_error(
                     "Missing [recon_params] section in config file");
             }
             // read max_outer_iters
-            maxIters = recon["max_iters"].value_or<size_t>(50);
+            maxIters = (*recon)["max_iters"].value_or<size_t>(50);
             // innerIters = recon["inner_iters"].value_or<size_t>(3);
 
             // read recon_dims
-            const auto *dims = recon["recon_dims"].as_array();
+            const auto *dims = (*recon)["recon_dims"].as_array();
             if (dims && dims->size() == 3) {
                 for (size_t i = 0; i < 3; ++i) {
                     size_t temp = (*dims)[i].value_or<size_t>(0);
@@ -202,39 +202,43 @@ namespace tomocam {
                     "This may lead to increased memory usage.\n",
                     ratio);
             }
-            tol = recon["tol"].value_or<float>(1e-5f);
-            xtol = recon["xtol"].value_or<float>(1e-5f);
+            tol = (*recon)["tol"].value_or<float>(1e-5f);
+            xtol = (*recon)["xtol"].value_or<float>(1e-5f);
             // read regularizer type
-            auto reg = recon["regularizer"].as_table();
-            if (!reg) {
-                throw std::runtime_error(
-                    "Missing [recon_params.regularizer] section in config file");
-            }
-            auto reg_str = (*reg)["method"].value_or<std::string>("split_bregman");
-            if (reg_str == "qGGMRF") {
-                regularizer = Regularizer::qGGMRF;
-                auto params = (*reg)["qGGMRF"].as_table();
-                if (!params) {
-                    throw std::runtime_error(
-                        "Missing [recon_params.regularizer.qGGMRF] section in "
-                        "config file");
+            // check of regularizer section exists
+            if (recon->contains("regularizer")) {
+                auto reg = (*recon)["regularizer"].as_table();
+                if (reg) {
+                    auto reg_str =
+                        (*reg)["method"].value_or<std::string>("split_bregman");
+                    if (reg_str == "qGGMRF") {
+                        regularizer = Regularizer::qGGMRF;
+                        auto params = (*reg)["qGGMRF"].as_table();
+                        if (!params) {
+                            throw std::runtime_error(
+                                "Missing [recon_params.regularizer.qGGMRF] section "
+                                "in config file");
+                        }
+                        sigma = (*params)["sigma"].value_or<float>(1000.0f);
+                        p = (*params)["p"].value_or<float>(1.2f);
+                    } else if (reg_str == "split_bregman") {
+                        regularizer = Regularizer::SPLIT_BREGMAN;
+                        auto params = (*reg)["split_bregman"].as_table();
+                        if (!params) {
+                            throw std::runtime_error(
+                                "Missing [recon_params.regularizer.split_bregman] "
+                                "section "
+                                "in config file");
+                        }
+                        lambda = (*params)["lambda"].value_or<float>(0.1f);
+                        mu = (*params)["mu"].value_or<float>(10.0f);
+                        innerIters = (*params)["inner_iters"].value_or<size_t>(3);
+                    } else {
+                        throw std::runtime_error(
+                            "[recon_params] 'regularizer' must be "
+                            "either 'qGGMRF' or 'split_bregman'");
+                    }
                 }
-                sigma = (*params)["sigma"].value_or<float>(1000.0f);
-                p = (*params)["p"].value_or<float>(1.2f);
-            } else if (reg_str == "split_bregman") {
-                regularizer = Regularizer::SPLIT_BREGMAN;
-                auto params = (*reg)["split_bregman"].as_table();
-                if (!params) {
-                    throw std::runtime_error(
-                        "Missing [recon_params.regularizer.split_bregman] section "
-                        "in config file");
-                }
-                lambda = (*params)["lambda"].value_or<float>(0.1f);
-                mu = (*params)["mu"].value_or<float>(10.0f);
-                innerIters = (*params)["inner_iters"].value_or<size_t>(3);
-            } else {
-                throw std::runtime_error("[recon_params] 'regularizer' must be "
-                                         "either 'qGGMRF' or 'split_bregman'");
             }
         }
 

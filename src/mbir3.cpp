@@ -44,7 +44,7 @@ namespace tomocam {
     using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
 
     template <typename T>
-    std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
+    std::array<Array<T>, 3> MBIR3(const std::vector<Dataset_t<T>> &datasets,
                                   const dims_t &recon_dims,
                                   const ReconParams &recon_params) {
 
@@ -86,22 +86,43 @@ namespace tomocam {
             auto yTmp = adjoint(y, polar_grid[j], out_dims, gamma[j]);
             for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
-        opt::Function<T> A = [&polar_grid,
-                              &gamma](const std::array<Array<T>, 3> &x) {
-            std::array<Array<T>, 3> Ax = sysmat(x, polar_grid[0], gamma[0]);
-            for (size_t j = 1; j < polar_grid.size(); ++j) {
-                auto Axtmp = sysmat(x, polar_grid[j], gamma[j]);
-                for (size_t i = 0; i < 3; ++i) { Ax[i] += Axtmp[i]; }
+
+        // Define gradient function for NAG optimizer
+        auto grad = [&polar_grid, &gamma, &yT,
+                     &recon_params](const std::array<Array<T>, 3> &x) {
+            auto g = gradient(x, yT, polar_grid[0], gamma[0]);
+            for (size_t j = 1; j < gamma.size(); ++j) {
+                auto gTmp = gradient(x, yT, polar_grid[j], gamma[j]);
+                for (size_t i = 0; i < 3; ++i) { g[i] += gTmp[i]; }
             }
-            return Ax;
+            // add TV regularization gradient in-place
+            for (size_t i = 0; i < 3; ++i) {
+                opt::qggmrf<T>(g[i], x[i], recon_params.sigma, recon_params.p);
+            }
+            return g;
+        };
+
+        T yTy = 0;
+        for (size_t i = 0; i < 3; ++i) { yTy += array::dot(yT[i], yT[i]); }
+
+        // Define loss function for NAG optimizer (data fidelity only)
+        auto loss = [&polar_grid, &gamma, &yT, &recon_params,
+                     yTy](const std::array<Array<T>, 3> &x) {
+            T e = residual(x, yT, polar_grid[0], yTy, gamma[0]);
+            for (size_t j = 1; j < gamma.size(); ++j) {
+                e += residual(x, yT, polar_grid[j], yTy, gamma[j]);
+            }
+            return e;
         };
 
         // initial guess
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
-        auto recon_m = opt::split_bregman<T>(
-            A, yT, x0, recon_params.lambda, recon_params.mu, recon_params.maxIters,
-            recon_params.innerIters, recon_params.tol, recon_params.xtol);
+
+        // Run NAG optimization
+        auto recon_m = opt::nagopt<T>(
+            grad, loss, x0, recon_params.maxIters, recon_params.mu, recon_params.tol,
+            recon_params.xtol, recon_params.innerIters, nullptr);
 
         std::cout << "returned from optimization" << std::endl;
         // crop to original dimensions
@@ -115,10 +136,10 @@ namespace tomocam {
 
     // Explicit template instantiations
     template std::array<Array<float>, 3>
-    MBIR2(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
+    MBIR3(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
           const ReconParams &recon_params);
     template std::array<Array<double>, 3>
-    MBIR2(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
+    MBIR3(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
           const ReconParams &recon_params);
 
 } // namespace tomocam

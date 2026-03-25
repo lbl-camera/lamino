@@ -60,10 +60,35 @@ int main(int argc, char **argv) {
 
     tomocam::Timer t0;
     t0.start();
-    auto recon = tomocam::MBIR2<float>(datasets, recon_dims, params);
+    std::array<tomocam::Array<float>, 3> recon;
+    switch (params.regularizer) {
+        case tomocam::Regularizer::SPLIT_BREGMAN:
+            recon = tomocam::MBIR2<float>(datasets, recon_dims, params);
+            break;
+        case tomocam::Regularizer::qGGMRF:
+            recon = tomocam::MBIR3<float>(datasets, recon_dims, params);
+            break;
+        default: recon = tomocam::MBIR1<float>(datasets, recon_dims, params);
+    }
     t0.stop();
-    std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
-                             t0.seconds());
+    double elapsed = t0.seconds();
+    if (elapsed > 3600) {
+        int hours = static_cast<int>(elapsed / 3600);
+        int minutes = static_cast<int>((elapsed - hours * 3600) / 60);
+        double seconds = elapsed - hours * 3600 - minutes * 60;
+        std::cout << std::format("Reconstruction completed in {} hours, {} minutes, "
+                                 "and {:.2f} seconds.\n",
+                                 hours, minutes, seconds);
+    } else if (elapsed > 60) {
+        int minutes = static_cast<int>(elapsed / 60);
+        double seconds = elapsed - minutes * 60;
+        std::cout << std::format(
+            "Reconstruction completed in {} minutes and {:.2f} seconds.\n", minutes,
+            seconds);
+    } else {
+        std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
+                                 elapsed);
+    }
 
     // save result to tiff
     auto base_dir = std::filesystem::path(output.filepath).parent_path();

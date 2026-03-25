@@ -35,68 +35,66 @@ namespace tomocam::opt {
     const double MRF_Q = 2;
     const double MRF_C = 0.001;
 
+    // sigma_q  = pow(sigma, Q)
+    // sigma_qp = pow(sigma, Q - p)
+    // Both are precomputed once per qggmrf call and passed in.
     template <typename T>
-    T sign(T x) {
-        if (x < 0.f)
-            return -1;
-        else
-            return 1;
-    }
+    T d_potential_fcn(T delta, T sigma_q, T sigma_qp, T p) {
 
-    template <typename T>
-    T d_potential_fcn(T delta, T sigma, T p) {
-
-        T Q = static_cast<T>(MRF_Q);
         T C = static_cast<T>(MRF_C);
 
-        T sigma_q = std::pow(sigma, Q);
-        T sigma_q_p = std::pow(sigma, Q - p);
-
-        T temp1 = std::pow(std::abs(delta), Q - p) / sigma_q_p;
-        T temp2 = std::pow(std::abs(delta), Q - 1);
+        T abs_delta = std::abs(delta);
+        T temp1 = std::pow(abs_delta, MRF_Q - p) / sigma_qp;
         T temp3 = C + temp1;
 
-        if (std::abs(delta) > 0.f) {
-            return ((sign(delta) * temp2 / (temp3 * sigma_q)) *
-                    (MRF_Q - ((MRF_Q - p) * temp1) / (temp3)));
+        if (abs_delta > 0.f) {
+            // With Q=2: sign(delta)*pow(abs(delta), Q-1) == delta
+            return (delta / (temp3 * sigma_q)) *
+                   (MRF_Q - ((MRF_Q - p) * temp1) / temp3);
         } else {
             return MRF_Q / (sigma_q * MRF_C);
         }
     }
 
     template <typename T>
-    void qggmrf(const Array<T> &input, Array<T> &output, T sigma, T p) {
+    void qggmrf(Array<T> &gradient, const Array<T> &x, T sigma, T p) {
 
         // dims
-        auto dims = input.dims();
+        auto dims = x.dims();
 
         // write out for clarity
         size_t nslices = dims.x();
         size_t nrows = dims.y();
         size_t ncols = dims.z();
 
+        // Precompute sigma terms once; they are constant for the entire call.
+        const T sigma_q  = std::pow(sigma, static_cast<T>(MRF_Q));
+        const T sigma_qp = std::pow(sigma, static_cast<T>(MRF_Q) - p);
+
 #pragma omp parallel for collapse(3)
         for (size_t i = 1; i < nslices - 1; i++) {
             for (size_t j = 1; j < nrows - 1; j++) {
                 for (size_t k = 1; k < ncols - 1; k++) {
                     T sum_du = 0;
-                    T u = input[{i, j, k}];
-                    for (int x = -1; x < 2; x++) {
-                        for (int y = -1; y < 2; y++) {
-                            for (int z = -1; z < 2; z++) {
-                                T v = input.at(i + x, j + y, k + z);
-                                T w = weight<T>(x + 1, y + 1, z + 1);
-                                sum_du += w * d_potential_fcn(v - u, sigma, p);
+                    T u = x[{i, j, k}];
+                    for (int dx = -1; dx < 2; dx++) {
+                        for (int dy = -1; dy < 2; dy++) {
+                            for (int dz = -1; dz < 2; dz++) {
+                                // center voxel weight is 0; skip it
+                                if (dx == 0 && dy == 0 && dz == 0) continue;
+                                T v = x.at(i + dx, j + dy, k + dz);
+                                T w = weight<T>(dx + 1, dy + 1, dz + 1);
+                                sum_du += w * d_potential_fcn(v - u, sigma_q, sigma_qp, p);
                             }
                         }
                     }
-                    output[{i, j, k}] = sum_du;
+                    gradient[{i, j, k}] += sum_du;
                 }
             }
         }
     }
     // template instantiations
-    template void qggmrf<float>(const Array<float> &, Array<float> &, float, float);
-    template void qggmrf<double>(const Array<double> &, Array<double> &, double,
+    template void qggmrf<float>(Array<float> &, const Array<float> &, float, float);
+    template void qggmrf<double>(Array<double> &, const Array<double> &, double,
                                  double);
 } // namespace tomocam::opt
