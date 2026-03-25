@@ -13,7 +13,8 @@
 #include "array_ops.h"
 #include "tomocam.h"
 
-constexpr double PADDING = 2;
+constexpr double PADDING =
+    1.41421356237; // sqrt(2) to avoid cropping corners of the sample
 
 int main(int argc, char **argv) {
 
@@ -44,6 +45,22 @@ int main(int argc, char **argv) {
     gamma = gamma * M_PI / 180.0f; // convert to radians
     auto output_file = table["output"]["filename"].value<std::string>().value();
     auto output_basedir = table["output"]["basedir"].value<std::string>().value();
+    std::vector<int> output_dims;
+    auto dim_arr = table["output"]["dims"].as_array();
+    if (dim_arr && dim_arr->size() == 2) {
+        for (const auto &elem : *dim_arr) {
+            if (auto val = elem.value<int>()) {
+                output_dims.push_back(*val);
+            } else {
+                std::cerr << "Invalid output dimension value in config file\n";
+                return 1;
+            }
+        }
+    } else {
+        std::cerr << "Output dimensions must be an array of two integers\n";
+        return 1;
+    }
+
     // sanity checks
     std::filesystem::path out_basedir(output_basedir);
     // check if data path exists
@@ -105,7 +122,6 @@ int main(int argc, char **argv) {
         auto filename = (base_path / components[i]).string();
         m_data[i] = tomocam::tiff::read(filename);
     }
-    tomocam::vti::write_vectors((base_path / "sample.vti").string(), m_data);
 
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
@@ -131,11 +147,16 @@ int main(int argc, char **argv) {
     std::cerr << "Padded data dimensions: [" << m_data[0].nslices() << ", "
               << m_data[0].nrows() << ", " << m_data[0].ncols() << "]\n";
 
+    auto padded = [&](int dim) {
+        int p = (dim * (PADDING - 1)) / 2;
+        return static_cast<size_t>(dim + 2 * p);
+    };
+
     // create a polar grid
     t0.start();
     // oversample polar-grid
-    auto nrows = m_data[0].nslices();
-    auto ncols = m_data[0].ncols();
+    size_t nrows = static_cast<size_t>(padded(output_dims[0]));
+    size_t ncols = static_cast<size_t>(padded(output_dims[1]));
     tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma);
     t0.stop();
     std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
@@ -149,7 +170,8 @@ int main(int argc, char **argv) {
     std::cerr << "time to do forward projection: " << t0.seconds() << "(s)\n";
 
     // crop the projection to original size
-    tomocam::dims_t crop_dims = {angles.size(), 239, 239};
+    tomocam::dims_t crop_dims = {angles.size(), static_cast<size_t>(output_dims[0]),
+                                 static_cast<size_t>(output_dims[1])};
     t0.start();
     proj = tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
     t0.stop();
