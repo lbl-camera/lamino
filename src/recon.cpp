@@ -1,4 +1,3 @@
-// clang-format off
 /* -------------------------------------------------------------------------------
  * Tomocam Copyright (c) 2018
  *
@@ -18,164 +17,88 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
- //clang-format on
 
-
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <toml++/toml.h>
+#include <vector>
 
-#include "optimize.h"
 #include "tomocam.h"
-#include "timer.h"
-
-
-using namespace tomocam;
-
-void dump_config() {
-    std::ofstream outf("config_template.toml", std::ios::out);
-    outf << "[input]\n";
-    outf << "filename = \"/path/to/dataset.tif\"\n";
-    outf << "angles = \"/path/to/angles.txt\"\n";
-    outf << "\n";
-    outf << "[output]\n";
-    outf << "filename = \"output.tiff\"\n";
-    outf << "\n";
-    outf << "[recon_params]\n";
-    outf << "max_iters = 50\n";
-    outf << "inner_iters = 3\n";
-    outf << "tol = 1e-5\n";
-    outf << "xtol = 1e-5\n";
-    outf << "thickness = 21\n";
-    outf << "\n";
-    outf << "[recon_params.optimizer]\n";
-    outf << "method = \"split_bregman\"\n";
-    outf << "\n";
-    outf << "[recon_params.optimizer.split_bregman]\n";
-    outf << "lambda = 0.1\n";
-    outf << "mu = 5.0\n";
-    outf.close();
-}
 
 int main(int argc, char **argv) {
 
-    // parse TOML input
+    // check for input file (toml)
     if (argc < 2) {
         std::cerr << std::format("Usage: {} <input.toml>\n", argv[0]);
         std::cerr << "Please see config_template.toml for an example input file.\n";
-        dump_config();
+        tomocam::dump_config();
         return 1;
     }
 
-    std::string input_file = argv[1];
-    toml::table config;
-    try {
-        config = toml::parse_file(input_file);
-    } catch (const toml::parse_error& err) {
-        std::cerr << "Error parsing TOML file:\n" << err << "\n";
-        return 1;
-    }
+    // read parameters from toml file
+    auto config = tomocam::read_toml_file(argv[1]);
+    auto datasets = tomocam::parse_input_datasets<float>(config);
+    auto params = tomocam::ReconParams(config);
+    auto output = tomocam::OutputParams(config);
 
-    // get the input entry
-    auto input = config["input"].as_table();
-    std::string dataset = (*input)["filename"].value_or("");
-    if (dataset.empty()) {
-        std::cerr << "Error: projection file not specified in input\n";
-        return 1;
-    }
-    auto projs = tomocam::tiff::read(dataset);
+    size_t max_iter = params.maxIters;
+    float sigma = params.sigma;
+    float p = 1.2;
+    float tol = params.tol;
+    float xtol = params.xtol;
+    auto dims = params.recon_dims;
 
-    // read projection angles 
-    std::string angles_file = (*input)["angles"].value_or("");
-    if (angles_file.empty()) {
-        std::cerr << "Error: angles file not specified in input\n";
-        return 1;
-    }
-    std::ifstream fp(angles_file);
-    if (!fp.is_open()) {
-        std::cerr << std::format("Error: Could not open angles file {}\n", angles_file);
-        return 1;
-    }
-    std::vector<float> angles;
-    float angle;
-    while (fp >> angle) {
-        angles.push_back(angle);
-    }
-    fp.close();
-
-    // get recon_params with defaults
-    opt::OptimizerConfig<float> opt_config;
-    auto params = config["recon_params"].as_table();
-    opt_config.outer_max = params ? (*params)["max_iters"].value_or(50) : 50;
-    opt_config.inner_max = params ? (*params)["inner_iters"].value_or(3) : 3;
-    opt_config.tol = params ? (*params)["tol"].value_or(1e-5f) : 1e-5f;
-    opt_config.xtol = params ? (*params)["xtol"].value_or(1e-5f) : 1e-5f;
-    size_t thickness = (*params)["thickness"].value_or(21);
-
-    // parse optimizer type and parameters
-    auto optimizer = (*params)["optimizer"].as_table();
-    std::string method = (*optimizer)["method"].value_or("split_bregman");
-    if (method == "split_bregman") {
-        opt_config.method = opt::Optimizer::SPLIT_BREGMAN;
-        auto sb_params = (*optimizer)["split_bregman"].as_table();
-        opt_config.lambda = sb_params ? (*sb_params)["lambda"].value_or(0.1f) : 0.1f;
-        opt_config.mu = sb_params ? (*sb_params)["mu"].value_or(5.0f) : 5.0f;
-    } else if (method == "conjugate_gradient") {
-        opt_config.method = opt::Optimizer::CG_SOLVER;
-    } else if (method == "nag_optimizer") {
-        opt_config.method = opt::Optimizer::NAG_OPT;
-        auto nag_params = (*optimizer)["nag_optimizer"].as_table();
-        opt_config.sigma = nag_params ? (*nag_params)["sigma"].value_or(0.1f) : 0.1f;
-        opt_config.p = nag_params ? (*nag_params)["p"].value_or(1.2f) : 1.2f;
-    } else {
-        std::cerr << std::format("Error: Unsupported optimizer method '{}'\n", method);
-        return 1;
-    }
-
-    // ensure angles are in radians
-    auto max_angle = *std::max_element(angles.begin(), angles.end());
-    if (std::abs(max_angle) > 2 * M_PI) {
-        for (auto &angle : angles) { angle = angle * M_PI / 180.0f; }
-    }
     // print parameters
-    std::cout << "Reconstruction parameters:\n";
-    std::cout << std::format("  Dataset: {}\n", dataset);
-    std::cout << std::format("  Projections: {} x {} x {}\n", projs.nslices(),
-                             projs.nrows(), projs.ncols());
-    std::cout << std::format("  Angles: {} values from {:.2f} to {:.2f} radians\n",
-                             angles.size(), angles.front(), angles.back());
-    std::cout << std::format("  Recon Dimensions: {} x {} x {}\n", thickness,
-                             projs.nrows(), projs.ncols());
-    std::cout << std::format("  Max iterations: {}\n", opt_config.outer_max);
-    std::cout << std::format("  Inner iterations: {}\n", opt_config.inner_max);
-    std::cout << std::format("  Optimization method: {}\n", method);
-    if (method == "nag_optimizer") {
-        std::cout << std::format("  \u03C3: {:.2e}\n", opt_config.sigma);
-        std::cout << std::format("  p: {:.2f}\n", opt_config.p);
-    } else if (method == "split_bregman") {
-        std::cout << std::format("  \u03BB: {:.2e}\n", opt_config.lambda);
-        std::cout << std::format("  \u03BC: {:.2e}\n", opt_config.mu);
-    }
-    std::cout << std::format("  Tolerance: {:.2e}\n", opt_config.tol);
-    std::cout << std::format("  X-tolerance: {:.2e}\n", opt_config.xtol);
+#ifdef DEBUG
+    params.print(std::cout);
+#endif
 
     // set reconstruction dimensions
-    tomocam::dims_t img_dims = {thickness, projs.nrows(), projs.ncols()};
+    tomocam::dims_t recon_dims = {dims[2], dims[0], dims[1]};
 
     tomocam::Timer t0;
     t0.start();
-    auto recon =
-        tomocam::MBIR(projs, angles, img_dims, opt_config);
+    std::array<tomocam::Array<float>, 3> recon;
+    switch (params.regularizer) {
+        case tomocam::Regularizer::SPLIT_BREGMAN:
+            recon = tomocam::MBIR2<float>(datasets, recon_dims, params);
+            break;
+        case tomocam::Regularizer::qGGMRF:
+            recon = tomocam::MBIR3<float>(datasets, recon_dims, params);
+            break;
+        default: recon = tomocam::MBIR1<float>(datasets, recon_dims, params);
+    }
     t0.stop();
-    std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
-                             t0.seconds());
+    double elapsed = t0.seconds();
+    if (elapsed > 3600) {
+        int hours = static_cast<int>(elapsed / 3600);
+        int minutes = static_cast<int>((elapsed - hours * 3600) / 60);
+        double seconds = elapsed - hours * 3600 - minutes * 60;
+        std::cout << std::format("Reconstruction completed in {} hours, {} minutes, "
+                                 "and {:.2f} seconds.\n",
+                                 hours, minutes, seconds);
+    } else if (elapsed > 60) {
+        int minutes = static_cast<int>(elapsed / 60);
+        double seconds = elapsed - minutes * 60;
+        std::cout << std::format(
+            "Reconstruction completed in {} minutes and {:.2f} seconds.\n", minutes,
+            seconds);
+    } else {
+        std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
+                                 elapsed);
+    }
 
     // save result to tiff
-    // parse output filename from config
-    auto output = config["output"].as_table();
-    std::string output_file = (*output)["filename"].value_or("recon.tiff");
-    tomocam::tiff::write(output_file, recon);
+    auto base_dir = std::filesystem::path(output.filepath).parent_path();
+    if (!std::filesystem::exists(base_dir)) {
+        std::filesystem::create_directories(base_dir);
+    }
+
+    if (output.has_format("tiff")) { tomocam::tiff::write3(output.filepath, recon); }
+    if (output.has_format("vti")) {
+        tomocam::vti::write_vectors(output.filepath, recon);
+    }
     return 0;
 }

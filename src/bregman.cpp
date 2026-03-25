@@ -18,6 +18,8 @@
  *---------------------------------------------------------------------------------
  */
 
+#include <algorithm>
+#include <execution>
 #include <format>
 
 #include "array.h"
@@ -29,77 +31,110 @@ namespace tomocam::opt {
 
     constexpr double EPSILON = 1e-8;
 
-    /* Solve the optimization problem:
-     *   min_x 0.5 ||A x - y||^2 + lambda TV(x)
+    /* Solve the LS problem with TV regularization:
+     * min_x 0.5 ||A x - y||^2 + lambda TV(x)
      * using split Bregman method
      */
     template <typename T>
-    Array<T> split_bregman(const std::function<Array<T>(const Array<T> &)> &A,
-                           const Array<T> &yT, const Array<T> &x0, T lambda, T mu,
-                           size_t outer_max, size_t inner_max, T tol, T xtol) {
+    VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
+                              const VecArray<T> &x0, T lambda, T mu,
+                              size_t outer_max, size_t inner_max, T tol, T xtol) {
 
-        Array<T> x = x0.clone();
-        Array<T> x_old = x0.clone();
-        std::array<Array<T>, 3> d;
-        std::array<Array<T>, 3> b;
-        for (int i = 0; i < 3; ++i) {
-            d[i] = Array<T>::zeros_like(x);
-            b[i] = Array<T>::zeros_like(x);
+        // Initialize variables
+        auto dims = x0[0].dims();
+        std::array<Array<T>, 3> x;
+        std::array<Array<T>, 3> x_old;
+        for (size_t i = 0; i < 3; ++i) {
+            x[i] = x0[i].clone();
+            x_old[i] = x0[i].clone();
+        }
+
+        // aux variable d and b are 3x3 matrices since gradient of vector is a 3x3
+        // matrix
+        std::array<std::array<Array<T>, 3>, 3> d;
+        std::array<std::array<Array<T>, 3>, 3> b;
+        for (size_t i = 0; i < 3; ++i) {
+            for (size_t j = 0; j < 3; ++j) {
+                d[i][j] = Array<T>::zeros(dims);
+                b[i][j] = Array<T>::zeros(dims);
+            }
         }
 
         // update A^TA to add laplacian of x
         // Ap  = (A^TA  +   ∇^T∇) u
-        Function<T> Ap = [&](const Array<T> &u) { return A(u) - laplacian(u) * mu; };
+        Function<T> Ap = [&](const std::array<Array<T>, 3> &u) {
+            auto du = A(u);
+            for (size_t i = 0; i < 3; ++i) { du[i] += laplacian<T>(u[i]) * mu; }
+            return du;
+        };
 
-        for (int iter = 0; iter < outer_max; ++iter) {
+        for (size_t iter = 0; iter < outer_max; ++iter) {
 
-            // x-update: solve (A^TA + μ∇^T∇)x = A^T y + μ∇^T(d - b)
-            std::array<Array<T>, 3> d_b;
-            for (size_t i = 0; i < 3; ++i) { d_b[i] = d[i] - b[i]; }
-            auto rhs = yT - divergence(d_b) * mu;
+            // update RHS := R^T y1 + R^Ty2 + μ∇^T(d - b)
+            std::array<Array<T>, 3> rhs;
+            for (size_t i = 0; i < 3; ++i) {
+                rhs[i] = yT[i] + divergence(d[i] - b[i]) * mu;
+            }
 
             // use conjugate gradient to solve the linear system
-            x = cgsolver(Ap, rhs, x, inner_max, tol);
+            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol, T(0.0));
 
-            // isotropic TV shrinkage
-            auto dx = grad_u(x);
-            auto sk = Array<T>::zeros_like(x);
-            for (size_t i = 0; i < x.size(); ++i) {
-                T sum_sq = 0;
-                for (size_t j = 0; j < 3; ++j) {
-                    T val = dx[j][i] + b[j][i];
-                    sum_sq += val * val;
-                }
-                sk[i] = std::sqrt(sum_sq);
-            }
+            /* Isotropic TV shrinkage */
+            // compute gradient of solution
+            std::array<std::array<Array<T>, 3>, 3> grad_x;
+            for (size_t i = 0; i < 3; ++i) { grad_x[i] = grad_u(x[i]); }
 
-            // update d inplace
+            std::array<Array<T>, 3> sk;
+            // compute shrinkage factor
             for (size_t i = 0; i < 3; ++i) {
-                for (size_t j = 0; j < dx[i].size(); ++j) {
-                    T val = (dx[i][j] + b[i][j]) / (sk[j] + EPSILON);
-                    d[i][j] = std::max(T(0), sk[j] - lambda / mu) * val;
+                sk[i] = Array<T>::zeros(dims);
+                sk[i] += EPSILON; // to avoid division by zero
+                for (size_t j = 0; j < 3; ++j) {
+                    sk[i] += (grad_x[i][j] + b[i][j]) * (grad_x[i][j] + b[i][j]);
+                }
+                std::transform(std::execution::par_unseq, sk[i].begin(), sk[i].end(),
+                               sk[i].begin(), [](T v) { return std::sqrt(v); });
+            }
+            // update d with shrinkage
+            for (size_t i = 0; i < 3; ++i) {
+                for (size_t j = 0; j < 3; ++j) {
+                    auto temp = (grad_x[i][j] + b[i][j]) / sk[i];
+                    std::transform(std::execution::par_unseq, temp.begin(),
+                                   temp.end(), sk[i].begin(), d[i][j].begin(),
+                                   [lambda, mu](T val, T sk_val) {
+                                       return std::max(sk_val - lambda / mu, T(0)) *
+                                              val;
+                                   });
                 }
             }
+
             // Bregman update
-            for (size_t i = 0; i < 3; ++i) { b[i] += dx[i] - d[i]; }
+            for (size_t i = 0; i < 3; ++i) {
+                for (size_t j = 0; j < 3; ++j) { b[i][j] += grad_x[i][j] - d[i][j]; }
+            }
 
             // Check convergence
-            T norm_diff = array::norm2(x - x_old) / (array::norm2(x_old) + EPSILON);
+            T norm_diff = T(0);
+            for (size_t i = 0; i < 3; ++i) {
+                norm_diff += array::norm2(x[i] - x_old[i]) /
+                             (array::norm2(x_old[i]) + static_cast<T>(EPSILON));
+            }
             std::cout << std::format(
                 "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
-            x_old = x.clone();
+            for (size_t i = 0; i < 3; ++i) { x_old[i] = x[i].clone(); }
             if (norm_diff < xtol) { break; }
         }
         return x;
     }
+    // Explicit template instantiation for float and double
+    template VecArray<float> split_bregman(const Function<float> &A,
+                                           const VecArray<float> &yT,
+                                           const VecArray<float> &x0, float lambda,
+                                           float mu, size_t outer_max,
+                                           size_t inner_max, float tol, float xtol);
+    template VecArray<double>
+    split_bregman(const Function<double> &A, const VecArray<double> &yT,
+                  const VecArray<double> &x0, double lambda, double mu,
+                  size_t outer_max, size_t inner_max, double tol, double xtol);
 
-    // explicit template instantiations for float and double
-    template Array<float>
-    split_bregman<float>(const std::function<Array<float>(const Array<float> &)> &,
-                         const Array<float> &, const Array<float> &, float, float,
-                         size_t, size_t, float, float);
-    template Array<double> split_bregman<double>(
-        const std::function<Array<double>(const Array<double> &)> &,
-        const Array<double> &, const Array<double> &, double, double, size_t, size_t,
-        double, double);
 } // namespace tomocam::opt

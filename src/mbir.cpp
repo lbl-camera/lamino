@@ -17,10 +17,13 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
+#include <array>
 #include <cassert>
 #include <format>
 #include <functional>
 #include <iostream>
+#include <tuple>
+#include <vector>
 
 #include "array.h"
 #include "array_ops.h"
@@ -30,17 +33,15 @@
 #include "tomocam.h"
 
 namespace tomocam {
+
     template <typename T>
-    Array<T> MBIR(const Array<T> &projs, const std::vector<T> &angles,
-                  const dims_t &recon_dims, const opt::OptimizerConfig<T> &optcfg) {
+    std::array<Array<T>, 3> MBIR(const Array<T> &proj, const std::vector<T> &angles,
+                                 T gamma, const dims_t &recon_dims, size_t max_iter,
+                                 T sigma, T p, T tol, T xtol) {
 
-        // normalize projections
-        T proj_max = array::max(projs);
-        auto y = projs / proj_max;
-
-        // zero-pad projections by sqrt(2) to avoid aliasing
-        T padding = static_cast<T>(1.42);
-        y = pad2d(y, padding, PadType::SYMMETRIC);
+        // padding factor
+        constexpr double PAD_FACTOR = 1.42;
+        T padding = static_cast<T>(PAD_FACTOR);
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
@@ -58,69 +59,67 @@ namespace tomocam {
             out_dims.n3 -= 1; // make sure n3 is odd
         }
 
+        // normalize projections
+        T proj_max = array::max(proj);
+        auto y = proj / proj_max;
+
+        // zero-pad projections by sqrt(2) to avoid aliasing
+        y = pad2d(y, padding, PadType::SYMMETRIC);
+
         // setup polar grid
         size_t nrows = y.nrows();
         size_t ncols = y.ncols();
-        auto polar_grid = PolarGrid<T>(angles, nrows, ncols);
+        auto polar_grid = PolarGrid<T>(angles, nrows, ncols, gamma);
 
-        // precompute backprojection of the projections
-        auto yT = backproj(y, polar_grid, out_dims);
+        // backproject measurements to get yT
+        auto yT = adjoint(y, polar_grid, out_dims, gamma);
 
-        auto recon = Array<T>(out_dims);
-        auto x0 = fbp(y, polar_grid, out_dims);
+        // setup gradient operator
+        std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
+            grad = [&](const std::array<Array<T>, 3> &x) {
+                // gradient data
+                auto g_data = gradient(x, yT, polar_grid, gamma);
 
-        // run optimization
-        switch (optcfg.method) {
-            case opt::Optimizer::CG_SOLVER: {
-                std::cout << std::format("Starting MBIR with CG optimization...\n");
-                opt::Function<T> ATA = [&](const Array<T> &x) {
-                    return sysmat(x, polar_grid);
-                };
-                recon = opt::cgsolver(ATA, yT, x0, optcfg.outer_max, optcfg.tol);
-                break;
-            }
-            case opt::Optimizer::NAG_OPT: {
-                std::cout << std::format("Starting MBIR with NAG optimization...\n");
-                opt::Function<T> gradient = [&](const Array<T> &x) {
-                    auto dx = sysmat(x, polar_grid) - yT;
-                    opt::qggmrf(x, dx, optcfg.sigma, optcfg.p);
-                    return dx;
-                };
-                opt::Residual<T> lossfn = [&](const Array<T> &x) {
-                    auto tmp = forward(x, polar_grid) - y;
-                    return std::sqrt(array::dot(tmp, tmp));
-                };
-                recon = opt::nagopt(gradient, lossfn, x0, optcfg.outer_max,
-                                    optcfg.lipschitz, optcfg.tol, optcfg.xtol,
-                                    optcfg.inner_max);
-                break;
-            }
-            case opt::Optimizer::SPLIT_BREGMAN: {
-                std::cout << std::format(
-                    "Starting MBIR with Split Bregman optimization...\n");
-                opt::Function<T> ATA = [&](const Array<T> &x) {
-                    return sysmat(x, polar_grid);
-                };
-                recon = opt::split_bregman(ATA, yT, x0, optcfg.lambda, optcfg.mu,
-                                           optcfg.outer_max, optcfg.inner_max,
-                                           optcfg.tol, optcfg.xtol);
-                break;
-            }
-            default: throw std::invalid_argument("Unsupported optimizer type");
+                // apply qggmrf penalty
+                for (size_t i = 0; i < 3; ++i) {
+                    opt::qggmrf(x[i], g_data[i], sigma, p);
+                }
+                return g_data;
+            };
+
+        // setup loss function
+        std::function<T(const std::array<Array<T>, 3> &)> loss =
+            [&](const std::array<Array<T>, 3> &x) {
+                return array::norm2(forward(x, polar_grid, gamma) - y);
+            };
+
+        // lipshitz constant
+        std::array<Array<T>, 3> xtmp;
+        for (size_t i = 0; i < 3; ++i) { xtmp[i] = Array<T>::ones(out_dims); }
+        auto Axtmp = forward(xtmp, polar_grid, gamma);
+        auto gtmp = adjoint(Axtmp, polar_grid, out_dims, gamma);
+        T L = 0;
+        for (size_t i = 0; i < 3; ++i) {
+            // estimate lipshitz constant
+            L = std::max(L, array::max(array::abs(gtmp[i])));
         }
 
+        // initial guess
+        std::array<Array<T>, 3> x0;
+        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::ones(out_dims) * 0.9; }
+
+        auto recon_m = opt::nagopt(grad, loss, x0, max_iter, L, tol, xtol);
+
         // crop to original dimensions
-        return crop3d(recon, recon_dims, PadType::SYMMETRIC);
+        std::array<Array<T>, 3> recon_magnetisation;
+        for (size_t i = 0; i < 3; ++i) {
+            recon_magnetisation[i] =
+                crop3d(recon_m[i], recon_dims, PadType::SYMMETRIC);
+        }
+        return recon_magnetisation;
     }
 
-    // explicit template instantiation
-    template Array<float> MBIR<float>(const Array<float> &projs,
-                                      const std::vector<float> &angles,
-                                      const dims_t &recon_dims,
-                                      const opt::OptimizerConfig<float> &optcfg);
-    template Array<double> MBIR<double>(const Array<double> &projs,
-                                        const std::vector<double> &angles,
-                                        const dims_t &recon_dims,
-                                        const opt::OptimizerConfig<double> &optcfg);
+    // Explicit template instantiations
+    template std::array<Array<float>, 3> MBIR(const
 
 } // namespace tomocam

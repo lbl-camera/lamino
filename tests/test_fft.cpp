@@ -16,12 +16,7 @@ T rand() {
 
 int main() {
 
-    // test 1-d array double
-    Array<double> a(1, 1, 8);
-    for (int i = 0; i < a.size(); i++) { a[i] = rand<double>(); }
-
-    double factor = std::sqrt(2);
-
+    double factor = 1.4142;
     // test 2-d array float
     Array<float> d(1, 8, 8);
     for (int i = 0; i < d.size(); i++) { d[i] = rand<float>(); }

@@ -17,12 +17,14 @@ int main() {
     Array<float> f = Array<float>(dims);
     f = Array<float>::random_like(f);
 
+    // gamma
+    float gamma = M_PI / 4.f;
     // Define theta
     size_t ntheta = 141;
     std::vector<float> theta(ntheta, 0.0f);
     for (size_t i = 0; i < ntheta; i++) { theta[i] = (i - 70.f) * M_PI / 180.f; }
 
-    auto pg = PolarGrid(theta, dims.n2, dims.n3);
+    auto pg = PolarGrid(theta, dims.n2, dims.n3, gamma);
 
     Timer timer;
     // hacky method to esitmate Lipschitz constant

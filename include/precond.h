@@ -17,9 +17,11 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
-#ifndef TOMOCAM_PRECOND__H
-#define TOMOCAM_PRECOND__H
+#ifndef TOMOCAM_PRECOND_H
+#define TOMOCAM_PRECOND_H
 
+#include <algorithm>
+#include <execution>
 #include <vector>
 
 #include "array.h"
@@ -35,56 +37,53 @@ namespace tomocam::opt {
       public:
         RampPreconditioner(dims_t dims) {
 
-            // creae 2D ramp filter in frequency domain of size (1, n2, n3+1)
-
             dims_t filter_dims = {1, dims.n2, dims.n3 / 2 + 1};
             filter_ = Array<T>(filter_dims);
 
-            // Create 1-d ramp filter along the x-axis (n3 direction)
-            std::vector<T> freqx(dims.n3 / 2 + 1, 0);
-            for (size_t i = 0; i < freqx.size(); ++i) {
-                T u = (T)i / (T)dims.n3;
-                freqx[i] = std::abs(u);
-            }
-            // Create 1-d ramp filter along the y-axis (n2 direction)
-            std::vector<T> freqy(dims.n2, 0);
-            for (size_t i = 0; i < freqy.size(); ++i) {
-                T v = i < dims.n2 / 2 + 1 ? (T)i / (T)dims.n2
-                                          : (T)(i - dims.n2) / (T)dims.n2;
-                freqy[i] = std::abs(v);
-            }
+            // Create 1-d ramp filter in x-direction
+            int n3 = static_cast<int>(dims.n3);
+            std::vector<T> xfreq(dims.n3 / 2 + 1, 0);
+            for (int i = 0; i < n3 / 2 + 1; ++i) { xfreq[i] = (T)i / (T)n3; }
 
-            T fx_max = *std::max_element(freqx.begin(), freqx.end());
-            T fy_max = *std::max_element(freqy.begin(), freqy.end());
-            T f_max = std::sqrt(fx_max * fx_max + fy_max * fy_max);
-            T eps = 1.e-6 * f_max; // small value to avoid zero filter response
+            // Create 1-d ramp filter in y-direction
+            int n2 = static_cast<int>(dims.n2);
+            std::vector<T> yfreq(dims.n2, 0);
+            for (int i = 0; i < n2; ++i) {
+                yfreq[i] = (i <= n2 / 2) ? (T)i / (T)n2 : (T)(i - n2) / (T)n2;
+            }
 
             // create a 2D ramp filter by outer addition
             for (size_t j = 0; j < dims.n2; ++j) {
                 for (size_t i = 0; i < dims.n3 / 2 + 1; ++i) {
-                    auto f = std::sqrt(freqy[j] * freqy[j] + freqx[i] * freqx[i]);
-                    filter_[{0, j, i}] = std::max(eps, f);
+                    auto f = std::sqrt(xfreq[i] * xfreq[i] + yfreq[j] * yfreq[j]);
+                    filter_[{0, j, i}] = f;
                 }
             }
+#ifdef DEBUG
+            for (auto f : filter_) {
+                if (std::isnan(f) || std::isinf(f)) {
+                    throw std::runtime_error(
+                        "Error: Ramp filter contains NaN/Inf values.\n");
+                }
+            }
+#endif
         }
 
         Array<T> apply(const Array<T> &input) const {
 
             // Apply the ramp filter in frequency domain
             auto dims = input.dims();
-            auto fft_input = fft::fft2_r2c<T>(input);
-            auto filtered = Array<std::complex<T>>(fft_input.dims());
+            auto scale = 1.0 / (dims.n2 * dims.n3);
+            auto fft_input = fft::fft2_r2c(input);
             for (size_t i = 0; i < dims.n1; ++i) {
-                for (size_t j = 0; j < dims.n2; ++j) {
-                    for (size_t k = 0; k < dims.n3 / 2 + 1; ++k) {
-                        filtered[{i, j, k}] =
-                            fft_input[{i, j, k}] * filter_[{0, j, k}];
-                    }
-                }
+                auto slice = fft_input.slice(i, i + 1);
+                std::transform(std::execution::seq, slice.begin(), slice.end(),
+                               filter_.begin(), slice.begin(),
+                               std::multiplies<std::complex<T>>());
             }
-            auto output = fft::fft2_c2r<T>(filtered, input.dims());
-            return output / (dims.n2 * dims.n3); // normalize by the number of pixels
+            auto filtered = fft::fft2_c2r(fft_input, dims);
+            return filtered * scale;
         }
     };
 } // namespace tomocam::opt
-#endif // TOMOCAM_PRECOND__H
+#endif // TOMOCAM_PRECOND_H

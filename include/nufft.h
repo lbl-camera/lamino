@@ -32,6 +32,7 @@
 #include "polar_grid.h"
 
 namespace tomocam::nufft {
+
     // 3D Type-1 NUFFT: nonuniform points to uniform grid
     template <typename T>
     void nufft3d1(const Array<std::complex<T>> &cz, Array<std::complex<T>> &fz,
@@ -39,10 +40,7 @@ namespace tomocam::nufft {
 
         std::array<int64_t, 3> n_modes = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                                           (int64_t)fz.nslices()};
-        const int NUFFT_TYPE = 1;
-        const int ndims = 3;
-        const int sign = 1;
-        auto &plan = plans::cache<T>.get_plan(NUFFT_TYPE, ndims, n_modes, sign);
+        auto &plan = plans::cache<T>.get_plan(1, 3, n_modes, 1);
         plan.set_points(pg);
 
         int ierr = plan.execute((std::complex<T> *)cz.begin(),
@@ -57,16 +55,14 @@ namespace tomocam::nufft {
 
         std::array<int64_t, 3> n_modes = {(int64_t)fz.ncols(), (int64_t)fz.nrows(),
                                           (int64_t)fz.nslices()};
-        const int NUFFT_TYPE = 2;
-        const int ndims = 3;
-        const int sign = -1;
-        auto &plan = plans::cache<T>.get_plan(NUFFT_TYPE, ndims, n_modes, sign);
+        auto &plan = plans::cache<T>.get_plan(2, 3, n_modes, -1);
         plan.set_points(pg);
 
         int ierr = plan.execute((std::complex<T> *)cz.begin(),
                                 (std::complex<T> *)fz.begin());
         if (ierr != 0) { throw std::runtime_error("Error in finufft_execute"); }
     }
+
 } // namespace tomocam::nufft
 
 #endif // NUFFT__H

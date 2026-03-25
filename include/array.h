@@ -28,39 +28,20 @@
 #include <execution>
 #include <memory>
 #include <random>
+#include <span>
 #include <tuple>
 #include <type_traits>
 
 #include "dtypes.h"
+#include "slice.h"
 
 namespace tomocam {
-
-    // a non-owning view into a 3D array
-    template <typename T>
-    struct Slice {
-        std::array<size_t, 2> dims; // nrows, ncols
-        T *ptr;
-
-        /// methods
-        size_t size() const { return dims[0] * dims[1]; }
-        // iterators
-        T *begin() { return ptr; }
-        const T *begin() const { return ptr; }
-        T *end() { return ptr + (dims[0] * dims[1]); }
-        const T *end() const { return ptr + (dims[0] * dims[1]); }
-        // indexing
-        T &operator[](std::array<size_t, 2> idx) {
-            return ptr[idx[0] * dims[1] + idx[1]];
-        }
-        const T &operator[](std::array<size_t, 2> idx) const {
-            return ptr[idx[0] * dims[1] + idx[1]];
-        }
-    };
 
     template <typename T>
     class Array {
       private:
         dims_t dims_;
+        dims_t pads_;
         size_t size_;
         std::unique_ptr<T[]> ptr_;
 
@@ -81,8 +62,21 @@ namespace tomocam {
 
         Array(const Array<T> &) = delete;
         Array<T> &operator=(const Array<T> &) = delete;
-        Array(Array<T> &&) noexcept = default;
-        Array<T> &operator=(Array<T> &&) noexcept = default;
+        Array(Array<T> &&rhs) noexcept {
+            dims_ = std::move(rhs.dims_);
+            size_ = std::move(rhs.size_);
+            ptr_ = std::move(rhs.ptr_);
+            rhs.ptr_ = nullptr;
+        }
+        Array<T> &operator=(Array<T> &&rhs) noexcept {
+            if (this != &rhs) {
+                dims_ = std::move(rhs.dims_);
+                size_ = std::move(rhs.size_);
+                ptr_ = std::move(rhs.ptr_);
+                rhs.ptr_ = nullptr;
+            }
+            return *this;
+        }
 
         [[nodiscard]] Array<T> clone() const {
             Array<T> rv(dims_);
@@ -114,35 +108,63 @@ namespace tomocam {
             return ptr_[flatIdx(i, j, k)];
         }
 
-#if (__cplusplus == 202302L)
-        T &operator[](size_t i, size_t j, size_t k) {
-            return ptr_[flatIdx(i, j, k)];
-        }
-        T operator[](size_t i, size_t j, size_t k) const {
-            return ptr_[flatIdx(i, j, k)];
-        }
-#else
         T &operator[](dims_t i) { return ptr_[flatIdx(i.x(), i.y(), i.z())]; }
         const T &operator[](dims_t i) const {
             return ptr_[flatIdx(i.x(), i.y(), i.z())];
         }
-#endif
 
         // get contiguous view to part or whole array
-        Slice<T> slice(size_t i) {
-            size_t nrows = dims_.n2;
-            size_t ncols = dims_.n3;
-            T *ptr = ptr_.get() + (i * dims_.n2 * dims_.n3);
-            return Slice<T>{{nrows, ncols}, ptr};
+        Slice<T> slice(size_t begin, size_t end) {
+            dims_t d{end - begin, dims_.n2, dims_.n3};
+            T *ptr = ptr_.get() + (begin * dims_.n2 * dims_.n3);
+            return Slice<T>(ptr, d);
         }
-        const Slice<T> slice(size_t i) const {
-            size_t nrows = dims_.n2;
-            size_t ncols = dims_.n3;
-            T *ptr = ptr_.get() + (i * dims_.n2 * dims_.n3);
-            return Slice<T>{{nrows, ncols}, ptr};
+
+        const Slice<T> slice(size_t begin, size_t end) const {
+            dims_t d{end - begin, dims_.n2, dims_.n3};
+            T *ptr = ptr_.get() + (begin * dims_.n2 * dims_.n3);
+            return Slice<T>(ptr, d);
+        }
+
+        std::span<T> row(size_t i, size_t j) {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
+        const std::span<T> row(size_t i, size_t j) const {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
+        void setPads(dims_t p) { pads_ = p; }
+        [[nodiscard]] dims_t pads() const { return pads_; }
+
+        // reset [0, pads_] and [dims_ - pads_, dims_] to zero
+        void resetPads() {
+            std::unique_ptr<T[]> tmp = std::make_unique<T[]>(size_);
+            std::fill(std::execution::par_unseq, tmp.get(), tmp.get() + size_, T(0));
+            size_t n2n3 = dims_.n2 * dims_.n3;
+            for (size_t i = pads_.n1; i < dims_.n1 - pads_.n1; ++i) {
+                size_t slice_offset = i * n2n3;
+                for (size_t j = pads_.n2; j < dims_.n2 - pads_.n2; ++j) {
+                    size_t row_offset = slice_offset + j * dims_.n3;
+                    std::copy(std::execution::par_unseq, 
+                              ptr_.get() + row_offset + pads_.n3,
+                              ptr_.get() + row_offset + dims_.n3 - pads_.n3,
+                              tmp.get() + row_offset + pads_.n3);
+                }
+            }
+            ptr_ = std::move(tmp);
         }
 
         // multiplication operators
+        Array<T> operator*(const Array<T> &v) {
+            auto tmp = this->clone();
+            std::transform(std::execution::par_unseq, tmp.begin(), tmp.end(),
+                           v.ptr_.get(), tmp.begin(), std::multiplies<T>());
+            return tmp;
+        }
+
         Array<T> &operator*=(T v) {
             std::transform(std::execution::par_unseq, this->begin(), this->end(),
                            this->begin(), [v](T x) { return x * v; });
@@ -173,6 +195,11 @@ namespace tomocam {
                                return x / y;
                            });
             return *this;
+        }
+        Array<T> operator/(const Array<T> &v) const {
+            auto tmp = this->clone();
+            tmp /= v;
+            return tmp;
         }
         Array<T> operator/(T scalar) const {
             auto rv = this->clone();
@@ -223,20 +250,20 @@ namespace tomocam {
         }
 
         // factory methods
-        static Array<T> zeros_like(const Array<T> &ref) {
-            Array<T> rv(ref.dims());
+        static Array<T> zeros(const dims_t &d) {
+            Array<T> rv(d);
             std::fill(std::execution::par_unseq, rv.begin(), rv.end(), T(0));
             return rv;
         }
         //  new array filled with value v
-        static Array<T> like(const Array<T> &ref, T v) {
-            Array<T> rv(ref.dims());
-            std::fill(std::execution::par_unseq, rv.begin(), rv.end(), v);
+        static Array<T> ones(const dims_t &d) {
+            Array<T> rv(d);
+            std::fill(std::execution::par_unseq, rv.begin(), rv.end(), T(1));
             return rv;
         }
         // new array with random values
-        static Array<T> random_like(const Array<T> &ref) {
-            Array<T> rv(ref.dims());
+        static Array<T> random(const dims_t &d) {
+            Array<T> rv(d);
             std::random_device rd;
             std::mt19937 gen(rd());
             if constexpr (std::is_floating_point<T>::value) {
@@ -245,7 +272,7 @@ namespace tomocam {
                               [&]() { return dis(gen); });
             } else {
                 static_assert(std::is_floating_point<T>::value,
-                              "Unsupported type for random_like");
+                              "Unsupported type for random");
             }
             return rv;
         }

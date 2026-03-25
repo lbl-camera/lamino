@@ -21,9 +21,7 @@
 #define TOMOCAM_TIFF__H
 
 #include <cstdint>
-#include <format>
 #include <iostream>
-#include <string>
 #include <tiffio.h>
 
 #include "array.h"
@@ -33,98 +31,52 @@ namespace tomocam::tiff {
     inline Array<float> read(std::string filename) {
 
         TIFF *tif_ = TIFFOpen(filename.c_str(), "r");
-        if (tif_ == nullptr) {
-            throw std::runtime_error(
-                std::format("Error: failed to open TIFF file: {}", filename));
-        }
 
         // count number of projections
         uint32_t npages = 0;
         do { npages++; } while (TIFFReadDirectory(tif_));
-        if (npages == 0) {
-            TIFFClose(tif_);
-            throw std::runtime_error("Error: no projections found in tiff file.");
-        }
-        TIFFSetDirectory(tif_, 0); // reset to first page
+        TIFFClose(tif_);
+
+        // reopen file for reading
+        tif_ = TIFFOpen(filename.c_str(), "r");
 
         // get image size
         uint16_t bits, format;
         uint32_t w, h;
-        if (!TIFFGetField(tif_, TIFFTAG_IMAGEWIDTH, &w) ||
-            !TIFFGetField(tif_, TIFFTAG_IMAGELENGTH, &h) ||
-            !TIFFGetField(tif_, TIFFTAG_BITSPERSAMPLE, &bits)) {
-            TIFFClose(tif_);
-            throw std::runtime_error("Error: failed to read TIFF metadata");
-        }
-        try {
-            TIFFGetField(tif_, TIFFTAG_SAMPLEFORMAT, &format);
-        } catch (const std::exception &) {
-            format = SAMPLEFORMAT_UINT; // default to uint if not specified
-        }
-        // force garbage format value to uint
-        if (format != SAMPLEFORMAT_UINT && format != SAMPLEFORMAT_IEEEFP &&
-            format != SAMPLEFORMAT_INT && format != SAMPLEFORMAT_VOID &&
-            format != SAMPLEFORMAT_COMPLEXINT &&
-            format != SAMPLEFORMAT_COMPLEXIEEEFP) {
-            format = SAMPLEFORMAT_UINT;
-        }
+        TIFFGetField(tif_, TIFFTAG_IMAGEWIDTH, &w);
+        TIFFGetField(tif_, TIFFTAG_IMAGELENGTH, &h);
+        TIFFGetField(tif_, TIFFTAG_BITSPERSAMPLE, &bits);
+        TIFFGetField(tif_, TIFFTAG_SAMPLEFORMAT, &format);
 
         // allocate memory
         size_t nscls = static_cast<size_t>(npages);
         size_t nrows = static_cast<size_t>(h);
+        if (w % 2 == 0) {
+            nrows -= 1; // ensure odd number of rows for symmetry around center
+        }
         size_t ncols = static_cast<size_t>(w);
-        // ensure odd dimensions for centered-fft
-        if (nrows % 2 == 0) { nrows -= 1; }
-        if (ncols % 2 == 0) { ncols -= 1; }
-        size_t ptr_shift = bits / 8;
+        if (h % 2 == 0) {
+            ncols -= 1; // ensure odd number of cols for symmetry around center
+        }
         Array<float> data(nscls, nrows, ncols);
 
+        float *buf = (float *)_TIFFmalloc(w * sizeof(float));
+
         tsize_t line_size = TIFFScanlineSize(tif_);
-        void *buf = _TIFFmalloc(line_size);
-        if (buf == nullptr) {
-            TIFFClose(tif_);
-            throw std::runtime_error(
-                "Error: failed to allocate buffer for scanline");
+        if (line_size != (w * sizeof(float))) {
+            std::cerr << "Error: line_size, width mismatch" << std::endl;
+            exit(1);
         }
 
-        // Read scanlines and convert to float
         for (size_t i = 0; i < nscls; i++) {
             TIFFSetDirectory(tif_, static_cast<tdir_t>(i));
             for (size_t j = 0; j < nrows; j++) {
                 if (TIFFReadScanline(tif_, buf, static_cast<uint32_t>(j)) < 0) {
-                    _TIFFfree(buf);
-                    TIFFClose(tif_);
-                    throw std::runtime_error(
-                        std::format("Error reading scanline {} of page {}.", j, i));
+                    std::cerr << "Error: failed to read scanline: " << i
+                              << std::endl;
+                    exit(1);
                 }
-
-                for (size_t k = 0; k < ncols; k++) {
-                    if (format == SAMPLEFORMAT_UINT) {
-                        if (bits == 8) {
-                            data[{i, j, k}] =
-                                static_cast<float>(((uint8_t *)buf)[k]);
-                        } else if (bits == 16) {
-                            data[{i, j, k}] =
-                                static_cast<float>(((uint16_t *)buf)[k]);
-                        } else if (bits == 32) {
-                            data[{i, j, k}] =
-                                static_cast<float>(((uint32_t *)buf)[k]);
-                        }
-                    } else if (format == SAMPLEFORMAT_IEEEFP) {
-                        if (bits == 32) {
-                            data[{i, j, k}] = ((float *)buf)[k];
-                        } else if (bits == 64) {
-                            data[{i, j, k}] = static_cast<float>(((double *)buf)[k]);
-                        }
-                    } else {
-                        _TIFFfree(buf);
-                        TIFFClose(tif_);
-                        throw std::runtime_error(
-                            std::format("Error: unsupported format/bits "
-                                        "combination: format={}, bits={}",
-                                        format, bits));
-                    }
-                }
+                for (size_t k = 0; k < ncols; k++) data[{i, j, k}] = buf[k];
             }
         }
         _TIFFfree(buf);
@@ -167,6 +119,72 @@ namespace tomocam::tiff {
         }
         _TIFFfree(buf);
         TIFFClose(tif_);
+    }
+
+    template <typename T>
+    inline void write_vectors(std::string filename,
+                              const std::array<Array<T>, 3> &data) {
+
+        // open file
+        TIFF *tif_ = TIFFOpen(filename.c_str(), "w");
+        if (!tif_) {
+            std::cerr << "Error opening tiff file for writing: " << filename
+                      << std::endl;
+            std::exit(1);
+        }
+
+        uint32_t npages = static_cast<uint32_t>(data[0].nslices());
+        uint32_t height = static_cast<uint32_t>(data[0].nrows());
+        uint32_t width = static_cast<uint32_t>(data[0].ncols());
+
+        for (uint32_t i = 0; i < npages; i++) {
+            TIFFSetField(tif_, TIFFTAG_IMAGEWIDTH, width);
+            TIFFSetField(tif_, TIFFTAG_IMAGELENGTH, height);
+            TIFFSetField(tif_, TIFFTAG_SAMPLESPERPIXEL, 3);
+            TIFFSetField(tif_, TIFFTAG_BITSPERSAMPLE, 32);
+            TIFFSetField(tif_, TIFFTAG_SAMPLEFORMAT,
+                         std::is_floating_point<T>::value ? SAMPLEFORMAT_IEEEFP
+                                                          : SAMPLEFORMAT_UINT);
+            TIFFSetField(tif_, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+            TIFFSetField(tif_, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+            TIFFSetField(tif_, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+            TIFFSetField(tif_, TIFFTAG_COMPRESSION, COMPRESSION_LZW);
+
+            // Metadata
+            TIFFSetField(
+                tif_, TIFFTAG_IMAGEDESCRIPTION,
+                "3D vector field: x,y,z components; layout: [slice, row, col]");
+
+            std::vector<T> buffer(width * 3);
+            for (uint32_t j = 0; j < height; ++j) {
+                for (uint32_t k = 0; k < width; ++k) {
+                    buffer[3 * k + 0] = data[0][{i, j, k}];
+                    buffer[3 * k + 1] = data[1][{i, j, k}];
+                    buffer[3 * k + 2] = data[2][{i, j, k}];
+                }
+
+                if (TIFFWriteScanline(tif_, buffer.data(), j) < 0) {
+                    std::cerr << "Error writing data to tif file." << std::endl;
+                    std::exit(2);
+                }
+            }
+            TIFFWriteDirectory(tif_);
+        }
+        TIFFClose(tif_);
+    }
+
+    template <typename T>
+    void write3(const std::string &name, const std::array<Array<T>, 3> &data) {
+        // trucate extension if present
+        std::string basename = name;
+        // check for existing .tif or .tiff extension
+        if (name.rfind(".tif") != std::string::npos) {
+            basename = name.substr(0, name.rfind(".tif"));
+        }
+        for (size_t i = 0; i < 3; ++i) {
+            std::string filename = basename + std::to_string(i) + ".tiff";
+            tiff::write(filename, data[i]);
+        }
     }
 } // namespace tomocam::tiff
 #endif // TOMOCAM_TIFF__H

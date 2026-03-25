@@ -27,10 +27,41 @@
 #include <cstring>
 #include <execution>
 #include <stdexcept>
+#include <vector>
 
 #include "array.h"
 
 namespace tomocam::fft {
+
+    template <typename T>
+    std::vector<T> fftfreq(size_t n_modes) {
+        std::vector<T> freqs(n_modes);
+        int n = static_cast<int>(n_modes);
+        int n2 = n % 2 == 0 ? n / 2 : n / 2 + 1;
+        for (int i = 0; i < n; ++i) {
+            if (i < n2) {
+                freqs[i] = (T)i;
+            } else {
+                freqs[i] = (T)(i - n);
+            }
+        }
+        // (-pi, pi) for odd, and [-pi, pi) for even, with the zero in the begining
+        T dk = 2 * M_PI / (T)n_modes;
+        for (auto &f : freqs) { f *= dk; }
+        return freqs;
+    }
+    template <typename T>
+    std::vector<T> rfftfreq(size_t n_modes) {
+        std::vector<T> freqs(n_modes / 2 + 1);
+        int n = static_cast<int>(n_modes);
+        for (int i = 0; i < n / 2 + 1; ++i) { freqs[i] = (T)i; }
+
+        // [0, pi), with the zero in the begining
+        T dk = 2 * M_PI / (T)n_modes;
+        for (auto &f : freqs) { f *= dk; }
+        return freqs;
+    }
+
     template <typename T>
     Array<T> fftshift1(const Array<T> &input) {
         auto dims = input.dims();
@@ -101,6 +132,7 @@ namespace tomocam::fft {
 
         size_t d = dims.n3 / 2;
         if (dims.n3 % 2 == 1) { d += 1; }
+#pragma omp parallel for collapse(2)
         for (size_t i = 0; i < dims.n1; ++i) {
             for (size_t j = 0; j < dims.n2; ++j) {
                 for (size_t k = 0; k < dims.n3; ++k) {

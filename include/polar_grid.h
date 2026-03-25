@@ -20,37 +20,42 @@
 #ifndef POLAR_GRID__H
 #define POLAR_GRID__H
 
-#include "array.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <vector>
 
+#include "array.h"
 namespace tomocam {
 
     template <typename T>
     struct PolarGrid {
         size_t npts;
+        std::vector<T> theta;
         Array<T> x;
         Array<T> y;
         Array<T> z;
 
-        // array dimensions for non-uniform points
-        [[nodiscard]] dims_t dims() const { return x.dims(); }
-
-        // size of the array
-        [[nodiscard]] size_t size() const { return x.size(); }
+        // default constructor
+        PolarGrid() : npts(0) {}
 
         // constructor
-        PolarGrid(const std::vector<T> &theta, size_t nrows, size_t ncols) {
+        PolarGrid(const std::vector<T> &angles, size_t nrows, size_t ncols,
+                  T gamma) {
 
+            theta = angles;
             dims_t dims = dims_t{theta.size(), nrows, ncols};
             x = Array<T>(dims);
             y = Array<T>(dims);
             z = Array<T>(dims);
             npts = dims.size();
 
-            // compute the grid points
+            // rotation matrix
+            T cos_gamma = std::cos(gamma);
+            T sin_gamma = std::sin(gamma);
+
+            // compute grid points
             T dh = (2 * M_PI) / static_cast<T>(ncols - 1);
             T dr = (2 * M_PI) / static_cast<T>(nrows - 1);
 
@@ -59,27 +64,50 @@ namespace tomocam {
                 for (size_t j = 0; j < dims.n2; ++j) {
                     for (size_t k = 0; k < dims.n3; ++k) {
                         T radius = j * dr - M_PI;
-                        x[{i, j, k}] = k * dh - M_PI;
-                        y[{i, j, k}] = radius * std::cos(theta[i]);
-                        z[{i, j, k}] = radius * std::sin(theta[i]);
+                        // polar coordinates
+                        T xcrd = radius * std::cos(theta[i]);
+                        T ycrd = radius * std::sin(theta[i]);
+                        T zcrd = k * dh - M_PI;
+                        // apply rotation
+                        x[{i, j, k}] = zcrd * cos_gamma - xcrd * sin_gamma;
+                        y[{i, j, k}] = ycrd;
+                        z[{i, j, k}] = zcrd * sin_gamma + xcrd * cos_gamma;
                     }
                 }
             }
         }
+        // delete copy constructor and assignment
+        PolarGrid(const PolarGrid<T> &) = delete;
+        PolarGrid<T> &operator=(const PolarGrid<T> &) = delete;
+        // move constructor and assignment
+        PolarGrid(PolarGrid<T> &&other) noexcept
+            : npts(other.npts), theta(std::move(other.theta)), x(std::move(other.x)),
+              y(std::move(other.y)), z(std::move(other.z)) {}
+
+        PolarGrid<T> &operator=(PolarGrid<T> &&other) noexcept {
+            if (this != &other) {
+                npts = other.npts;
+                theta = std::move(other.theta);
+                x = std::move(other.x);
+                y = std::move(other.y);
+                z = std::move(other.z);
+            }
+            return *this;
+        }
 
         PolarGrid<T> clone() const {
             PolarGrid<T> out;
-            out.npts = npts;
-            out.x = x.clone();
-            out.y = y.clone();
-            out.z = z.clone();
+            out.npts = this->npts;
+            out.theta = this->theta;
+            out.x = this->x.clone();
+            out.y = this->y.clone();
+            out.z = this->z.clone();
             return out;
         }
 
         PolarGrid<T> rotate(T angle) const {
 
             PolarGrid<T> out = this->clone();
-
             T cos_t = std::cos(angle);
             T sin_t = std::sin(angle);
 
@@ -90,6 +118,18 @@ namespace tomocam {
             }
             return out;
         }
+
+        // array dimensions for non-uniform points
+        [[nodiscard]] dims_t dims() const { return x.dims(); }
+
+        // size of the array
+        [[nodiscard]] size_t size() const { return x.size(); }
+
+        // theta values
+        [[nodiscard]] const std::vector<T> &angles() const { return theta; }
+
+        // number of angles
+        [[nodiscard]] size_t nprojs() const { return theta.size(); }
     };
 
 } // namespace tomocam
