@@ -46,10 +46,8 @@ namespace tomocam::opt {
         // add demagnetization and Tikhonov regularization to the operator
         Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
             VecArray<T> Ax = A(x);
-            /*
-            VecArray<T> Hx = demag(x);
-            for (size_t i = 0; i < 3; i++) { Ax[i] += Hx[i] * lambda; }
-            */
+            // VecArray<T> Hx = demag(x);
+            // for (size_t i = 0; i < 3; i++) { Ax[i] += Hx[i] * lambda; }
             return Ax;
         };
 
