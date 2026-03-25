@@ -146,13 +146,14 @@ namespace tomocam {
             Regularizer::SPLIT_BREGMAN;               // Regularization method
         std::array<size_t, 3> recon_dims = {0, 0, 0}; // Reconstruction dimensions
         size_t maxIters = 50;                         // Maximum number of iterations
-        size_t innerIters = 3; // Number of inner iterations for Split-Bregman
-        float sigma = 1000.0f; // Regularization parameter (qGGMRF)
-        float p = 1.2f;        // qGGMRF parameter p
-        float lambda = 0.1f;   // Regularization weight (Split-Bregman)
-        float mu = 10.0f;      // Augmented Lagrangian parameter (Split-Bregman)
-        float tol = 1e-5f;     // Tolerance for convergence
-        float xtol = 1e-5f;    // Tolerance for solution change
+        size_t innerIters = 3;     // Number of inner iterations for Split-Bregman
+        float sigma = 1000.0f;     // Regularization parameter (qGGMRF)
+        float p = 1.2f;            // qGGMRF parameter p
+        float lambda = 0.1f;       // Regularization weight (Split-Bregman)
+        float mu = 10.0f;          // Augmented Lagrangian parameter (Split-Bregman)
+        float tol = 1e-5f;         // Tolerance for convergence
+        float xtol = 1e-5f;        // Tolerance for solution change
+        float PAD_FACTOR = 1.4142; // sqrt(2) padding factor
 
         ReconParams() = default;
         ReconParams(const toml::table &config) {
@@ -165,7 +166,7 @@ namespace tomocam {
             }
             // read max_outer_iters
             maxIters = recon["max_iters"].value_or<size_t>(50);
-            innerIters = recon["inner_iters"].value_or<size_t>(3);
+            // innerIters = recon["inner_iters"].value_or<size_t>(3);
 
             // read recon_dims
             const auto *dims = recon["recon_dims"].as_array();
@@ -230,6 +231,7 @@ namespace tomocam {
                 }
                 lambda = (*params)["lambda"].value_or<float>(0.1f);
                 mu = (*params)["mu"].value_or<float>(10.0f);
+                innerIters = (*params)["inner_iters"].value_or<size_t>(3);
             } else {
                 throw std::runtime_error("[recon_params] 'regularizer' must be "
                                          "either 'qGGMRF' or 'split_bregman'");
