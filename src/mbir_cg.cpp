@@ -49,8 +49,7 @@ namespace tomocam {
                                   const ReconParams &recon_params) {
 
         // padding factor
-        constexpr double PAD_FACTOR = 1;
-        T padding = static_cast<T>(PAD_FACTOR);
+        T padding = static_cast<T>(recon_params.PAD_FACTOR - 1.0);
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
