@@ -92,6 +92,7 @@ namespace tomocam {
             auto out_cmplx = Array<complex_t>(x[i].dims());
             nufft::nufft3d1(result_components[i], out_cmplx, grid);
             output[i] = array::to_real(out_cmplx) / scale;
+            output[i].resetPads();
         }
         return output;
     }
