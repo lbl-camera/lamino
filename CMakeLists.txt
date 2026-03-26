@@ -5,7 +5,7 @@ project(Testbed CXX)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 # C++ std
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -16,10 +16,14 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 set(SRC
+    src/bregman.cpp
+    src/finitediff.cpp
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/mbir.cpp
+    src/mbir_sb.cpp
+    src/mbir_cg.cpp
+    src/mbir3.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
    )
@@ -45,7 +49,6 @@ include_directories(${tomlplusplus_SOURCE_DIR}/include)
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
 find_package(TIFF REQUIRED)
-find_package(nlohmann_json REQUIRED)
 
 # finufft
 find_package(finufft REQUIRED)
@@ -55,15 +58,20 @@ target_link_libraries(tomocam PUBLIC FFTW::float)
 target_link_libraries(tomocam PUBLIC finufft::finufft)
 target_link_libraries(tomocam PUBLIC TBB::tbb)
 target_link_libraries(tomocam PUBLIC TIFF::TIFF)
-set_property(TARGET tomocam PROPERTY CXX_STANDARD 20)
+set_property(TARGET tomocam PROPERTY CXX_STANDARD 23)
 
 # recon executable
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
 target_link_libraries(recon PRIVATE nlohmann_json::nlohmann_json)
 
+# forward executable
+add_executable(forward src/forward.cpp)
+target_link_libraries(forward PUBLIC tomocam)
+target_link_libraries(forward PUBLIC TIFF::TIFF)
+
 # install executables and library
-install(TARGETS recon DESTINATION bin)
+install(TARGETS recon forward DESTINATION bin)
 install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)

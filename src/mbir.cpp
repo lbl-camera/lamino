@@ -34,13 +34,13 @@
 
 namespace tomocam {
 
-    constexpr double PAD_FACTOR = 1.42;
     template <typename T>
     std::array<Array<T>, 3> MBIR(const Array<T> &proj, const std::vector<T> &angles,
                                  T gamma, const dims_t &recon_dims, size_t max_iter,
                                  T sigma, T p, T tol, T xtol) {
 
         // padding factor
+        constexpr double PAD_FACTOR = 1.42;
         T padding = static_cast<T>(PAD_FACTOR);
 
         // adjust reconstruction dimensions
@@ -104,15 +104,6 @@ namespace tomocam {
             L = std::max(L, array::max(array::abs(gtmp[i])));
         }
 
-        // normalize yT with max value
-        /*
-        T max_yT = 1e-10;
-        for (size_t i = 0; i < 3; ++i) {
-            T mx_yT = array::max(array::abs(yT[i]));
-            if (mx_yT > max_yT) { max_yT = mx_yT; }
-        }
-        */
-
         // initial guess
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::ones(out_dims) * 0.9; }
@@ -129,14 +120,6 @@ namespace tomocam {
     }
 
     // Explicit template instantiations
-    template std::array<Array<float>, 3> MBIR(const Array<float> &proj,
-                                              const std::vector<float> &angles,
-                                              float gamma, const dims_t &recon_dims,
-                                              size_t max_iter, float sigma, float p,
-                                              float tol, float xtol);
-    template std::array<Array<double>, 3>
-    MBIR(const Array<double> &proj, const std::vector<double> &angles, double gamma,
-         const dims_t &recon_dims, size_t max_iter, double sigma, double p,
-         double tol, double xtol);
+    template std::array<Array<float>, 3> MBIR(const
 
 } // namespace tomocam

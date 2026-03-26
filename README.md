@@ -67,6 +67,62 @@ cmake --build --preset macos
 
 ## Usage
 
+### Running Reconstruction
+
+The reconstruction tool uses a TOML configuration file to specify input data and parameters:
+
+```bash
+./build/recon <config.toml>
+```
+
+### TOML Configuration File
+
+Create a TOML file with the following structure for vector magnetic field reconstruction:
+
+```toml
+# Multiple input datasets with different gamma angles for vector reconstruction
+[[input]]
+filename = "/path/to/gamma0_stack.tiff"
+angles = "/path/to/gamma0_angles.txt"
+gamma = 0
+
+[[input]]
+filename = "/path/to/gamma45_stack.tiff"
+angles = "/path/to/gamma45_angles.txt"
+gamma = 45
+
+[output]
+filename = "output.tiff"                # Output filename for reconstruction
+formats = ["tiff", "vti"]              # Available: "tiff", "vti"
+
+[recon_params]
+max_outer_iters = 50                    # Maximum outer iterations
+tol = 1e-5                              # Convergence tolerance
+xtol = 1e-5                             # X-tolerance for convergence
+recon_dims = [51, 511, 511]            # Reconstruction dimensions [thickness, height, width]
+
+[recon_params.regularizer]
+method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMRF"
+
+# Parameters for split_bregman method
+[recon_params.regularizer.split_bregman]
+lambda = 0.1                            # Regularization parameter
+mu = 10.0                               # Penalty parameter
+
+# Alternatively, for qGGMRF regularization:
+# [recon_params.regularizer]
+# method = "qGGMRF"
+# [recon_params.regularizer.qGGMRF]
+# sigma = 1000.0
+# p = 1.2
+```
+
+**Notes:**
+- Use multiple `[[input]]` sections to specify datasets at different gamma angles for vector field reconstruction
+- Angles can be in degrees or radians (automatically converted)
+- The angles file should contain one angle per line
+- Run `./build/recon` without arguments to generate a template configuration file (`config.toml`)
+
 ### Basic Example
 
 ```cpp

@@ -56,7 +56,7 @@ namespace tomocam {
             T sin_gamma = std::sin(gamma);
 
             // compute grid points
-            T dx = (2 * M_PI) / static_cast<T>(ncols - 1);
+            T dh = (2 * M_PI) / static_cast<T>(ncols - 1);
             T dr = (2 * M_PI) / static_cast<T>(nrows - 1);
 
 #pragma omp parallel for collapse(3)
@@ -64,13 +64,14 @@ namespace tomocam {
                 for (size_t j = 0; j < dims.n2; ++j) {
                     for (size_t k = 0; k < dims.n3; ++k) {
                         T radius = j * dr - M_PI;
-                        T xcrd = k * dx - M_PI;
-                        T ycrd = radius * std::cos(theta[i]);
-                        T zcrd = radius * std::sin(theta[i]);
-
-                        x[{i, j, k}] = xcrd * cos_gamma - ycrd * sin_gamma;
-                        y[{i, j, k}] = xcrd * sin_gamma + ycrd * cos_gamma;
-                        z[{i, j, k}] = zcrd;
+                        // polar coordinates
+                        T xcrd = radius * std::cos(theta[i]);
+                        T ycrd = radius * std::sin(theta[i]);
+                        T zcrd = k * dh - M_PI;
+                        // apply rotation
+                        x[{i, j, k}] = zcrd * cos_gamma - xcrd * sin_gamma;
+                        y[{i, j, k}] = ycrd;
+                        z[{i, j, k}] = zcrd * sin_gamma + xcrd * cos_gamma;
                     }
                 }
             }

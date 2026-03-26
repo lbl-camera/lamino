@@ -28,6 +28,7 @@
 #include <execution>
 #include <memory>
 #include <random>
+#include <span>
 #include <tuple>
 #include <type_traits>
 
@@ -40,6 +41,7 @@ namespace tomocam {
     class Array {
       private:
         dims_t dims_;
+        dims_t pads_;
         size_t size_;
         std::unique_ptr<T[]> ptr_;
 
@@ -60,8 +62,21 @@ namespace tomocam {
 
         Array(const Array<T> &) = delete;
         Array<T> &operator=(const Array<T> &) = delete;
-        Array(Array<T> &&) noexcept = default;
-        Array<T> &operator=(Array<T> &&) noexcept = default;
+        Array(Array<T> &&rhs) noexcept {
+            dims_ = std::move(rhs.dims_);
+            size_ = std::move(rhs.size_);
+            ptr_ = std::move(rhs.ptr_);
+            rhs.ptr_ = nullptr;
+        }
+        Array<T> &operator=(Array<T> &&rhs) noexcept {
+            if (this != &rhs) {
+                dims_ = std::move(rhs.dims_);
+                size_ = std::move(rhs.size_);
+                ptr_ = std::move(rhs.ptr_);
+                rhs.ptr_ = nullptr;
+            }
+            return *this;
+        }
 
         [[nodiscard]] Array<T> clone() const {
             Array<T> rv(dims_);
@@ -93,19 +108,10 @@ namespace tomocam {
             return ptr_[flatIdx(i, j, k)];
         }
 
-#if (__cplusplus == 202302L)
-        T &operator[](size_t i, size_t j, size_t k) {
-            return ptr_[flatIdx(i, j, k)];
-        }
-        T operator[](size_t i, size_t j, size_t k) const {
-            return ptr_[flatIdx(i, j, k)];
-        }
-#else
         T &operator[](dims_t i) { return ptr_[flatIdx(i.x(), i.y(), i.z())]; }
         const T &operator[](dims_t i) const {
             return ptr_[flatIdx(i.x(), i.y(), i.z())];
         }
-#endif
 
         // get contiguous view to part or whole array
         Slice<T> slice(size_t begin, size_t end) {
@@ -120,7 +126,45 @@ namespace tomocam {
             return Slice<T>(ptr, d);
         }
 
+        std::span<T> row(size_t i, size_t j) {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
+        const std::span<T> row(size_t i, size_t j) const {
+            return std::span<T>(
+                ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
+        }
+
+        void setPads(dims_t p) { pads_ = p; }
+        [[nodiscard]] dims_t pads() const { return pads_; }
+
+        // reset [0, pads_] and [dims_ - pads_, dims_] to zero
+        void resetPads() {
+            std::unique_ptr<T[]> tmp = std::make_unique<T[]>(size_);
+            std::fill(std::execution::par_unseq, tmp.get(), tmp.get() + size_, T(0));
+            size_t n2n3 = dims_.n2 * dims_.n3;
+            for (size_t i = pads_.n1; i < dims_.n1 - pads_.n1; ++i) {
+                size_t slice_offset = i * n2n3;
+                for (size_t j = pads_.n2; j < dims_.n2 - pads_.n2; ++j) {
+                    size_t row_offset = slice_offset + j * dims_.n3;
+                    std::copy(std::execution::par_unseq, 
+                              ptr_.get() + row_offset + pads_.n3,
+                              ptr_.get() + row_offset + dims_.n3 - pads_.n3,
+                              tmp.get() + row_offset + pads_.n3);
+                }
+            }
+            ptr_ = std::move(tmp);
+        }
+
         // multiplication operators
+        Array<T> operator*(const Array<T> &v) {
+            auto tmp = this->clone();
+            std::transform(std::execution::par_unseq, tmp.begin(), tmp.end(),
+                           v.ptr_.get(), tmp.begin(), std::multiplies<T>());
+            return tmp;
+        }
+
         Array<T> &operator*=(T v) {
             std::transform(std::execution::par_unseq, this->begin(), this->end(),
                            this->begin(), [v](T x) { return x * v; });
@@ -151,6 +195,11 @@ namespace tomocam {
                                return x / y;
                            });
             return *this;
+        }
+        Array<T> operator/(const Array<T> &v) const {
+            auto tmp = this->clone();
+            tmp /= v;
+            return tmp;
         }
         Array<T> operator/(T scalar) const {
             auto rv = this->clone();
