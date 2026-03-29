@@ -1,7 +1,7 @@
 Usage Guide
 ===========
 
-This guide covers the basic usage of Tomocam for reconstruction tasks.
+This guide covers the basic usage of Tomocam-lamino for reconstruction tasks.
 
 Command Line Interface
 ----------------------

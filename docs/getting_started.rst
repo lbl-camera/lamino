@@ -1,17 +1,17 @@
 Getting Started
 ===============
 
-This guide will help you get started with Tomocam for magnetic field reconstruction.
+This guide will help you get started with Tomocam-lamino for magnetic field reconstruction.
 
-What is Tomocam?
+What is Tomocam-lamino?
 ----------------
 
-Tomocam is a specialized library for reconstructing 3D magnetic field distributions from tomographic measurements of materials exhibiting magnetic circular dichroism (MCD). It implements state-of-the-art iterative reconstruction algorithms optimized for high-performance computing.
+Tomocam-lamino is a specialized library for reconstructing 3D magnetic field distributions from tomographic measurements of materials exhibiting magnetic circular dichroism (MCD). It implements state-of-the-art iterative reconstruction algorithms optimized for high-performance computing.
 
 Prerequisites
 -------------
 
-Before installing Tomocam, ensure you have:
+Before installing Tomocam-lamino, ensure you have:
 
 * C++ compiler with C++20 support (LLVM/Clang recommended)
 * CMake ≥ 3.20
@@ -24,12 +24,12 @@ Key Concepts
 Magnetic Circular Dichroism (MCD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-MCD is a spectroscopic technique that measures the difference in absorption of left and right circularly polarized light by a material in a magnetic field. This property is used to map magnetic field distributions in thin materials.
+Tomographic-XMCD is a technique that measures the difference in absorption of left and right circularly polarized light by a material in a magnetic field. This property is used to map magnetic field distributions in thin materials.
 
 Polar Grid Geometry
 ~~~~~~~~~~~~~~~~~~~
 
-Tomocam uses a polar grid system for efficient projection operations. The geometry is optimized for the specific acquisition patterns used in MCD imaging.
+Tomocam-lamino uses a polar grid system for efficient projection operations. The geometry is optimized for the specific acquisition patterns used in MCD imaging.
 
 Reconstruction Methods
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -49,7 +49,7 @@ For complete magnetic field reconstruction, multiple datasets acquired at differ
 First Steps
 -----------
 
-1. :doc:`Install Tomocam <installation>` on your system
+1. :doc:`Install Tomocam-lamino <installation>` on your system
 2. Prepare your input data (TIFF stacks and angle files)
 3. Create a :doc:`configuration file <configuration>`
 4. Run the reconstruction

@@ -1,14 +1,14 @@
 Configuration Reference
 =======================
 
-Complete reference for TOML configuration files used by Tomocam.
+Complete reference for TOML configuration files used by Tomocam-lamino
 
 Configuration File Structure
 -----------------------------
 
 The configuration file uses TOML format with three main sections:
 
-* ``[[input]]`` - Input data specifications (can be repeated)
+* ``[[input]]`` - Input data specifications, repeat for each orientation
 * ``[output]`` - Output file settings
 * ``[recon_params]`` - Reconstruction parameters
 
@@ -22,7 +22,7 @@ Each ``[[input]]`` block specifies one dataset:
    [[input]]
    filename = "/path/to/projections.tiff"
    angles = "/path/to/angles.txt"
-   gamma = 0
+   gamma = 45 
 
 Parameters
 ~~~~~~~~~~
@@ -35,8 +35,7 @@ Parameters
    Angles can be in degrees or radians.
 
 **gamma** (number, required)
-   Gamma angle in degrees for this dataset. Used in vector field reconstruction.
-   For scalar reconstruction, use ``gamma = 0``.
+   Orientation angle in degrees for this dataset.
 
 Multiple Inputs
 ~~~~~~~~~~~~~~~
@@ -93,10 +92,10 @@ Main reconstruction settings:
 .. code-block:: toml
 
    [recon_params]
-   max_outer_iters = 50
+   max_outer_iters = 100
    tol = 1e-5
    xtol = 1e-5
-   recon_dims = [51, 511, 511]
+   recon_dims = [21, 511, 511]
 
 Parameters
 ~~~~~~~~~~
@@ -117,15 +116,16 @@ Parameters
 
 **recon_dims** (array of 3 integers, required)
    Reconstruction volume dimensions ``[thickness, height, width]``.
+   Tomocam-lamino will truncate even dimensions by 1.
    
-   * First dimension: Sample thickness (z-axis)
+   * First dimension (small compared to x- and y-axis): Sample thickness (z-axis)
    * Second dimension: Height (y-axis)
    * Third dimension: Width (x-axis)
 
 Regularization
 --------------
 
-Tomocam supports two regularization methods:
+Tomocam-lamino supports two regularization methods:
 
 Split Bregman Method
 ~~~~~~~~~~~~~~~~~~~~
@@ -138,7 +138,8 @@ Efficient total variation regularization:
    method = "split_bregman"
 
    [recon_params.regularizer.split_bregman]
-   lambda = 0.1
+   inner_iters = 3
+   lambda = 1.0
    mu = 10.0
 
 Parameters:
@@ -151,10 +152,13 @@ Parameters:
    Penalty parameter for split Bregman algorithm.
    Range: 1.0 - 100.0. Typical: 5.0 - 20.0.
 
+**inner_iters** (int)
+  Split-Bregman runs a CG for data-fidelity part
+
 QGGMRF Regularization
 ~~~~~~~~~~~~~~~~~~~~~
 
-Quadratic Generalized Gaussian Markov Random Field:
+q-Generalized Gaussian Markov Random Field:
 
 .. code-block:: toml
 
@@ -175,8 +179,8 @@ Parameters:
    Shape parameter. Controls edge preservation.
    Range: 1.0 - 2.0. 
    
-   * p = 2.0: Quadratic (smoothest)
-   * p = 1.0: Laplacian (preserves edges)
+   * p = 2.0: smoothest
+   * p = 1.0: preserves edges
 
 Complete Example
 ----------------
@@ -185,7 +189,7 @@ Full configuration file example:
 
 .. code-block:: toml
 
-   # Tomocam Reconstruction Configuration
+   # Tomocam-lamino Reconstruction Configuration
 
    # Input datasets - multiple for vector reconstruction
    [[input]]
@@ -210,18 +214,19 @@ Full configuration file example:
 
    # Reconstruction parameters
    [recon_params]
-   max_outer_iters = 50
+   max_outer_iters = 100
    tol = 1e-5
    xtol = 1e-5
-   recon_dims = [64, 512, 512]
+   recon_dims = [21, 511, 511]
 
    # Regularization - Split Bregman
    [recon_params.regularizer]
    method = "split_bregman"
 
    [recon_params.regularizer.split_bregman]
-   lambda = 0.1
+   lambda = 1.0
    mu = 10.0
+   inner_iters = 3
 
 Parameter Selection Guide
 --------------------------
@@ -237,16 +242,15 @@ Consider:
 
 Typical values:
 
-* Small samples: 256 × 256 × 32
-* Medium samples: 512 × 512 × 64
-* Large samples: 1024 × 1024 × 128
+* Small samples:  11 x 255 x 255
+* Large samples: 21 x 511 x 511
 
 Choosing Regularization Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **For Split Bregman:**
 
-1. Start with ``lambda = 0.1``, ``mu = 10.0``
+1. Start with ``lambda = 1.0``, ``mu = 10.0``
 2. Increase lambda if reconstruction is noisy
 3. Decrease lambda if reconstruction is over-smoothed
 4. Adjust mu if convergence is slow (increase) or unstable (decrease)

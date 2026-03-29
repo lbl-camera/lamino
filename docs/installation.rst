@@ -1,7 +1,7 @@
 Installation
 ============
 
-This guide covers the installation of Tomocam and its dependencies.
+This guide covers the installation of Tomocam-lamino and its dependencies.
 
 Requirements
 ------------
@@ -56,7 +56,7 @@ macOS
 
    brew install cmake llvm libomp tbb fftw libtiff finufft
 
-Building Tomocam
+Building Tomocam-lamino
 ----------------
 
 Clone the Repository

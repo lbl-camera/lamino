@@ -1,7 +1,7 @@
-Tomocam Documentation
+Tomocam-lamino Documentation
 =====================
 
-Tomocam is a high-performance C++ library for tomographic reconstruction of magnetic fields in thin materials exhibiting magnetic circular dichroism (MCD). Developed at Lawrence Berkeley National Laboratory, it provides advanced reconstruction algorithms optimized for parallel computing.
+Tomocam-lamino is a high-performance C++ library for tomographic reconstruction of magnetic fields in thin materials exhibiting magnetic circular dichroism (MCD). Developed at Lawrence Berkeley National Laboratory, it provides advanced reconstruction algorithms optimized for parallel computing.
 
 .. toctree::
    :maxdepth: 2
@@ -19,7 +19,7 @@ Tomocam is a high-performance C++ library for tomographic reconstruction of magn
 Overview
 --------
 
-Tomocam provides:
+Tomocam-lamino provides:
 
 * **Forward/Backward Projection**: Efficient projection operators on polar grids
 * **Iterative Reconstruction**: Conjugate gradient and Nesterov accelerated gradient methods
