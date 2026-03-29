@@ -130,13 +130,13 @@ mu = 10.0                               # Penalty parameter
 
 📚 **Complete documentation is available on ReadTheDocs:**
 
-- **Latest Documentation**: https://lamino.readthedocs.io/
-- **Getting Started Guide**: https://lamino.readthedocs.io/en/latest/getting_started.html
-- **Installation Instructions**: https://lamino.readthedocs.io/en/latest/installation.html
-- **Usage Guide**: https://lamino.readthedocs.io/en/latest/usage.html
-- **Configuration Reference**: https://lamino.readthedocs.io/en/latest/configuration.html
-- **API Documentation**: https://lamino.readthedocs.io/en/latest/api/index.html
-- **Examples**: https://lamino.readthedocs.io/en/latest/examples.html
+- **Latest Documentation**: https://camera-lamino.readthedocs.io/
+- **Getting Started Guide**: https://camera-lamino.readthedocs.io/en/latest/getting_started.html
+- **Installation Instructions**: https://camera-lamino.readthedocs.io/en/latest/installation.html
+- **Usage Guide**: https://camera-lamino.readthedocs.io/en/latest/usage.html
+- **Configuration Reference**: https://camera-lamino.readthedocs.io/en/latest/configuration.html
+- **API Documentation**: https://camera-lamino.readthedocs.io/en/latest/api/index.html
+- **Examples**: https://camera-lamino.readthedocs.io/en/latest/examples.html
 
 The documentation is automatically built from the `docs/` directory and updates with every commit.
 
@@ -150,7 +150,7 @@ This Software was developed under funding from the U.S. Department of Energy and
 
 ## Contributing
 
-Contributions are welcome! Please see our [Contributing Guide](https://lamino.readthedocs.io/en/latest/contributing.html) for details on:
+Contributions are welcome! Please see our [Contributing Guide](https://camera-lamino.readthedocs.io/en/latest/contributing.html) for details on:
 
 - Development setup
 - Code style guidelines
