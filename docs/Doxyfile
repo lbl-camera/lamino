@@ -1,0 +1,39 @@
+# Doxyfile for Tomocam C++ API documentation
+
+PROJECT_NAME           = "Tomocam"
+PROJECT_BRIEF          = "C++ library for tomographic reconstruction of magnetic fields"
+PROJECT_NUMBER         = 1.0.0
+
+OUTPUT_DIRECTORY       = doxygen
+CREATE_SUBDIRS         = NO
+
+INPUT                  = ../include
+FILE_PATTERNS          = *.h *.hpp *.cpp
+RECURSIVE              = YES
+EXCLUDE                = 
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+
+CLASS_DIAGRAMS         = YES
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
