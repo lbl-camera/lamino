@@ -15,10 +15,10 @@ The library is optimized for performance using:
 
 ## Features
 
-- **Forward/Backward Projection**: Efficient projection operators on polar grids
-- **Iterative Reconstruction**: Conjugate gradient and Nesterov accelerated gradient methods
-- **MBIR**: Model-Based Iterative Reconstruction with QGGMRF penalty
+- **Forward/Backward Projection**: NUFFT based projection operators
+- **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, and Nesterov accelerated gradient methods
 - **TIFF I/O**: Read and write reconstruction data
+- **Paraview**: Plot magnetization vectors in paraview
 
 ## Requirements
 
@@ -31,7 +31,10 @@ The library is optimized for performance using:
 - FFTW3 (single and double precision)
 - libtiff
 - FINUFFT
-- CUDA for GPU acceleration
+- CUDA (Optional)
+    - cuFINUFFT
+    - cufft
+    - thrust
 
 ### Supported Platforms
 
@@ -123,34 +126,19 @@ mu = 10.0                               # Penalty parameter
 - The angles file should contain one angle per line
 - Run `./build/recon` without arguments to generate a template configuration file (`config.toml`)
 
-### Basic Example
+## Documentation
 
-```cpp
-#include "tomocam.h"
+📚 **Complete documentation is available on ReadTheDocs:**
 
-// Create polar grid geometry
-tomocam::PolarGrid<float> grid(/* parameters */);
+- **Latest Documentation**: https://lamino.readthedocs.io/
+- **Getting Started Guide**: https://lamino.readthedocs.io/en/latest/getting_started.html
+- **Installation Instructions**: https://lamino.readthedocs.io/en/latest/installation.html
+- **Usage Guide**: https://lamino.readthedocs.io/en/latest/usage.html
+- **Configuration Reference**: https://lamino.readthedocs.io/en/latest/configuration.html
+- **API Documentation**: https://lamino.readthedocs.io/en/latest/api/index.html
+- **Examples**: https://lamino.readthedocs.io/en/latest/examples.html
 
-// Forward projection
-auto projections = tomocam::forward(volume, grid);
-
-// Backward projection
-auto reconstructed = tomocam::backward(projections, grid, volume_dims);
-
-// MBIR reconstruction
-auto mbir_result = tomocam::MBIR(
-    projections,
-    angles,
-    recon_dims,
-    max_iterations,
-    sigma,
-    p,
-    lambda,
-    gamma
-);
-```
-
-## API Documentation
+The documentation is automatically built from the `docs/` directory and updates with every commit.
 
 ## License
 
@@ -161,6 +149,13 @@ If you have questions about your rights to use or distribute this software, plea
 This Software was developed under funding from the U.S. Department of Energy and the U.S. Government consequently retains certain rights. As such, the U.S. Government has been granted for itself and others acting on its behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software to reproduce, distribute copies to the public, prepare derivative works, and perform publicly and display publicly, and to permit other to do so.
 
 ## Contributing
+
+Contributions are welcome! Please see our [Contributing Guide](https://lamino.readthedocs.io/en/latest/contributing.html) for details on:
+
+- Development setup
+- Code style guidelines
+- Testing requirements
+- Pull request process
 
 ## Contact
 
