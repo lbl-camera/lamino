@@ -21,7 +21,7 @@ Before installing Tomocam-lamino, ensure you have:
 Key Concepts
 ------------
 
-Magnetic Circular Dichroism (MCD)
+X-ray Magnetic Circular Dichroism (XMCD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Tomographic-XMCD is a technique that measures the difference in absorption of left and right circularly polarized light by a material in a magnetic field. This property is used to map magnetic field distributions in thin materials.
@@ -29,7 +29,7 @@ Tomographic-XMCD is a technique that measures the difference in absorption of le
 Polar Grid Geometry
 ~~~~~~~~~~~~~~~~~~~
 
-Tomocam-lamino uses a polar grid system for efficient projection operations. The geometry is optimized for the specific acquisition patterns used in MCD imaging.
+Tomocam-lamino uses a polar grid system for efficient projection operations. The geometry is optimized for the specific acquisition patterns used in XMCD imaging.
 
 Reconstruction Methods
 ~~~~~~~~~~~~~~~~~~~~~~

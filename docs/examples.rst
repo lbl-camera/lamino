@@ -6,47 +6,10 @@ Practical examples for common reconstruction tasks.
 Example 1: Basic Scalar Reconstruction
 ---------------------------------------
 
-Reconstruct a single MCD component from projection data.
-
-Configuration File
-~~~~~~~~~~~~~~~~~~
-
-.. code-block:: toml
-
-   # basic_recon.toml
-   [[input]]
-   filename = "data/sample1_projections.tiff"
-   angles = "data/sample1_angles.txt"
-   gamma = 0
-
-   [output]
-   filename = "output/sample1_recon.tiff"
-   formats = ["tiff"]
-
-   [recon_params]
-   max_outer_iters = 50
-   tol = 1e-5
-   xtol = 1e-5
-   recon_dims = [32, 256, 256]
-
-   [recon_params.regularizer]
-   method = "split_bregman"
-
-   [recon_params.regularizer.split_bregman]
-   lambda = 0.1
-   mu = 10.0
-
-Run Reconstruction
-~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   ./build/recon basic_recon.toml
-
-Example 2: Vector Field Reconstruction
+Example: Vector Field Reconstruction
 ---------------------------------------
 
-Reconstruct all three magnetic field components using multiple gamma angles.
+Reconstruct three magnetic field components using multiple gamma orientations.
 
 Configuration File
 ~~~~~~~~~~~~~~~~~~
@@ -74,17 +37,17 @@ Configuration File
    formats = ["tiff", "vti"]
 
    [recon_params]
-   max_outer_iters = 80
-   tol = 1e-6
-   xtol = 1e-6
-   recon_dims = [64, 512, 512]
+   max_outer_iters = 100
+   tol = 1e-5
+   xtol = 1e-5
+   recon_dims = [21, 511, 511]
 
    [recon_params.regularizer]
    method = "split_bregman"
 
    [recon_params.regularizer.split_bregman]
-   lambda = 0.05
-   mu = 15.0
+   lambda = 1.0
+   mu = 20.0
 
 Run Reconstruction
 ~~~~~~~~~~~~~~~~~~
@@ -118,13 +81,13 @@ Configuration File
    max_outer_iters = 100
    tol = 1e-6
    xtol = 1e-6
-   recon_dims = [128, 1024, 1024]
+   recon_dims = [21, 511, 511]
 
    [recon_params.regularizer]
    method = "qGGMRF"
 
    [recon_params.regularizer.qGGMRF]
-   sigma = 1500.0
+   sigma = 1000.0
    p = 1.1  # Sharper edges
 
 Run Reconstruction
@@ -133,7 +96,7 @@ Run Reconstruction
 .. code-block:: bash
 
    # Estimate memory requirements first
-   python estimate_memory.py --dims 1024 1024 128
+   python estimate_memory.py --dims 25 1023 1023
 
    # Run with all available cores
    ./build/recon high_res_qggmrf.toml
