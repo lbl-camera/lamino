@@ -1,0 +1,33 @@
+# Read the Docs configuration file for Tomocam
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+version: 2
+
+# Build documentation in the "docs/" directory with Sphinx
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.12"
+  apt_packages:
+    - doxygen
+    - graphviz
+  jobs:
+    post_install:
+      # Generate Doxygen documentation
+      - cd docs && doxygen Doxyfile
+
+# Build documentation with Sphinx
+sphinx:
+  configuration: docs/conf.py
+  fail_on_warning: false
+
+# Python dependencies for building documentation
+python:
+  install:
+    - requirements: docs/requirements.txt
+
+# Formats to build
+formats:
+  - pdf
+  - epub
+  - htmlzip
