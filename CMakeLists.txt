@@ -44,7 +44,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tomlplusplus)
 include_directories(${tomlplusplus_SOURCE_DIR}/include)
 
-
 # tbb
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
@@ -63,7 +62,6 @@ set_property(TARGET tomocam PROPERTY CXX_STANDARD 23)
 # recon executable
 add_executable(recon src/recon.cpp)
 target_link_libraries(recon PRIVATE tomocam)
-target_link_libraries(recon PRIVATE nlohmann_json::nlohmann_json)
 
 # forward executable
 add_executable(forward src/forward.cpp)
