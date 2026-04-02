@@ -244,6 +244,12 @@ namespace tomocam {
 
         void print(std::ostream &os) const {
 
+            std::string reg_str;
+            switch (regularizer) {
+                case Regularizer::qGGMRF: reg_str = "qGGMRF"; break;
+                case Regularizer::SPLIT_BREGMAN: reg_str = "Split-Bregman"; break;
+                default: reg_str = "Unconstrained"; break;
+            }
             os << "Reconstruction Parameters:\n";
             os << "  max_outer_iters: " << maxIters << "\n";
             os << "  inner_iters: " << innerIters << "\n";
@@ -251,9 +257,7 @@ namespace tomocam {
                               recon_dims[1], recon_dims[2]);
             os << "  tol: " << tol << "\n";
             os << "  xtol: " << xtol << "\n";
-            os << "  regularizer: "
-               << (regularizer == Regularizer::qGGMRF ? "qGGMRF" : "Split-Bregman")
-               << "\n";
+            os << "  regularizer: " << reg_str << "\n";
             if (regularizer == Regularizer::qGGMRF) {
                 os << "    sigma: " << sigma << "\n";
                 os << "    p: " << p << "\n";
