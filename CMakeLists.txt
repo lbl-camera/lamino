@@ -26,7 +26,6 @@ set(SRC
     src/mbir3.cpp
     src/nagopt.cpp
     src/qggmrf.cpp
-    src/recon.cpp
    )
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
@@ -45,11 +44,9 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tomlplusplus)
 include_directories(${tomlplusplus_SOURCE_DIR}/include)
 
-
 # tbb
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS CXX)
 find_package(TIFF REQUIRED)
 
 # finufft

@@ -31,7 +31,8 @@
             "binaryDir": "${sourceDir}/build/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
                     "value": "ON"
@@ -51,7 +52,8 @@
             "binaryDir": "${sourceDir}/build/release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
                     "value": "ON"
@@ -62,8 +64,49 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             }
+        },
+        {
+            "name": "nersc",
+            "displayName": "Perlmutter Debug",
+            "description": "Debug build for NERSC Perlmutter",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "ENABLE_TESTS": {
+                    "type": "BOOL",
+                    "value": "ON"
+                }
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "nersc-release",
+            "displayName": "Perlmutter Release",
+            "description": "Release build for NERSC Perlmutter",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "ENABLE_TESTS": {
+                    "type": "BOOL",
+                    "value": "OFF"
+                }
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
         }
-
     ],
     "buildPresets": [
         {
@@ -77,6 +120,14 @@
         {
             "name": "arch-release",
             "configurePreset": "arch-release"
+        },
+        {
+            "name": "nersc",
+            "configurePreset": "nersc"
+        },
+        {
+            "name": "nersc-release",
+            "configurePreset": "nersc-release"
         }
     ],
     "testPresets": [

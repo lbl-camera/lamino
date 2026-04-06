@@ -246,7 +246,8 @@ namespace tomocam {
 
             std::string reg_str;
             switch (regularizer) {
-                case Regularizer::qGGMRF: reg_str = "qGGMRF"; break;
+                case Regularizer::qGGMRF: 
+                    reg_str = "qGGMRF"; break;
                 case Regularizer::SPLIT_BREGMAN: reg_str = "Split-Bregman"; break;
                 default: reg_str = "Unconstrained"; break;
             }
@@ -261,7 +262,7 @@ namespace tomocam {
             if (regularizer == Regularizer::qGGMRF) {
                 os << "    sigma: " << sigma << "\n";
                 os << "    p: " << p << "\n";
-            } else {
+            } else if (regularizer == Regularizer::SPLIT_BREGMAN) {
                 os << "    lambda: " << lambda << "\n";
                 os << "    mu: " << mu << "\n";
             }
