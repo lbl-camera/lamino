@@ -4,6 +4,7 @@
 #include <random>
 
 #include "array.h"
+#include "array_ops.h"
 #include "dtypes.h"
 #include "padding.h"
 
@@ -52,7 +53,7 @@ int main() {
         std::cout << "  Before resetPads (padded values should be random):\n";
         print_array(padded);
         // Reset pads (zero out padded regions)
-        padded.resetPads();
+        array::resetPads(padded);
         std::cout << "  After resetPads (padded values should be zero):\n";
         print_array(padded);
 
@@ -86,7 +87,7 @@ int main() {
         std::cout << "  Before resetPads (padded values should be random):\n";
         print_array(padded);
         std::cout << "\n-----------------\n";
-        padded.resetPads();
+        array::resetPads(padded);
         std::cout << "  After resetPads (padded values should be 0, unpadded should "
                      "be 1):\n";
         print_array(padded);
