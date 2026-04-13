@@ -38,11 +38,8 @@ int main(int argc, char *argv[]) {
 
     // apply the mask to the projections
     size_t masked_nans = 0;
-    auto maked_projs = projs.clone();
-    for (size_t i = 0; i < projs.size(); i++) {
-        if (m0[i] == 1) {
-            if (std::isnan(maked_projs[i])) { masked_nans++; }
-        }
+    for (const auto &v : m0) {
+        if (!std::isfinite(v)) { masked_nans++; }
     }
     std::cout << std::format("Masked projections have {} NaNs\n", masked_nans);
 
@@ -85,14 +82,10 @@ int main(int argc, char *argv[]) {
     const float gamma = -45.0f * M_PI / 180.0f;
 
     auto support_mask = tomocam::mask_support(projs, dims, theta, gamma);
-    // convert mask to float for visualization
-    tomocam::Array<float> support(support_mask.dims());
-    std::transform(support_mask.begin(), support_mask.end(), support.begin(),
-                   [](int m) { return m == 1 ? 1.0f : 0.0f; });
 
     // save mask as tiff for visualization
     std::string mask_output = "support_mask.tif";
-    tomocam::tiff::write(mask_output, support);
+    tomocam::tiff::write(mask_output, support_mask);
     std::cout << std::format("Support mask saved to {}\n", mask_output);
 
     // --- Test combine_masks ---
