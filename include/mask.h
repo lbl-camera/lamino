@@ -44,11 +44,11 @@ namespace tomocam {
      * @param dims Dimensions of the object being reconstructed (n1, n2, n3)
      * @param theta Vector of tomographic rotation angles (in radians)
      * @param gamma Laminography tilt angle (in radians)
-     * @return Array<int> Binary mask (1 for valid pixels, 0 for out-of-support)
+     * @return Array<T> with values outside the support replaced by 0
      */
     template <typename T>
-    Array<int> mask_support(const Array<T> &projs, const dims_t dims,
-                            const std::vector<T> &theta, const T gamma) {
+    Array<T> mask_support(const Array<T> &projs, const dims_t dims,
+                          const std::vector<T> &theta, const T gamma) {
 
         // precompute sine and cosine of tilt angle
         const T cos_g = std::cos(gamma);
@@ -62,7 +62,7 @@ namespace tomocam {
         const T ylim = dims.n2 / 2;
         const T xlim = dims.n3 / 2;
 
-        Array<int> mask(projs.dims());
+        Array<T> mask = projs.clone();
         for (size_t p = 0; p < theta.size(); ++p) {
             const T angle = theta[p];
             const T cos_t = std::cos(angle);
@@ -81,10 +81,8 @@ namespace tomocam {
                     const T ycrd = (-xrot * sin_g * cos_t + yrot * cos_g) / cos_t;
 
                     // check if the projected point is within the support region
-                    if (std::abs(xcrd) <= xlim && std::abs(ycrd) <= ylim) {
-                        mask[{p, y, x}] = 1; // valid pixel
-                    } else {
-                        mask[{p, y, x}] = 0; // out-of-support
+                    if (std::abs(xcrd) > xlim || std::abs(ycrd) > ylim) {
+                        mask[{p, y, x}] = 0;
                     }
                 }
             }
