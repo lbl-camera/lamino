@@ -80,6 +80,9 @@ namespace tomocam::opt {
                 r[i] -= Ap[i] * alpha;
             }
 
+            // reset padded regions to zero
+            for (size_t i = 0; i < 3; i++) { array::resetPads(x[i]); }
+
             // apply preconditioner
             T rs_new = 0;
             for (size_t i = 0; i < 3; i++) {
