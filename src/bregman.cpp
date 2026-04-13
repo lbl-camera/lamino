@@ -41,7 +41,7 @@ namespace tomocam::opt {
                               size_t outer_max, size_t inner_max, T tol, T xtol) {
 
         // sanity check x0.dims must be the same as yT.dims
-        if (x0.dims() != yT.dims()) {
+        if ((x0.size() != yT.size()) || (x0[0].dims() != yT[0].dims())) {
             throw std::invalid_argument(
                 "yT is not the raw data, but backprojected data, so it should have "
                 "the same dimensions as x0");
