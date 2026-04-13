@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "array_ops.h"
 #include "tomocam.h"
 
 int main(int argc, char **argv) {
@@ -51,11 +52,11 @@ int main(int argc, char **argv) {
     auto dims = params.recon_dims;
 
     // print parameters
-#ifdef DEBUG
     params.print(std::cout);
-#endif
 
-    // set reconstruction dimensions
+    // Reorder reconstruction dimensions so that the polar components of the
+    // cylindrical coordinates vary fastest in memory, improving Fourier transform
+    // performance.
     tomocam::dims_t recon_dims = {dims[2], dims[0], dims[1]};
 
     tomocam::Timer t0;
@@ -70,6 +71,12 @@ int main(int argc, char **argv) {
             break;
         default: recon = tomocam::MBIR1<float>(datasets, recon_dims, params);
     }
+
+    // transpose to match original input dimensions
+    for (size_t i = 0; i < 3; ++i) {
+        recon[i] = tomocam::array::transpose(recon[i], {1, 2, 0});
+    }
+
     t0.stop();
     double elapsed = t0.seconds();
     if (elapsed > 3600) {

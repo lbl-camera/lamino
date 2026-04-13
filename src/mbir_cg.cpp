@@ -123,11 +123,6 @@ namespace tomocam {
                 crop3d(recon_m[i], recon_dims, PadType::SYMMETRIC);
         }
 
-        // transpose to match expected output format
-        for (size_t i = 0; i < 3; ++i) {
-            recon_magnetisation[i] =
-                array::transpose(recon_magnetisation[i], {1, 2, 0});
-        }
         return recon_magnetisation;
     }
 
