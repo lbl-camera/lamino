@@ -139,24 +139,6 @@ namespace tomocam {
         void setPads(dims_t p) { pads_ = p; }
         [[nodiscard]] dims_t pads() const { return pads_; }
 
-        // reset [0, pads_] and [dims_ - pads_, dims_] to zero
-        void resetPads() {
-            std::unique_ptr<T[]> tmp = std::make_unique<T[]>(size_);
-            std::fill(std::execution::par_unseq, tmp.get(), tmp.get() + size_, T(0));
-            size_t n2n3 = dims_.n2 * dims_.n3;
-            for (size_t i = pads_.n1; i < dims_.n1 - pads_.n1; ++i) {
-                size_t slice_offset = i * n2n3;
-                for (size_t j = pads_.n2; j < dims_.n2 - pads_.n2; ++j) {
-                    size_t row_offset = slice_offset + j * dims_.n3;
-                    std::copy(std::execution::par_unseq, 
-                              ptr_.get() + row_offset + pads_.n3,
-                              ptr_.get() + row_offset + dims_.n3 - pads_.n3,
-                              tmp.get() + row_offset + pads_.n3);
-                }
-            }
-            ptr_ = std::move(tmp);
-        }
-
         // multiplication operators
         Array<T> operator*(const Array<T> &v) {
             auto tmp = this->clone();
