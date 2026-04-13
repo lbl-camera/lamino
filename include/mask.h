@@ -20,7 +20,7 @@ namespace tomocam {
      * @return Array<T> Masked array with NaNs and Infs replaced by 0
      */
     template <typename T>
-    inline Array<T> mask_infs_nans(const Array<T> &projs) {
+    Array<T> mask_infs_nans(const Array<T> &projs) {
         Array<T> masked = projs.clone();
         std::for_each(std::execution::par_unseq, masked.begin(), masked.end(),
                       [](T &val) {

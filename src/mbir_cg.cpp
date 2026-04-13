@@ -29,6 +29,7 @@
 #include "array_ops.h"
 #include "config.h"
 #include "optimize.h"
+#include "mask.h"
 #include "padding.h"
 #include "polar_grid.h"
 #include "tomocam.h"
@@ -74,9 +75,12 @@ namespace tomocam {
             auto &[proj, angles, gamma_ref] = datasets[j];
             gammas[j] = gamma_ref;
 
+            // remove nans and infs
+            auto proj2 = mask_infs_nans(proj);
+
             // normalize projections
-            T proj_max = array::max(proj);
-            auto y = proj / proj_max;
+            T proj_max = array::max(proj2);
+            auto y = proj2 / proj_max;
 
             // zero-pad projections by sqrt(2) to avoid aliasing
             y = pad2d(y, padding, PadType::SYMMETRIC);
