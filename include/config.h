@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "array.h"
+#include "mask.h"
 #include "tiff.h"
 
 namespace tomocam {
@@ -130,6 +131,7 @@ namespace tomocam {
             }
 
             auto projs = tomocam::tiff::read(*filename);
+            projs = tomocam::mask_infs_nans(projs);
             auto angles = read_angles_file<T>(*angles_file);
             auto gamma_rad = *gamma * M_PI / (T)180.0; // convert to radians
             datasets.push_back(
@@ -246,8 +248,7 @@ namespace tomocam {
 
             std::string reg_str;
             switch (regularizer) {
-                case Regularizer::qGGMRF: 
-                    reg_str = "qGGMRF"; break;
+                case Regularizer::qGGMRF: reg_str = "qGGMRF"; break;
                 case Regularizer::SPLIT_BREGMAN: reg_str = "Split-Bregman"; break;
                 default: reg_str = "Unconstrained"; break;
             }
