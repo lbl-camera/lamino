@@ -35,11 +35,11 @@ namespace tomocam {
         using complex_t = std::complex<T>;
 
         // Coefficient arrays
-        std::array<T, 3> c_gamma = {std::cos(gamma), std::sin(gamma), 1.0};
+        std::array<T, 3> c_gamma = {std::cos(gamma), 1.0, std::sin(gamma)};
         std::array<std::function<T(T)>, 3> c_alpha = {
             [](T alpha) { return std::sin(alpha); },
-            [](T alpha) { return -std::sin(alpha); },
-            [](T alpha) { return std::cos(alpha); }};
+            [](T alpha) { return std::cos(alpha); },
+            [](T alpha) { return std::sin(alpha); }};
 
         // narmalization factor
         T scale = static_cast<T>(grid.size() / grid.nprojs());

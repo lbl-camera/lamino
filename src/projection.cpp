@@ -51,11 +51,11 @@ namespace tomocam {
         auto proj = Array<complex_t>::zeros(pg.dims());
 
         // projection vector
-        std::array<T, 3> c_gamma = {std::cos(gamma), std::sin(gamma), 1.0};
+        std::array<T, 3> c_gamma = {std::cos(gamma), 1.0, std::sin(gamma)};
         std::array<std::function<T(T)>, 3> c_alpha = {
             [](T alpha) { return std::sin(alpha); },
-            [](T alpha) { return -std::sin(alpha); },
-            [](T alpha) { return std::cos(alpha); }};
+            [](T alpha) { return std::cos(alpha); },
+            [](T alpha) { return std::sin(alpha); }};
 
         // loop over magnetization components
         for (size_t i = 0; i < 3; ++i) {
@@ -105,11 +105,11 @@ namespace tomocam {
         c_cmplx = fft::fft2(c_cmplx);
         c_cmplx = fft::ifftshift2(c_cmplx);
 
-        std::array<T, 3> c_gamma = {std::cos(gamma), std::sin(gamma), 1.0};
+        std::array<T, 3> c_gamma = {std::cos(gamma), 1.0, std::sin(gamma)};
         std::array<std::function<T(T)>, 3> c_alpha = {
             [](T alpha) { return std::sin(alpha); },
-            [](T alpha) { return -std::sin(alpha); },
-            [](T alpha) { return std::cos(alpha); }};
+            [](T alpha) { return std::cos(alpha); },
+            [](T alpha) { return std::sin(alpha); }};
 
         // nufft - each component separately
         std::array<Array<T>, 3> m_components;
