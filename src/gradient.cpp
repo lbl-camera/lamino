@@ -26,6 +26,7 @@
 #include "dtypes.h"
 #include "nufft.h"
 #include "polar_grid.h"
+#include "projection.h"
 #include "tomocam.h"
 
 namespace tomocam {
@@ -34,12 +35,6 @@ namespace tomocam {
                                    const PolarGrid<T> &grid, T gamma) {
         using complex_t = std::complex<T>;
 
-        // Coefficient arrays
-        std::array<T, 3> c_gamma = {std::cos(gamma), 1.0, std::sin(gamma)};
-        std::array<std::function<T(T)>, 3> c_alpha = {
-            [](T alpha) { return std::sin(alpha); },
-            [](T alpha) { return std::cos(alpha); },
-            [](T alpha) { return std::sin(alpha); }};
 
         // narmalization factor
         T scale = static_cast<T>(grid.size() / grid.nprojs());
@@ -61,13 +56,10 @@ namespace tomocam {
         }
 
         for (size_t j = 0; j < grid.nprojs(); ++j) {
-            T alpha = grid.angles()[j];
+            T alpha = grid.angle(j);
 
-            // Build coefficient matrix: coeff[i] = c_gamma[i] * c_alpha[i](alpha)
-            std::array<T, 3> coeff;
-            for (size_t i = 0; i < 3; ++i) {
-                coeff[i] = c_gamma[i] * c_alpha[i](alpha);
-            }
+            // Build coefficient vector for this projection angle
+            auto coeff = beam_dir_vector(gamma, alpha);
 
             // Matrix multiplication: result = coeff.T * coeff * c_components
             // This is outer product of coeff with itself, applied to c_components

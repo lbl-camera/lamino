@@ -36,7 +36,7 @@ namespace tomocam::vti {
     template <typename T>
     void write_vectors(const std::string &filename,
                        const std::array<Array<T>, 3> &vectors,
-                       const std::string &field_name = "magetization") {
+                       const std::string &field_name = "magnetization") {
 
         // replace file extension with .vti
         std::filesystem::path filepath(filename);

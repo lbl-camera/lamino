@@ -106,6 +106,7 @@ int main(int argc, char **argv) {
     if (output.has_format("tiff")) { tomocam::tiff::write3(output.filepath, recon); }
     if (output.has_format("vti")) {
         tomocam::vti::write_vectors(output.filepath, recon);
+        std::cout << std::format("Reconstruction saved to {}.\n", output.filepath);
     }
     return 0;
 }

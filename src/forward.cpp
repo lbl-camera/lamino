@@ -63,10 +63,9 @@ int main(int argc, char **argv) {
 
     // sanity checks
     std::filesystem::path out_basedir(output_basedir);
-    // check if data path exists
+    // create output directory if it does not exist
     if (!std::filesystem::exists(out_basedir)) {
-        std::cerr << "Data path does not exist: " << output_basedir << "\n";
-        return 1;
+        std::filesystem::create_directories(out_basedir);
     }
     // set output path
     auto output = (out_basedir / output_file).string();

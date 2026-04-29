@@ -22,12 +22,24 @@
 #define PROJECTION__H
 
 #include <array>
+#include <cmath>
 
 #include "array.h"
 #include "dtypes.h"
 #include "polar_grid.h"
 
 namespace tomocam {
+
+    // Returns the beam direction vector for a laminography geometry,
+    // giving the projection coefficient for each magnetization component.
+    // Components: {sin(gamma)*sin(alpha), cos(alpha), cos(gamma)*sin(alpha)}.
+    template <typename T>
+    inline std::array<T, 3> beam_dir_vector(T gamma, T alpha) {
+        return {std::sin(gamma) * std::sin(alpha),
+                std::cos(alpha),
+                std::cos(gamma) * std::sin(alpha)};
+    }
+
     /**
      * @brief Performs a forward projection of 3D magnetization data onto a polar
      * grid.

@@ -23,7 +23,6 @@
 #include <complex>
 #include <cstdint>
 #include <execution>
-#include <functional>
 #include <stdexcept>
 
 #include "array.h"
@@ -35,6 +34,7 @@
 #include "nufft.h"
 #include "padding.h"
 #include "polar_grid.h"
+#include "projection.h"
 
 namespace tomocam {
 
@@ -50,13 +50,6 @@ namespace tomocam {
         using complex_t = std::complex<T>;
         auto proj = Array<complex_t>::zeros(pg.dims());
 
-        // projection vector
-        std::array<T, 3> c_gamma = {std::cos(gamma), 1.0, std::sin(gamma)};
-        std::array<std::function<T(T)>, 3> c_alpha = {
-            [](T alpha) { return std::sin(alpha); },
-            [](T alpha) { return std::cos(alpha); },
-            [](T alpha) { return std::sin(alpha); }};
-
         // loop over magnetization components
         for (size_t i = 0; i < 3; ++i) {
             // cast array to complex
@@ -69,7 +62,7 @@ namespace tomocam {
             // add to projection scaled by coeff
             for (size_t j = 0; j < pg.nprojs(); ++j) {
                 auto slice = c_cmplx.slice(j, j + 1);
-                T coeff = c_gamma[i] * c_alpha[i](pg.angles()[j]);
+                T coeff = beam_dir_vector(gamma, pg.angle(j))[i];
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
@@ -105,12 +98,6 @@ namespace tomocam {
         c_cmplx = fft::fft2(c_cmplx);
         c_cmplx = fft::ifftshift2(c_cmplx);
 
-        std::array<T, 3> c_gamma = {std::cos(gamma), 1.0, std::sin(gamma)};
-        std::array<std::function<T(T)>, 3> c_alpha = {
-            [](T alpha) { return std::sin(alpha); },
-            [](T alpha) { return std::cos(alpha); },
-            [](T alpha) { return std::sin(alpha); }};
-
         // nufft - each component separately
         std::array<Array<T>, 3> m_components;
         using complex_t = std::complex<T>;
@@ -123,7 +110,7 @@ namespace tomocam {
 
             // scale by coefficients for this component
             for (size_t j = 0; j < pg.nprojs(); ++j) {
-                T coeff = c_gamma[i] * c_alpha[i](pg.angles()[j]);
+                T coeff = beam_dir_vector(gamma, pg.angle(j))[i];
                 auto slice = c_cmplx_copy.slice(j, j + 1);
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });

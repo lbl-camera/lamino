@@ -102,6 +102,9 @@ namespace tomocam {
         // theta values
         [[nodiscard]] const std::vector<T> &angles() const { return theta; }
 
+        // get theta value for a given index
+        [[nodiscard]] T angle(size_t i) const { return theta[i]; }
+
         // number of angles
         [[nodiscard]] size_t nprojs() const { return theta.size(); }
     };
