@@ -23,12 +23,12 @@ namespace tomocam {
             int center_j = (int)dims.n2 / 2;
             int center_k = (int)dims.n3 / 2;
 
-            for (int i = 0; i < (int)dims.n1; i++) {
-                for (int j = 0; j < (int)dims.n2; j++) {
-                    for (int k = 0; k < (int)dims.n3; k++) {
-                        int x = i - center_i;
-                        int y = j - center_j;
-                        int z = k - center_k;
+            for (size_t i = 0; i < dims.n1; i++) {
+                for (size_t j = 0; j < dims.n2; j++) {
+                    for (size_t k = 0; k < dims.n3; k++) {
+                        int x = (int)i - center_i;
+                        int y = (int)j - center_j;
+                        int z = (int)k - center_k;
                         if ((x + half_n1) >= 0 &&
                             (x + half_n1) < (int)supp_dims.n1 &&
                             (y + half_n2) >= 0 &&
