@@ -30,6 +30,7 @@
 #include "demag.h"
 #include "optimize.h"
 #include "precond.h"
+#include "support.h"
 
 namespace tomocam::opt {
 
@@ -43,11 +44,12 @@ namespace tomocam::opt {
                          Array<T>(x0[2].dims())};
         VecArray<T> p;
 
+        dims_t sup_dims = {127, 21, 127}; // TODO: testing only
+        auto sup = Support<T>(x[0].dims(), sup_dims);
+
         // add demagnetization and Tikhonov regularization to the operator
         Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
             VecArray<T> Ax = A(x);
-            // VecArray<T> Hx = demag(x);
-            // for (size_t i = 0; i < 3; i++) { Ax[i] += Hx[i] * lambda; }
             return Ax;
         };
 
@@ -97,21 +99,6 @@ namespace tomocam::opt {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
             rs_old = rs_new;
-
-#ifdef DEBUG
-            // calculate ratio of data-fidelity to regularization
-            T data_fidelity = 0;
-            T regularization = 0;
-            auto Atx = A(x);
-            auto Htx = demag(x);
-            for (size_t i = 0; i < 3; i++) {
-                data_fidelity += array::norm2(Atx[i] - y[i]);
-                regularization += array::norm2(Htx[i] * lambda);
-            }
-            std::cout << std::format(
-                "\t\tData fidelity: {}, Regularization: {}, Ratio: {}\n",
-                data_fidelity, regularization, regularization / data_fidelity);
-#endif // DEBUG
         }
         return x;
     }
