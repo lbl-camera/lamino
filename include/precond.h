@@ -74,6 +74,8 @@ namespace tomocam::opt {
             // Apply the ramp filter in frequency domain
             auto dims = input.dims();
             auto scale = 1.0 / (dims.n2 * dims.n3);
+            // transpose input to make y-z plane contiguous in memory
+            // auto inout_T = array::transpose(input, {2, 0, 1});
             auto fft_input = fft::fft2_r2c(input);
             for (size_t i = 0; i < dims.n1; ++i) {
                 auto slice = fft_input.slice(i, i + 1);
@@ -83,6 +85,7 @@ namespace tomocam::opt {
             }
             auto filtered = fft::fft2_c2r(fft_input, dims);
             return filtered * scale;
+            // return array::transpose(filtered * scale, {1, 2, 0});
         }
     };
 } // namespace tomocam::opt
