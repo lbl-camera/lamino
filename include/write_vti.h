@@ -51,9 +51,9 @@ namespace tomocam::vti {
         const size_t npoints = nx * ny * nz;
 
         // define origin at the center of the volume
-        double ox = -0.5 * static_cast<double>(nx);
-        double oy = -0.5 * static_cast<double>(ny);
-        double oz = -0.5 * static_cast<double>(nz);
+        double ox = 0.5 * static_cast<double>(nx - 1);
+        double oy = 0.5 * static_cast<double>(ny - 1);
+        double oz = 0.5 * static_cast<double>(nz - 1);
 
         // define spacing as 1.0
         double dx = 1.0;
