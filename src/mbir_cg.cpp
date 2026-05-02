@@ -54,15 +54,19 @@ namespace tomocam {
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
-        size_t n1_pad = 2 * (static_cast<size_t>(recon_dims.n1 * padding) / 2);
-        out_dims.n1 += n1_pad;
+        dims_t pad_dims = {0, 0, 0};
+        pad_dims.n1 = 2 * (static_cast<size_t>(recon_dims.n1 * padding) / 2);
+        out_dims.n1 += pad_dims.n1;
 
-        size_t n2_pad = 2 * (static_cast<size_t>(recon_dims.n2 * padding) / 2);
-        out_dims.n2 += n2_pad;
+        pad_dims.n2 = 2 * (static_cast<size_t>(recon_dims.n2 * padding) / 2);
+        out_dims.n2 += pad_dims.n2;
 
-        size_t n3_pad = 2 * (static_cast<size_t>(recon_dims.n3 * padding) / 2);
-        out_dims.n3 += n3_pad;
+        pad_dims.n3 = 2 * (static_cast<size_t>(recon_dims.n3 * padding) / 2);
+        out_dims.n3 += pad_dims.n3;
 
+        std::cout << std::format(
+            "Reconstruction dimensions (with padding): {} x {} x {}\n", out_dims.n1,
+            out_dims.n2, out_dims.n3);
         // setup system matrices and backprojections
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
@@ -90,7 +94,11 @@ namespace tomocam {
 
             // backproject measurements to get yT
             auto yTmp = adjoint(y, polar_grids[j], out_dims, gammas[j]);
-            for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
+            for (size_t i = 0; i < 3; ++i) {
+                yT[i] += yTmp[i];
+                yT[i].setPads(pad_dims);
+                array::resetPads(yT[i]);
+            }
         }
 
         // setup the linear system for CG solver
@@ -106,7 +114,10 @@ namespace tomocam {
 
         // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
+        for (size_t i = 0; i < 3; ++i) {
+            x0[i] = Array<T>::zeros(out_dims);
+            x0[i].setPads(pad_dims);
+        }
 
         // demagnetization constraint weight
         // Lambda controls divergence-free constraint: higher values enforce ∇·M ≈ 0

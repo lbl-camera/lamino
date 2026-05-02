@@ -254,7 +254,6 @@ namespace tomocam {
             }
             os << "Reconstruction Parameters:\n";
             os << "  max_outer_iters: " << maxIters << "\n";
-            os << "  inner_iters: " << innerIters << "\n";
             os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
                               recon_dims[1], recon_dims[2]);
             os << "  tol: " << tol << "\n";
@@ -266,6 +265,7 @@ namespace tomocam {
             } else if (regularizer == Regularizer::SPLIT_BREGMAN) {
                 os << "    lambda: " << lambda << "\n";
                 os << "    mu: " << mu << "\n";
+                os << "  inner_iters: " << innerIters << "\n";
             }
         }
     };

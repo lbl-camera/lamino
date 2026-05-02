@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 
     auto minangle = *std::min_element(angles.begin(), angles.end());
     auto maxangle = *std::max_element(angles.begin(), angles.end());
-    if (std::abs(maxangle) > 2 * M_PI) {
+    if (std::abs(minangle) > M_PI || std::abs(maxangle) > M_PI) {
         for (auto &a : angles) { a = a * M_PI / 180.0f; }
     }
 
@@ -126,14 +126,6 @@ int main(int argc, char **argv) {
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
     std::cerr << "Data dimensions: [" << m_data[0].nslices() << ", "
               << m_data[0].nrows() << ", " << m_data[0].ncols() << "]\n";
-
-    // transpose data [n1, n2, n3] -> [n3, n1, n2]
-    t0.start();
-    for (int i = 0; i < 3; ++i) {
-        m_data[i] = tomocam::array::transpose(m_data[i], {2, 0, 1});
-    }
-    t0.stop();
-    std::cerr << "Time to transpose data: " << t0.seconds() << "(s)\n";
 
     // pad the sample
     t0.start();
