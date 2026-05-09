@@ -66,6 +66,7 @@ int main(int argc, char **argv) {
             break;
         default: recon = tomocam::MBIR1<float>(datasets, recon_dims, params);
     }
+
     t0.stop();
     double elapsed = t0.seconds();
 
