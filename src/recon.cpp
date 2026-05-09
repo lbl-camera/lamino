@@ -76,6 +76,10 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < 3; ++i) {
         recon[i] = tomocam::array::transpose(recon[i], {1, 2, 0});
     }
+    // After the transpose, VTK Y maps to physical Z and VTK Z maps to physical Y
+    // (see vti_axis_fix.txt). Swap the y and z vector components so each aligns
+    // with the correct axis before writing to file.
+    std::swap(recon[1], recon[2]);
 
     t0.stop();
     double elapsed = t0.seconds();
