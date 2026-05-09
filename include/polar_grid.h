@@ -64,11 +64,11 @@ namespace tomocam {
                         T qY = j * dY - M_PI + dY / 2;
 
                         // apply rotations
-                        z[{i, j, k}] = -qX * std::sin(gamma) +
+                        x[{i, j, k}] = qX * std::sin(gamma) +
                                        qY * std::cos(theta[i]) * std::cos(gamma);
-                        y[{i, j, k}] = -qY * std::sin(theta[i]);
-                        x[{i, j, k}] = qX * std::cos(gamma) +
-                                       qY * std::cos(theta[i]) * std::sin(gamma);
+                        y[{i, j, k}] = qY * std::sin(theta[i]);
+                        z[{i, j, k}] = qX * std::cos(gamma) +
+                                       -qY * std::cos(theta[i]) * std::sin(gamma);
                     }
                 }
             }
