@@ -263,6 +263,7 @@ namespace tomocam {
                 os << "    sigma: " << sigma << "\n";
                 os << "    p: " << p << "\n";
             } else if (regularizer == Regularizer::SPLIT_BREGMAN) {
+                os << "  inner_iters: " << innerIters << "\n";
                 os << "    lambda: " << lambda << "\n";
                 os << "    mu: " << mu << "\n";
                 os << "  inner_iters: " << innerIters << "\n";
