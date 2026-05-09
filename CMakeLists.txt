@@ -68,8 +68,13 @@ add_executable(forward src/forward.cpp)
 target_link_libraries(forward PUBLIC tomocam)
 target_link_libraries(forward PUBLIC TIFF::TIFF)
 
+# adjoint executable
+add_executable(adjoint src/adjoint.cpp)
+target_link_libraries(adjoint PUBLIC tomocam)
+target_link_libraries(adjoint PUBLIC TIFF::TIFF)
+
 # install executables and library
-install(TARGETS recon forward DESTINATION bin)
+install(TARGETS recon forward adjoint DESTINATION bin)
 install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)
