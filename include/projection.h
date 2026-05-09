@@ -35,11 +35,9 @@ namespace tomocam {
     // Components: {sin(gamma) * sin(alpha), cos(gamma) * sin(alpha), cos(alpha)}
     template <typename T>
     inline std::array<T, 3> beam_dir_vector(T gamma, T alpha) {
-        return {
-            std::sin(gamma) * std::sin(alpha),     // e_x
+        return {std::sin(gamma) * std::sin(alpha), // e_x
                 std::cos(gamma) * std::sin(alpha), // e_y
-                std::cos(alpha);                   // e_z
-        };
+                std::cos(alpha)};                  // e_z
     }
 
     /**

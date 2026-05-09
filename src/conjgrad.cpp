@@ -29,7 +29,6 @@
 #include "bregman.h"
 #include "demag.h"
 #include "optimize.h"
-#include "precond.h"
 #include "support.h"
 
 namespace tomocam::opt {
@@ -38,31 +37,30 @@ namespace tomocam::opt {
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol, T lambda) {
 
+        auto make_vecarray = [](const dims_t &dims) {
+            return VecArray<T>{Array<T>(dims), Array<T>(dims), Array<T>(dims)};
+        };
         // initialize
         VecArray<T> x = {x0[0].clone(), x0[1].clone(), x0[2].clone()};
-        VecArray<T> r = {Array<T>(x0[0].dims()), Array<T>(x0[1].dims()),
-                         Array<T>(x0[2].dims())};
-        VecArray<T> p;
+        auto r = make_vecarray(x0[0].dims());
+        auto p = make_vecarray(x0[0].dims());
+        auto z = make_vecarray(x0[0].dims());
 
-        // TODO: apply lambda regularization (Ax += lambda * x)
+        // TODO: apply lambda regularization (A + lambda*C)x
         Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
             VecArray<T> Ax = A(x);
             return Ax;
         };
 
-        auto precond = RampPreconditioner<T>(x0[0].dims());
+        // placeholder preconditioner (identity)
+        auto precond_apply = [](const Array<T> &r) { return r.clone(); };
 
         VecArray<T> tmp = Ad(x);
         for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
 
-        T r0_norm = 0;
-        for (size_t i = 0; i < 3; i++) { r0_norm += array::dot(r[i], r[i]); }
-        r0_norm = std::sqrt(r0_norm);
-
         T rs_old = 0;
-        VecArray<T> z;
         for (size_t i = 0; i < 3; i++) {
-            z[i] = precond.apply(r[i]);
+            z[i] = precond_apply(r[i]);
             p[i] = z[i].clone();
             rs_old += array::dot(z[i], r[i]);
         }
@@ -77,6 +75,7 @@ namespace tomocam::opt {
                 std::cerr << "pAp is close to zero\n";
                 break;
             }
+
             T alpha = rs_old / pAp;
             for (size_t i = 0; i < 3; i++) {
                 x[i] += p[i] * alpha;
@@ -86,19 +85,20 @@ namespace tomocam::opt {
             // apply preconditioner
             T rs_new = 0;
             for (size_t i = 0; i < 3; i++) {
-                z[i] = precond.apply(r[i]);
+                z[i] = precond_apply(r[i]);
                 rs_new += array::dot(z[i], r[i]);
             }
-            T r_norm = 0;
-            for (size_t i = 0; i < 3; i++) { r_norm += array::dot(r[i], r[i]); }
-            r_norm = std::sqrt(r_norm);
-            std::cout << std::format("\tCG iter: {}, residual: {}\n", iter, r_norm);
-            if (r_norm < tol) { break; }
 
             for (size_t i = 0; i < 3; i++) {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
             rs_old = rs_new;
+
+            T res = 0;
+            for (size_t i = 0; i < 3; i++) { res += array::dot(r[i], r[i]); }
+            std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
+                                     std::sqrt(res));
+            if (std::sqrt(res) < tol) { break; }
         }
         return x;
     }
