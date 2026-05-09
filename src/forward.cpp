@@ -41,9 +41,6 @@ int main(int argc, char **argv) {
 
     auto angles_file = table["angles"]["filename"].value<std::string>().value();
 
-    auto gamma = table["orientation"]["gamma"].value<float>().value();
-    gamma = gamma * M_PI / 180.0f; // convert to radians
-    auto output_file = table["output"]["filename"].value<std::string>().value();
     auto output_basedir = table["output"]["basedir"].value<std::string>().value();
     std::vector<int> output_dims;
     auto dim_arr = table["output"]["dims"].as_array();
@@ -61,14 +58,45 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // parse [[projections]] array: each entry has gamma (degrees) and filename
+    auto proj_array = table["projections"].as_array();
+    if (!proj_array || proj_array->empty()) {
+        std::cerr << "Missing or empty [[projections]] array in config file\n";
+        return 1;
+    }
+    struct ProjEntry {
+        float gamma_rad;
+        std::string output_path;
+    };
+    std::vector<ProjEntry> projections;
+    for (const auto &elem : *proj_array) {
+        auto entry = elem.as_table();
+        if (!entry) {
+            std::cerr << "Invalid [[projections]] entry\n";
+            return 1;
+        }
+        auto gamma_opt = (*entry)["gamma"].value<float>();
+        auto filename_opt = (*entry)["filename"].value<std::string>();
+        if (!gamma_opt) {
+            std::cerr << "[[projections]] entry missing 'gamma' field\n";
+            return 1;
+        }
+        if (!filename_opt) {
+            std::cerr << "[[projections]] entry missing 'filename' field\n";
+            return 1;
+        }
+        float gamma_rad = *gamma_opt * static_cast<float>(M_PI) / 180.0f;
+        auto output_path =
+            (std::filesystem::path(output_basedir) / *filename_opt).string();
+        projections.push_back({gamma_rad, output_path});
+    }
+
     // sanity checks
     std::filesystem::path out_basedir(output_basedir);
     // create output directory if it does not exist
     if (!std::filesystem::exists(out_basedir)) {
         std::filesystem::create_directories(out_basedir);
     }
-    // set output path
-    auto output = (out_basedir / output_file).string();
 
     // check if components exist
     if (!std::filesystem::exists(std::filesystem::path(basedir) / comp1) ||
@@ -107,8 +135,12 @@ int main(int argc, char **argv) {
     std::cerr << "Component 3: " << comp3 << "\n";
     std::cerr << "Angles: [" << minangle << ", " << maxangle << "] with "
               << angles.size() << " steps\n";
-    std::cerr << "Gamma: " << gamma << "\n";
-    std::cerr << "Output: " << output << "\n";
+    std::cerr << "Output basedir: " << output_basedir << "\n";
+    std::cerr << "Projections:\n";
+    for (const auto &p : projections) {
+        std::cerr << "  gamma=" << (p.gamma_rad * 180.0f / static_cast<float>(M_PI))
+                  << " deg -> " << p.output_path << "\n";
+    }
     std::cerr << "----------------------------------------\n";
 
     // load data
@@ -121,6 +153,10 @@ int main(int argc, char **argv) {
         auto filename = (base_path / components[i]).string();
         m_data[i] = tomocam::tiff::read(filename);
     }
+    // Output files store components as [Mx, Mz, My] due to the y/z swap
+    // applied before writing in recon/adjoint. Swap back so m_data[1]=My
+    // and m_data[2]=Mz, matching the beam_dir_vector coefficient ordering.
+    std::swap(m_data[1], m_data[2]);
 
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
@@ -151,33 +187,40 @@ int main(int argc, char **argv) {
         return static_cast<size_t>(dim + 2 * p);
     };
 
-    // create a polar grid
-    t0.start();
-    // oversample polar-grid
     size_t nrows = static_cast<size_t>(padded(output_dims[0]));
     size_t ncols = static_cast<size_t>(padded(output_dims[1]));
-    tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma);
-    t0.stop();
-    std::cerr << "Time to build a polar grid: " << t0.seconds() << "(s)\n";
-    std::cerr << "Polar grid dimensions: [" << grid.dims().n1 << ", "
-              << grid.dims().n2 << ", " << grid.dims().n3 << "]\n";
-
-    // do the forward projection
-    t0.start();
-    auto proj = tomocam::forward(m_data, grid, gamma);
-    t0.stop();
-    std::cerr << "time to do forward projection: " << t0.seconds() << "(s)\n";
-
-    // crop the projection to original size
     tomocam::dims_t crop_dims = {angles.size(), static_cast<size_t>(output_dims[0]),
                                  static_cast<size_t>(output_dims[1])};
-    t0.start();
-    proj = tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
-    t0.stop();
-    std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
 
-    //  save data to tiff-stack
-    tomocam::tiff::write(output, proj);
+    // loop over projections
+    for (size_t k = 0; k < projections.size(); ++k) {
+        const auto &[gamma_rad, output_path] = projections[k];
+        std::cerr << std::format("\n[{}/{}] gamma = {:.1f} deg\n", k + 1,
+                                 projections.size(),
+                                 gamma_rad * 180.0f / static_cast<float>(M_PI));
+
+        // build polar grid for this gamma
+        t0.start();
+        tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma_rad);
+        t0.stop();
+        std::cerr << "Time to build polar grid: " << t0.seconds() << "(s)\n";
+
+        // do the forward projection
+        t0.start();
+        auto proj = tomocam::forward(m_data, grid, gamma_rad);
+        t0.stop();
+        std::cerr << "Time to do forward projection: " << t0.seconds() << "(s)\n";
+
+        // crop the projection to original size
+        t0.start();
+        proj = tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
+        t0.stop();
+        std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
+
+        //  save data to tiff-stack
+        tomocam::tiff::write(output_path, proj);
+        std::cerr << "Written: " << output_path << "\n";
+    }
 
     return 0;
 }
