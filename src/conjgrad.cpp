@@ -91,9 +91,12 @@ namespace tomocam::opt {
                 z[i] = precond.apply(r[i]);
                 rs_new += array::dot(z[i], r[i]);
             }
+
+            T res = 0;
+            for (size_t i = 0; i < 3; i++) { res += array::dot(r[i], r[i]); }
             std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
-                                     std::sqrt(rs_new));
-            if (std::sqrt(rs_new) < tol) { break; }
+                                     std::sqrt(res));
+            if (std::sqrt(res) < tol) { break; }
 
             for (size_t i = 0; i < 3; i++) {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
