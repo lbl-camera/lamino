@@ -63,12 +63,14 @@ namespace tomocam {
                         T qX = (k + 0.5) * dX - M_PI;
                         T qY = (j + 0.5) * dY - M_PI;
 
-                        // apply rotations
-                        x[{i, j, k}] = qX * std::cos(gamma) -
-                                       qY * std::cos(theta[i]) * std::sin(gamma);
-                        y[{i, j, k}] = qX * std::sin(gamma) +
-                                       qY * std::cos(theta[i]) * std::cos(gamma);
-                        z[{i, j, k}] = qY * std::sin(theta[i]);
+                        // apply gamma rotation in XY plane
+                        T qX_g = qX * std::cos(gamma) - qY * std::sin(gamma);
+                        T qY_g = qX * std::sin(gamma) + qY * std::cos(gamma);
+
+                        // now apply theta rotation in YZ plane
+                        x[{i, j, k}] = qX_g;
+                        y[{i, j, k}] = qY_g * std::cos(theta[i]);
+                        z[{i, j, k}] = qY_g * std::sin(theta[i]);
                     }
                 }
             }
