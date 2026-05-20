@@ -153,10 +153,6 @@ int main(int argc, char **argv) {
         auto filename = (base_path / components[i]).string();
         m_data[i] = tomocam::tiff::read(filename);
     }
-    // Output files store components as [Mx, Mz, My] due to the y/z swap
-    // applied before writing in recon/adjoint. Swap back so m_data[1]=My
-    // and m_data[2]=Mz, matching the beam_dir_vector coefficient ordering.
-    std::swap(m_data[1], m_data[2]);
 
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
