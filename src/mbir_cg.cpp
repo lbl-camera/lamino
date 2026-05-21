@@ -79,12 +79,8 @@ namespace tomocam {
             auto &[proj, angles, gamma_ref] = datasets[j];
             gammas[j] = gamma_ref;
 
-            // normalize projections
-            T proj_max = array::max(proj);
-            auto y = proj / proj_max;
-
             // zero-pad projections by sqrt(2) to avoid aliasing
-            y = pad2d(y, padding, PadType::SYMMETRIC);
+            auto y = pad2d(proj, padding, PadType::SYMMETRIC);
 
             // setup polar grid
             size_t nrows = y.nrows();
@@ -94,11 +90,7 @@ namespace tomocam {
 
             // backproject measurements to get yT
             auto yTmp = adjoint(y, polar_grids[j], out_dims, gammas[j]);
-            for (size_t i = 0; i < 3; ++i) {
-                yT[i] += yTmp[i];
-                yT[i].setPads(pad_dims);
-                array::resetPads(yT[i]);
-            }
+            for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
 
         // setup the linear system for CG solver
@@ -114,19 +106,15 @@ namespace tomocam {
 
         // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) {
-            x0[i] = Array<T>::zeros(out_dims);
-            x0[i].setPads(pad_dims);
-        }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
 
-        // demagnetization constraint weight
-        // Lambda controls divergence-free constraint: higher values enforce ∇·M ≈ 0
         // Typical range: 0.001 - 0.1 (relative to data fidelity term)
         T lambda = recon_params.lambda;
 
         // solve linear system using CG solver with demagnetization constraint
         std::array<Array<T>, 3> recon_m = opt::cgsolver<T>(
-            A, yT, x0, recon_params.maxIters, recon_params.tol, lambda);
+            A, yT, x0, recon_params.maxIters, recon_params.tol, recon_params.xtol,
+            lambda);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;
