@@ -54,15 +54,19 @@ namespace tomocam {
 
         // adjust reconstruction dimensions
         dims_t out_dims = recon_dims;
-        size_t n1_pad = 2 * (static_cast<size_t>(recon_dims.n1 * padding) / 2);
-        out_dims.n1 += n1_pad;
+        dims_t pad_dims = {0, 0, 0};
+        pad_dims.n1 = 2 * (static_cast<size_t>(recon_dims.n1 * padding) / 2);
+        out_dims.n1 += pad_dims.n1;
 
-        size_t n2_pad = 2 * (static_cast<size_t>(recon_dims.n2 * padding) / 2);
-        out_dims.n2 += n2_pad;
+        pad_dims.n2 = 2 * (static_cast<size_t>(recon_dims.n2 * padding) / 2);
+        out_dims.n2 += pad_dims.n2;
 
-        size_t n3_pad = 2 * (static_cast<size_t>(recon_dims.n3 * padding) / 2);
-        out_dims.n3 += n3_pad;
+        pad_dims.n3 = 2 * (static_cast<size_t>(recon_dims.n3 * padding) / 2);
+        out_dims.n3 += pad_dims.n3;
 
+        std::cout << std::format(
+            "Reconstruction dimensions (with padding): {} x {} x {}\n", out_dims.n1,
+            out_dims.n2, out_dims.n3);
         // setup system matrices and backprojections
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
@@ -75,12 +79,8 @@ namespace tomocam {
             auto &[proj, angles, gamma_ref] = datasets[j];
             gammas[j] = gamma_ref;
 
-            // normalize projections
-            T proj_max = array::max(proj);
-            auto y = proj / proj_max;
-
             // zero-pad projections by sqrt(2) to avoid aliasing
-            y = pad2d(y, padding, PadType::SYMMETRIC);
+            auto y = pad2d(proj, padding, PadType::SYMMETRIC);
 
             // setup polar grid
             size_t nrows = y.nrows();
@@ -108,14 +108,13 @@ namespace tomocam {
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
 
-        // demagnetization constraint weight
-        // Lambda controls divergence-free constraint: higher values enforce ∇·M ≈ 0
         // Typical range: 0.001 - 0.1 (relative to data fidelity term)
         T lambda = recon_params.lambda;
 
         // solve linear system using CG solver with demagnetization constraint
         std::array<Array<T>, 3> recon_m = opt::cgsolver<T>(
-            A, yT, x0, recon_params.maxIters, recon_params.tol, lambda);
+            A, yT, x0, recon_params.maxIters, recon_params.tol, recon_params.xtol,
+            lambda);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;

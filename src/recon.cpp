@@ -49,15 +49,10 @@ int main(int argc, char **argv) {
     float p = 1.2;
     float tol = params.tol;
     float xtol = params.xtol;
-    auto dims = params.recon_dims;
+    auto recon_dims = params.recon_dims;
 
     // print parameters
     params.print(std::cout);
-
-    // Reorder reconstruction dimensions so that the polar components of the
-    // cylindrical coordinates vary fastest in memory, improving Fourier transform
-    // performance.
-    tomocam::dims_t recon_dims = {dims[2], dims[0], dims[1]};
 
     tomocam::Timer t0;
     t0.start();
@@ -72,17 +67,9 @@ int main(int argc, char **argv) {
         default: recon = tomocam::MBIR1<float>(datasets, recon_dims, params);
     }
 
-    // transpose to match original input dimensions
-    for (size_t i = 0; i < 3; ++i) {
-        recon[i] = tomocam::array::transpose(recon[i], {1, 2, 0});
-    }
-    // After the transpose, VTK Y maps to physical Z and VTK Z maps to physical Y
-    // (see vti_axis_fix.txt). Swap the y and z vector components so each aligns
-    // with the correct axis before writing to file.
-    std::swap(recon[1], recon[2]);
-
     t0.stop();
     double elapsed = t0.seconds();
+
     if (elapsed > 3600) {
         int hours = static_cast<int>(elapsed / 3600);
         int minutes = static_cast<int>((elapsed - hours * 3600) / 60);

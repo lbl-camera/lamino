@@ -266,6 +266,7 @@ namespace tomocam {
                 os << "  inner_iters: " << innerIters << "\n";
                 os << "    lambda: " << lambda << "\n";
                 os << "    mu: " << mu << "\n";
+                os << "  inner_iters: " << innerIters << "\n";
             }
         }
     };

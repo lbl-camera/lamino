@@ -60,15 +60,15 @@ namespace tomocam {
                 for (size_t j = 0; j < dims.n2; ++j) {
                     for (size_t k = 0; k < dims.n3; ++k) {
 
-                        T qX = k * dX - M_PI + dX / 2;
-                        T qY = j * dY - M_PI + dY / 2;
+                        T qX = (k + 0.5) * dX - M_PI;
+                        T qY = (j + 0.5) * dY - M_PI;
 
                         // apply rotations
-                        x[{i, j, k}] = qX * std::sin(gamma) +
-                                       qY * std::cos(theta[i]) * std::cos(gamma);
-                        y[{i, j, k}] = qY * std::sin(theta[i]);
-                        z[{i, j, k}] = qX * std::cos(gamma) +
-                                       -qY * std::cos(theta[i]) * std::sin(gamma);
+                        x[{i, j, k}] = qX * std::cos(gamma) -
+                                       qY * std::sin(gamma) * std::cos(theta[i]);
+                        y[{i, j, k}] = qX * std::sin(gamma) +
+                                       qY * std::cos(gamma) * std::cos(theta[i]);
+                        z[{i, j, k}] = qY * std::sin(theta[i]);
                     }
                 }
             }

@@ -29,14 +29,14 @@
 #include "bregman.h"
 #include "demag.h"
 #include "optimize.h"
-#include "precond.h"
 #include "support.h"
 
 namespace tomocam::opt {
 
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &y,
-                         const VecArray<T> &x0, size_t max_iter, T tol, T lambda) {
+                         const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
+                         T lambda) {
 
         // initialize
         VecArray<T> x = {x0[0].clone(), x0[1].clone(), x0[2].clone()};
@@ -44,16 +44,14 @@ namespace tomocam::opt {
                          Array<T>(x0[2].dims())};
         VecArray<T> p;
 
-        dims_t sup_dims = {127, 21, 127}; // TODO: testing only
-        auto sup = Support<T>(x[0].dims(), sup_dims);
-
         // add demagnetization and Tikhonov regularization to the operator
         Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
             VecArray<T> Ax = A(x);
             return Ax;
         };
 
-        auto precond = RampPreconditioner<T>(x0[0].dims());
+        // placeholder for preconditioner, currently identity
+        auto precond_apply = [](const Array<T> &r) { return r.clone(); };
 
         VecArray<T> tmp = Ad(x);
         for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
@@ -61,7 +59,7 @@ namespace tomocam::opt {
         T rs_old = 0;
         VecArray<T> z;
         for (size_t i = 0; i < 3; i++) {
-            z[i] = precond.apply(r[i]);
+            z[i] = precond_apply(r[i]);
             p[i] = z[i].clone();
             rs_old += array::dot(z[i], r[i]);
         }
@@ -77,31 +75,33 @@ namespace tomocam::opt {
                 break;
             }
             T alpha = rs_old / pAp;
+
+            // step norm: ||delta_x|| = |alpha| * ||p||
+            T pp = 0;
+            for (size_t i = 0; i < 3; i++) { pp += array::dot(p[i], p[i]); }
+            T dx_norm = std::abs(alpha) * std::sqrt(pp);
+
             for (size_t i = 0; i < 3; i++) {
                 x[i] += p[i] * alpha;
                 r[i] -= Ap[i] * alpha;
             }
 
-            // reset padded regions to zero
-            for (size_t i = 0; i < 3; i++) { array::resetPads(x[i]); }
-
             // apply preconditioner
             T rs_new = 0;
             for (size_t i = 0; i < 3; i++) {
-                z[i] = precond.apply(r[i]);
+                z[i] = precond_apply(r[i]);
                 rs_new += array::dot(z[i], r[i]);
             }
-
-            T res = 0;
-            for (size_t i = 0; i < 3; i++) { res += array::dot(r[i], r[i]); }
-            std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
-                                     std::sqrt(res));
-            if (std::sqrt(res) < tol) { break; }
-
             for (size_t i = 0; i < 3; i++) {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
             rs_old = rs_new;
+
+            T res = 0;
+            for (size_t i = 0; i < 3; i++) { res += array::dot(r[i], r[i]); }
+            std::cout << std::format("\tCG iter: {}, residual: {}, dx: {}\n", iter,
+                                     std::sqrt(res), dx_norm);
+            if (std::sqrt(res) < tol || dx_norm < xtol) { break; }
         }
         return x;
     }
@@ -110,12 +110,12 @@ namespace tomocam::opt {
     template VecArray<float> cgsolver<float>(const Function<float> &A,
                                              const VecArray<float> &y,
                                              const VecArray<float> &x0,
-                                             size_t max_iter, float tol,
+                                             size_t max_iter, float tol, float xtol,
                                              float lambda);
     template VecArray<double> cgsolver<double>(const Function<double> &A,
                                                const VecArray<double> &y,
                                                const VecArray<double> &x0,
                                                size_t max_iter, double tol,
-                                               double lambda);
+                                               double xtol, double lambda);
 
 } // namespace tomocam::opt

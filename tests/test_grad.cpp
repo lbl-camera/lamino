@@ -13,7 +13,7 @@ using namespace tomocam;
 int main() {
 
     // Define random f
-    dims_t dims = {21, 319, 419};
+    dims_t dims = {21, 539, 359};
     std::array<Array<float>, 3> f;
     for (size_t i = 0; i < 3; i++) { f[i] = Array<float>::random(dims); }
 
