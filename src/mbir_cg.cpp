@@ -112,9 +112,9 @@ namespace tomocam {
         T lambda = recon_params.lambda;
 
         // solve linear system using CG solver with demagnetization constraint
-        std::array<Array<T>, 3> recon_m = opt::cgsolver<T>(
-            A, yT, x0, recon_params.maxIters, recon_params.tol, recon_params.xtol,
-            lambda);
+        std::array<Array<T>, 3> recon_m =
+            opt::cgsolver<T>(A, yT, x0, recon_params.maxIters, recon_params.tol,
+                             recon_params.xtol, lambda);
 
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;
