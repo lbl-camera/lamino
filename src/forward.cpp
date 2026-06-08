@@ -13,8 +13,7 @@
 #include "array_ops.h"
 #include "tomocam.h"
 
-constexpr double PADDING =
-    1.41421356237; // sqrt(2) to avoid cropping corners of the sample
+constexpr double PADDING = 1.41421356237;
 
 int main(int argc, char **argv) {
 
