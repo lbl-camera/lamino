@@ -148,14 +148,14 @@ namespace tomocam {
             Regularizer::UNCONSTRAINED;               // Regularization method
         std::array<size_t, 3> recon_dims = {0, 0, 0}; // Reconstruction dimensions
         size_t maxIters = 50;                         // Maximum number of iterations
-        size_t innerIters = 3;     // Number of inner iterations for Split-Bregman
-        float sigma = 1000.0f;     // Regularization parameter (qGGMRF)
-        float p = 1.2f;            // qGGMRF parameter p
-        float lambda = 0.1f;       // Regularization weight (Split-Bregman)
-        float mu = 10.0f;          // Augmented Lagrangian parameter (Split-Bregman)
-        float tol = 1e-5f;         // Tolerance for convergence
-        float xtol = 1e-5f;        // Tolerance for solution change
-        float PAD_FACTOR = 1.4142; // sqrt(2) padding factor
+        size_t innerIters = 3;  // Number of inner iterations for Split-Bregman
+        float sigma = 1000.0f;  // Regularization parameter (qGGMRF)
+        float p = 1.2f;         // qGGMRF parameter p
+        float lambda = 0.1f;    // Regularization weight (Split-Bregman)
+        float mu = 10.0f;       // Augmented Lagrangian parameter (Split-Bregman)
+        float tol = 1e-5f;      // Tolerance for convergence
+        float xtol = 1e-5f;     // Tolerance for solution change
+        float PAD_FACTOR = 2.f; // sqrt(2) padding factor
 
         ReconParams() = default;
         ReconParams(const toml::table &config) {
@@ -206,6 +206,7 @@ namespace tomocam {
             }
             tol = (*recon)["tol"].value_or<float>(1e-5f);
             xtol = (*recon)["xtol"].value_or<float>(1e-5f);
+            PAD_FACTOR = (*recon)["pad_factor"].value_or<float>(2.0f);
             // read regularizer type
             // check of regularizer section exists
             if (recon->contains("regularizer")) {
