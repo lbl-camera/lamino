@@ -27,9 +27,7 @@
 #include "array.h"
 #include "array_ops.h"
 #include "bregman.h"
-#include "demag.h"
 #include "optimize.h"
-#include "support.h"
 
 namespace tomocam::opt {
 
@@ -44,16 +42,10 @@ namespace tomocam::opt {
                          Array<T>(x0[2].dims())};
         VecArray<T> p;
 
-        // add demagnetization and Tikhonov regularization to the operator
-        Function<T> Ad = [&A, lambda](const VecArray<T> &x) {
-            VecArray<T> Ax = A(x);
-            return Ax;
-        };
-
         // placeholder for preconditioner, currently identity
         auto precond_apply = [](const Array<T> &r) { return r.clone(); };
 
-        VecArray<T> tmp = Ad(x);
+        VecArray<T> tmp = A(x);
         for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
 
         T rs_old = 0;
@@ -67,7 +59,7 @@ namespace tomocam::opt {
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             // compute Ap
-            VecArray<T> Ap = Ad(p);
+            VecArray<T> Ap = A(p);
             T pAp = 0;
             for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
             if (std::abs(pAp) < 1.e-10) {
@@ -92,6 +84,7 @@ namespace tomocam::opt {
                 z[i] = precond_apply(r[i]);
                 rs_new += array::dot(z[i], r[i]);
             }
+            // update p
             for (size_t i = 0; i < 3; i++) {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
@@ -99,8 +92,9 @@ namespace tomocam::opt {
 
             T res = 0;
             for (size_t i = 0; i < 3; i++) { res += array::dot(r[i], r[i]); }
-            std::cout << std::format("\tCG iter: {}, residual: {}, dx: {}\n", iter,
-                                     std::sqrt(res), dx_norm);
+            std::cout << std::format(
+                "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter,
+                std::sqrt(res), dx_norm);
             if (std::sqrt(res) < tol || dx_norm < xtol) { break; }
         }
         return x;
