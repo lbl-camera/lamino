@@ -99,7 +99,7 @@ namespace tomocam::nufft {
             }
             finufft_opts opts;
             finufft_default_opts(&opts);
-            opts.upsampfac = 2.0;
+            // opts.upsampfac = 2.0;
             int ierr =
                 Traits::makeplan(type, dim, n_modes.data(), iflag, 1, &plan, &opts);
             if (ierr != 0) { throw std::runtime_error("Error in finufft_makeplan"); }

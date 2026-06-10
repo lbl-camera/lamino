@@ -23,9 +23,11 @@
 
 #include <cuda_runtime.h>
 #include <stdexcept>
+#include <thrust/device_ptr.h>
 
 #include "array.h"
-#include "gpu/gpu_memory.h"
+#include "gpu/device_ptr.h"
+#include "gpu/memory.h"
 #include "gpu/utils.h"
 
 namespace tomocam::gpu {
@@ -61,20 +63,21 @@ namespace tomocam::gpu {
 
       public:
         /// Default constructor creates empty array.
-        DeviceArray() : dims_({0, 0, 0}), size_(0), dev_ptr_(nullptr) {}
+        DeviceArray() : dims_(), size_(0), dev_ptr_(nullptr) {}
 
         /// Allocates device memory for a 3D array of given dimensions.
+        /// Memory is zero-initialized.
         DeviceArray(dims_t d) : dims_(d) {
             size_ = d.n1 * d.n2 * d.n3;
             dev_ptr_ = memory::make_cunique_ptr<T>(size_);
+            SAFE_CALL(cudaMemset(dev_ptr_.get(), 0, bytes()));
         }
 
-        /// Constructs device array from host Slice, copying data to device.
-        DeviceArray(const Slice<T> &rhs)
+        /// Constructs device array from Array<T>
+        DeviceArray(const Array<T> &rhs)
             : dims_(rhs.dims()), size_(rhs.size()),
               dev_ptr_(memory::make_cunique_ptr<T>(rhs.size())) {
-            SAFE_CALL(cudaMemcpy(dev_ptr_.get(), rhs.begin(), rhs.bytes(),
-                                 cudaMemcpyHostToDevice));
+            copyH2D(dev_ptr_.get(), rhs.begin(), bytes());
         }
 
         /// Copy constructor is deleted to prevent unintended device memory
@@ -82,17 +85,28 @@ namespace tomocam::gpu {
         DeviceArray(const DeviceArray<T> &rhs) = delete;
         /// Copy assignment is deleted to prevent unintended device memory
         /// duplication.
-        DeviceArray<T> &operator=(const Slice<T> &rhs) = delete;
+        DeviceArray<T> &operator=(const DeviceArray<T> &rhs) = delete;
 
         /// Destructor automatically managed by cunique_ptr.
         ~DeviceArray() = default;
 
         /// Creates explicit clone of the device array on GPU.
-        DeviceArray<T> clone() const {
-            DeviceArray<T> copy(dims_);
-            SAFE_CALL(cudaMemcpy(copy.dev_ptr_.get(), dev_ptr_.get(), bytes(),
-                                 cudaMemcpyDeviceToDevice));
+        /// Allocates without zero-initialization since the full contents are
+        /// immediately overwritten by the device-to-device copy.
+        [[nodiscard]] DeviceArray<T> clone() const {
+            DeviceArray<T> copy;
+            copy.dims_ = dims_;
+            copy.size_ = size_;
+            copy.dev_ptr_ = memory::make_cunique_ptr<T>(size_);
+            copyD2D(copy.dev_ptr_.get(), dev_ptr_.get(), bytes());
             return copy;
+        }
+
+        /// copy data back to host as Array
+        [[nodiscard]] Array<T> to_host() const {
+            Array<T> host_array(dims_);
+            copyD2H(host_array.begin(), dev_ptr_.get(), bytes());
+            return host_array;
         }
 
         /// Move constructor for efficient transfer of ownership.
@@ -101,33 +115,62 @@ namespace tomocam::gpu {
         /// Move assignment operator for efficient transfer of ownership.
         DeviceArray<T> &operator=(DeviceArray<T> &&rhs) = default;
 
-        /// Returns pointer to beginning of device memory.
-        T *begin() { return dev_ptr_.get(); };
-        /// Returns const pointer to beginning of device memory.
-        const T *begin() const { return dev_ptr_.get(); };
+        /// Implicit conversion operator to DevicePtr for use in CUDA kernels.
+        operator DevicePtr<T>() { return DevicePtr<T>(dev_ptr_.get(), dims_); }
+        operator DevicePtr<const T>() const {
+            return DevicePtr<const T>(dev_ptr_.get(), dims_);
+        }
 
-        /// Returns pointer to one past the end of device memory.
-        T *end() { return dev_ptr_.get() + size_; };
-        /// Returns const pointer to one past the end of device memory.
-        const T *end() const { return dev_ptr_.get() + size_; };
+        /// Not dereferenceable on the host.
+        T *data() { return dev_ptr_.get(); }
+        const T *data() const { return dev_ptr_.get(); }
+
+        /// Iterators for thrust compatibility.
+        thrust::device_ptr<T> begin() {
+            return thrust::device_ptr<T>(dev_ptr_.get());
+        }
+        thrust::device_ptr<const T> begin() const {
+            return thrust::device_ptr<const T>(dev_ptr_.get());
+        }
+
+        thrust::device_ptr<T> end() {
+            return thrust::device_ptr<T>(dev_ptr_.get() + size_);
+        }
+        thrust::device_ptr<const T> end() const {
+            return thrust::device_ptr<const T>(dev_ptr_.get() + size_);
+        }
 
         /// Returns total number of elements in the array.
-        [[nodiscard]] size_t size() const { return size_; }
+        size_t size() const { return size_; }
 
         /// Returns total size in bytes of the array.
-        [[nodiscard]] size_t bytes() const { return sizeof(T) * size_; }
+        size_t bytes() const { return sizeof(T) * size_; }
 
         /// Returns dimensions (n1, n2, n3) of the 3D array.
-        [[nodiscard]] dims_t dims() const { return dims_; }
+        dims_t dims() const { return dims_; }
 
         /// Returns number of slices (first dimension).
-        [[nodiscard]] size_t nslices() const { return dims_.n1; }
+        size_t nslices() const { return dims_.n1; }
 
         /// Returns number of rows (second dimension).
-        [[nodiscard]] size_t nrows() const { return dims_.n2; }
+        size_t nrows() const { return dims_.n2; }
 
         /// Returns number of columns (third dimension).
-        [[nodiscard]] size_t ncols() const { return dims_.n3; }
+        size_t ncols() const { return dims_.n3; }
+
+        /// arithmatic operators
+        DeviceArray<T> operator+(const DeviceArray<T> &rhs) const;
+        DeviceArray<T> &operator+=(const DeviceArray<T> &rhs);
+        DeviceArray<T> operator-(const DeviceArray<T> &rhs) const;
+        DeviceArray<T> &operator-=(const DeviceArray<T> &rhs);
+        DeviceArray<T> &operator*=(T scalar);
+        DeviceArray<T> operator*(const T &scalar) const;
+        DeviceArray<T> operator*(const DeviceArray<T> &rhs) const;
+        DeviceArray<T> &operator*=(const DeviceArray<T> &rhs);
+        DeviceArray<T> &operator/=(T scalar);
+        DeviceArray<T> operator/(const T &scalar) const;
+        DeviceArray<T> operator/(const DeviceArray<T> &rhs) const;
+        DeviceArray<T> &operator/=(const DeviceArray<T> &rhs);
     };
 
 } // namespace tomocam::gpu
