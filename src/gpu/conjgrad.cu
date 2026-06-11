@@ -18,7 +18,6 @@
  *---------------------------------------------------------------------------------
  */
 
-#include <array>
 #include <cstdio>
 #include <format>
 #include <iostream>
@@ -34,6 +33,7 @@
 #include "gpu/gpu_opt.h"
 #include "gpu/mem_check.h"
 #include "gpu/utils.h"
+#include "gpu/vec_array.h"
 
 namespace tomocam::gpu::opt {
 
@@ -55,27 +55,15 @@ namespace tomocam::gpu::opt {
         auto r = y - A(x);
 
         // z = M^{-1} r,  p = z,  rs_old = z^T r
-        VecArray<T> z = {precond_apply(r[0]), precond_apply(r[1]),
-                         precond_apply(r[2])};
+        VecArray<T> z{precond_apply(r[0]), precond_apply(r[1]), precond_apply(r[2])};
         auto p = z.clone();
 
         T rs_old = z.dot(r);
 
-        // Checkpoint: ones + pre + x + r + z + p = 6 N (relative to caller baseline)
-        MEM_CHECK("cg: persistent init (ones, pre, x, r, z, p = 6N relative)",
-                  6 * x0[0].size() * sizeof(T));
-
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             // Ap = A(p),  pAp = p^T Ap
-            VecArray<T> Ap = A(p);
-
-            // Checkpoint: 6N CG persistent + Ap (1N) + neg_laplacian peak (~2N) =
-            // ~9N relative (neg_laplacian inside the Ap lambda allocates two arrays
-            // briefly)
-            MEM_CHECK("cg: iter – after Ap=A(p) (6N CG + Ap + neg_lap peak = ~9N "
-                      "relative)",
-                      9 * x0[0].size() * sizeof(T));
+            auto Ap = A(p);
 
             T pAp = Ap.dot(p);
             T pAp_thresh =
