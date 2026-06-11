@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "array.h"
+#include "mask.h"
 #include "recon_params.h"
 #include "tiff.h"
 
@@ -140,7 +141,7 @@ namespace tomocam {
         return datasets;
     }
 
-    ReconParams parse_recon_params(const toml::table &config) {
+    inline ReconParams parse_recon_params(const toml::table &config) {
 
         ReconParams p;
         // Read [recon_params] section
