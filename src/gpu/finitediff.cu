@@ -22,6 +22,7 @@
 #include "gpu/device_array.h"
 #include "gpu/device_ptr.h"
 #include "gpu/utils.h"
+#include "gpu/vec_array.h"
 
 namespace tomocam::gpu::opt {
 
@@ -133,7 +134,7 @@ namespace tomocam::gpu::opt {
     }
 
     template <typename T>
-    std::array<DeviceArray<T>, 3> grad(const DeviceArray<T> &u) {
+    VecArray<T> grad(const DeviceArray<T> &u) {
         DeviceArray<T> du_x(u.dims());
         DeviceArray<T> du_y(u.dims());
         DeviceArray<T> du_z(u.dims());
@@ -164,19 +165,19 @@ namespace tomocam::gpu::opt {
         SAFE_CALL(cudaStreamDestroy(sx));
         SAFE_CALL(cudaStreamDestroy(sy));
         SAFE_CALL(cudaStreamDestroy(sz));
-        std::array<DeviceArray<T>, 3> du;
+        VecArray<T> du;
         du[0] = std::move(du_x);
         du[1] = std::move(du_y);
         du[2] = std::move(du_z);
         return du;
     }
     // Explicit template instantiations
-    template std::array<DeviceArray<float>, 3> grad(const DeviceArray<float> &u);
-    template std::array<DeviceArray<double>, 3> grad(const DeviceArray<double> &u);
+    template VecArray<float> grad(const DeviceArray<float> &u);
+    template VecArray<double> grad(const DeviceArray<double> &u);
 
     // divergence
     template <typename T>
-    DeviceArray<T> divergence(const std::array<DeviceArray<T>, 3> &u) {
+    DeviceArray<T> divergence(const VecArray<T> &u) {
 
         auto dims = u[0].dims();
         // output array for divergence
@@ -202,10 +203,8 @@ namespace tomocam::gpu::opt {
         return div_u;
     }
     // Explicit template instantiations
-    template DeviceArray<float>
-    divergence(const std::array<DeviceArray<float>, 3> &u);
-    template DeviceArray<double>
-    divergence(const std::array<DeviceArray<double>, 3> &u);
+    template DeviceArray<float> divergence(const VecArray<float> &u);
+    template DeviceArray<double> divergence(const VecArray<double> &u);
 
     // laplacian
     template <typename T>
