@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     // read parameters from toml file
     auto config = tomocam::read_toml_file(argv[1]);
     auto datasets = tomocam::parse_input_datasets<float>(config);
-    auto params = tomocam::ReconParams(config);
+    auto params = tomocam::parse_recon_params(config);
     auto output = tomocam::OutputParams(config);
 
     // print input parameters
