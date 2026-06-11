@@ -40,6 +40,13 @@ namespace tomocam::opt {
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol) {
 
+        // sanity check x0.dims must be the same as yT.dims
+        if ((x0.size() != yT.size()) || (x0[0].dims() != yT[0].dims())) {
+            throw std::invalid_argument(
+                "yT is not the raw data, but backprojected data, so it should have "
+                "the same dimensions as x0");
+        }
+
         // Initialize variables
         auto dims = x0[0].dims();
         VecArray<T> x = x0.clone();
@@ -75,34 +82,33 @@ namespace tomocam::opt {
             }
 
             // use conjugate gradient to solve the linear system
-            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol, T(0.0));
+            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol, tol, T(0.0));
 
             /* Isotropic TV shrinkage */
             // compute gradient of solution
             std::array<std::array<Array<T>, 3>, 3> grad_x;
             for (size_t i = 0; i < 3; ++i) { grad_x[i] = grad_u(x[i]); }
 
-            std::array<Array<T>, 3> sk;
-            // compute shrinkage factor
+            // compute norm of the jacobian + b
+            T eps = static_cast<T>(EPSILON);
+            auto sk = Array<T>::ones(dims) * eps;
             for (size_t i = 0; i < 3; ++i) {
-                sk[i] = Array<T>::zeros(dims);
-                sk[i] += EPSILON; // to avoid division by zero
                 for (size_t j = 0; j < 3; ++j) {
-                    sk[i] += (grad_x[i][j] + b[i][j]) * (grad_x[i][j] + b[i][j]);
+                    sk += (grad_x[i][j] + b[i][j]) * (grad_x[i][j] + b[i][j]);
                 }
-                std::transform(std::execution::par_unseq, sk[i].begin(), sk[i].end(),
-                               sk[i].begin(), [](T v) { return std::sqrt(v); });
             }
+            std::transform(std::execution::par_unseq, sk.begin(), sk.end(),
+                           sk.begin(), [](T val) { return std::sqrt(val); });
+
             // update d with shrinkage
             for (size_t i = 0; i < 3; ++i) {
                 for (size_t j = 0; j < 3; ++j) {
-                    auto temp = (grad_x[i][j] + b[i][j]) / sk[i];
-                    std::transform(std::execution::par_unseq, temp.begin(),
-                                   temp.end(), sk[i].begin(), d[i][j].begin(),
-                                   [lambda, mu](T val, T sk_val) {
-                                       return std::max(sk_val - lambda / mu, T(0)) *
-                                              val;
-                                   });
+                    auto temp = (grad_x[i][j] + b[i][j]) / sk;
+                    std::transform(
+                        std::execution::par_unseq, temp.begin(), temp.end(),
+                        sk.begin(), d[i][j].begin(), [lambda, mu](T val, T sk_val) {
+                            return std::max(sk_val - lambda / mu, T(0)) * val;
+                        });
                 }
             }
 
@@ -119,7 +125,7 @@ namespace tomocam::opt {
             }
             std::cout << std::format(
                 "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
-            for (size_t i = 0; i < 3; ++i) { x_old[i] = std::move(x[i]); }
+            for (size_t i = 0; i < 3; ++i) { x_old[i] = x[i].clone(); }
             if (norm_diff < xtol) { break; }
         }
         return x;

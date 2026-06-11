@@ -1,8 +1,4 @@
 
-add_executable(backproj backproj.cpp)
-target_link_libraries(backproj PUBLIC tomocam)
-target_link_libraries(backproj PUBLIC TIFF::TIFF)
-
 add_executable(test_fft test_fft.cpp)
 target_link_libraries(test_fft PUBLIC tomocam)
 
@@ -18,4 +14,19 @@ target_link_libraries(test_cg PUBLIC TIFF::TIFF)
 
 add_executable(test_fft_r2c test_fft_r2c.cpp)
 target_link_libraries(test_fft_r2c PUBLIC tomocam)
+
+add_executable(test_transpose test_transpose.cpp)
+target_link_libraries(test_transpose PUBLIC tomocam)
+
+add_executable(test_demag test_demag.cpp)
+target_link_libraries(test_demag PUBLIC tomocam)
+
+add_executable(test_resetPads test_resetPads.cpp)
+target_link_libraries(test_resetPads PUBLIC tomocam)
+
+add_executable(test_fftshift test_fftshift.cpp)
+target_link_libraries(test_fftshift PUBLIC tomocam)
+
+add_executable(test_masking test_masking.cpp)
+target_link_libraries(test_masking PUBLIC tomocam)
 

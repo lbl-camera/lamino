@@ -7,15 +7,6 @@
 
 namespace tomocam::opt {
     /**
-     * @brief Compute the Laplacian of an array.
-     * @tparam T The type of the array elements.
-     * @param u The input array.
-     * @return The Laplacian of the input array.
-     */
-    template <typename T>
-    Array<T> laplacian(const Array<T> &u);
-
-    /**
      * @brief Compute the gradient of an array.
      * @tparam T The type of the array elements.
      * @param u The input array.
@@ -32,6 +23,17 @@ namespace tomocam::opt {
      */
     template <typename T>
     Array<T> divergence(const std::array<Array<T>, 3> &u);
+
+    /**
+     * @brief Compute the Laplacian of an array as divergence(grad_u(u)).
+     * @tparam T The type of the array elements.
+     * @param u The input array.
+     * @return The Laplacian of the input array.
+     */
+    template <typename T>
+    Array<T> laplacian(const Array<T> &u) {
+        return divergence(grad_u(u));
+    }
 } // namespace tomocam::opt
 
 #endif // BREGMAN_H

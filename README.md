@@ -15,10 +15,10 @@ The library is optimized for performance using:
 
 ## Features
 
-- **Forward/Backward Projection**: Efficient projection operators on polar grids
-- **Iterative Reconstruction**: Conjugate gradient and Nesterov accelerated gradient methods
-- **MBIR**: Model-Based Iterative Reconstruction with QGGMRF penalty
+- **Forward/Backward Projection**: NUFFT based projection operators
+- **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, and Nesterov accelerated gradient methods
 - **TIFF I/O**: Read and write reconstruction data
+- **Paraview**: Plot magnetization vectors in paraview
 
 ## Requirements
 
@@ -31,7 +31,10 @@ The library is optimized for performance using:
 - FFTW3 (single and double precision)
 - libtiff
 - FINUFFT
-- CUDA for GPU acceleration
+- CUDA (Optional)
+    - cuFINUFFT
+    - cufft
+    - thrust
 
 ### Supported Platforms
 
@@ -67,34 +70,75 @@ cmake --build --preset macos
 
 ## Usage
 
-### Basic Example
+### Running Reconstruction
 
-```cpp
-#include "tomocam.h"
+The reconstruction tool uses a TOML configuration file to specify input data and parameters:
 
-// Create polar grid geometry
-tomocam::PolarGrid<float> grid(/* parameters */);
-
-// Forward projection
-auto projections = tomocam::forward(volume, grid);
-
-// Backward projection
-auto reconstructed = tomocam::backward(projections, grid, volume_dims);
-
-// MBIR reconstruction
-auto mbir_result = tomocam::MBIR(
-    projections,
-    angles,
-    recon_dims,
-    max_iterations,
-    sigma,
-    p,
-    lambda,
-    gamma
-);
+```bash
+./build/recon <config.toml>
 ```
 
-## API Documentation
+### TOML Configuration File
+
+Create a TOML file with the following structure for vector magnetic field reconstruction:
+
+```toml
+# Multiple input datasets with different gamma angles for vector reconstruction
+[[input]]
+filename = "/path/to/gamma0_stack.tiff"
+angles = "/path/to/gamma0_angles.txt"
+gamma = 0
+
+[[input]]
+filename = "/path/to/gamma45_stack.tiff"
+angles = "/path/to/gamma45_angles.txt"
+gamma = 45
+
+[output]
+filename = "output.tiff"                # Output filename for reconstruction
+formats = ["tiff", "vti"]              # Available: "tiff", "vti"
+
+[recon_params]
+max_outer_iters = 50                    # Maximum outer iterations
+tol = 1e-5                              # Convergence tolerance
+xtol = 1e-5                             # X-tolerance for convergence
+recon_dims = [51, 511, 511]            # Reconstruction dimensions [thickness, height, width]
+
+[recon_params.regularizer]
+method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMRF"
+
+# Parameters for split_bregman method
+[recon_params.regularizer.split_bregman]
+lambda = 0.1                            # Regularization parameter
+mu = 10.0                               # Penalty parameter
+
+# Alternatively, for qGGMRF regularization:
+# [recon_params.regularizer]
+# method = "qGGMRF"
+# [recon_params.regularizer.qGGMRF]
+# sigma = 1000.0
+# p = 1.2
+```
+
+**Notes:**
+- Use multiple `[[input]]` sections to specify datasets at different gamma angles for vector field reconstruction
+- Angles can be in degrees or radians (automatically converted)
+- The angles file should contain one angle per line
+- Run `./build/recon` without arguments to generate a template configuration file (`config.toml`)
+
+## Documentation
+
+📚 **Complete documentation is available on ReadTheDocs:**
+
+- **Latest Documentation**: https://camera-lamino.readthedocs.io/
+- **Getting Started Guide**: https://camera-lamino.readthedocs.io/en/latest/getting_started.html
+- **Installation Instructions**: https://camera-lamino.readthedocs.io/en/latest/installation.html
+- **Usage Guide**: https://camera-lamino.readthedocs.io/en/latest/usage.html
+- **Configuration Reference**: https://camera-lamino.readthedocs.io/en/latest/configuration.html
+- **API Documentation**: https://camera-lamino.readthedocs.io/en/latest/api/index.html
+- **Examples**: https://camera-lamino.readthedocs.io/en/latest/examples.html
+
+The documentation is automatically built from the `docs/` directory and updates with every commit.
 
 ## License
 
@@ -105,6 +149,13 @@ If you have questions about your rights to use or distribute this software, plea
 This Software was developed under funding from the U.S. Department of Energy and the U.S. Government consequently retains certain rights. As such, the U.S. Government has been granted for itself and others acting on its behalf a paid-up, nonexclusive, irrevocable, worldwide license in the Software to reproduce, distribute copies to the public, prepare derivative works, and perform publicly and display publicly, and to permit other to do so.
 
 ## Contributing
+
+Contributions are welcome! Please see our [Contributing Guide](https://camera-lamino.readthedocs.io/en/latest/contributing.html) for details on:
+
+- Development setup
+- Code style guidelines
+- Testing requirements
+- Pull request process
 
 ## Contact
 

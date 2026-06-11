@@ -32,7 +32,6 @@ set(SRC
     src/gradient.cpp
     src/mbir_sb.cpp
     src/mbir_cg.cpp
-    src/recon.cpp
    )
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
@@ -50,6 +49,7 @@ if (USE_CUDA)
         src/gpu/fftshift.cu
         src/gpu/finitediff.cu
         src/gpu/padding.cu
+        src/gpu/xmcdprojs.cu
     )
     include_directories(${CMAKE_SOURCE_DIR}/src/cuda)
 endif()
@@ -116,8 +116,13 @@ add_executable(forward src/forward.cpp)
 target_link_libraries(forward PUBLIC tomocam)
 target_link_libraries(forward PUBLIC TIFF::TIFF)
 
+# adjoint executable
+add_executable(adjoint src/adjoint.cpp)
+target_link_libraries(adjoint PUBLIC tomocam)
+target_link_libraries(adjoint PUBLIC TIFF::TIFF)
+
 # install executables and library
-install(TARGETS recon forward DESTINATION bin)
+install(TARGETS recon forward adjoint DESTINATION bin)
 install(TARGETS tomocam DESTINATION lib)
 
 option(ENABLE_TESTS "Enable tests" OFF)

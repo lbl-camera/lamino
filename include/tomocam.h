@@ -83,24 +83,16 @@ namespace tomocam {
 
     /**
      * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
-     * tomographic imaging.
-     *
-     * Reconstructs 3D volumetric data from set of projection images using a
-     * regularized optimization. There are two options for regularization: 1).
-     * Split-Bregram method with l1-regularization, 2). q-generalized Gaussian Markov
-     * Random Field (QGGMRF) edge-preserving The algorithm operates in a padded
-     * domain (sqrt(2) factor) to avoid aliasing artifacts during backprojection,
-     * then crops the result to the desired dimensions. The reconstruction uses
-     * Nesterov's Accelerated Gradient (NAG) method for optimization.
+     * tomography using unconstrained Conjugate Gradient (CG) optimization.
      *
      * @tparam T Floating-point type (float or double).
      * @param datasets A vector of tuples, where each tuple contains:
      *   1). An Array representing projection data
      *   2). A vector of representing the projection angles for the dataset
      *   3). A orientation angle (gamma), a proxy for angle between the sample
-     * magnetization and the beam polarization direction.
-     * @param recon_dims The dimensions of the reconstructed volume as a tuple
-     * (nslice, nrow, ncol).
+     *       magnetization and the beam polarization direction.
+     * @param recon_dims The dimensions of the reconstructed volume as a dims_t
+     * object.
      * @param params Reconstruction parameters including regularization type, and
      * optimization parameters.
      * @return A array of three components representing the reconstructed 3D vector
@@ -108,14 +100,56 @@ namespace tomocam {
      */
     template <typename Float>
     std::array<Array<Float>, 3>
-    MBIR(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
-             &datasets,
-         const dims_t &recon_dims, const ReconParams &params);
+    MBIR1(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
+              &datasets,
+          const dims_t &recon_dims, const ReconParams &params);
 
-    // temporary function
+    /**
+     * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
+     * tomographic imaging.
+     *
+     * Reconstructs 3D volumetric data from set of projection images using a
+     * regularized optimization. Using split-Bregman method for optimization.
+     *
+     * @tparam T Floating-point type (float or double).
+     * @param datasets A vector of tuples, where each tuple contains:
+     *   1). An Array representing projection data
+     *   2). A vector of representing the projection angles for the dataset
+     *   3). A orientation angle (gamma), a proxy for angle between the sample
+     * magnetization and the beam polarization direction.
+     * @param recon_dims The dimensions of the reconstructed volume as dims_t object.
+     * @param params Reconstruction parameters including regularization type, and
+     * optimization parameters.
+     * @return A array of three components representing the reconstructed 3D vector
+     * field, cropped to the specified dimensions.
+     */
+
     template <typename Float>
     std::array<Array<Float>, 3>
     MBIR2(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
+              &datasets,
+          const dims_t &recon_dims, const ReconParams &params);
+
+    /**
+     * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
+     * tomography using NAG-style optimization + qGGMRF regularization.
+     *
+     * @tparam T Floating-point type (float or double).
+     * @param datasets A vector of tuples, where each tuple contains:
+     *   1). An Array representing projection data
+     *   2). A vector of representing the projection angles for the dataset
+     *   3). A orientation angle (gamma), a proxy for angle between the sample
+     *       magnetization and the beam polarization direction.
+     * @param recon_dims The dimensions of the reconstructed volume as a dims_t
+     * object.
+     * @param params Reconstruction parameters including regularization type, and
+     * optimization parameters.
+     * @return A array of three components representing the reconstructed 3D vector
+     * field, cropped to the specified dimensions.
+     */
+    template <typename Float>
+    std::array<Array<Float>, 3>
+    MBIR3(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
               &datasets,
           const dims_t &recon_dims, const ReconParams &params);
 } // namespace tomocam

@@ -37,24 +37,27 @@ namespace tomocam::opt {
       public:
         RampPreconditioner(dims_t dims) {
 
-            dims_t filter_dims = {1, dims.n2, dims.n3 / 2 + 1};
+            dims_t filter_dims = {1, dims.n1, dims.n2 / 2 + 1};
             filter_ = Array<T>(filter_dims);
 
-            // Create 1-d ramp filter in x-direction
-            int n3 = static_cast<int>(dims.n3);
-            std::vector<T> xfreq(dims.n3 / 2 + 1, 0);
-            for (int i = 0; i < n3 / 2 + 1; ++i) { xfreq[i] = (T)i / (T)n3; }
+            // After transposing (n1,n2,n3) -> (n3,n1,n2), each 2D slice is (n1,n2).
+            // r2c FFT of (n1,n2) gives (n1, n2/2+1), so x-freq spans n2 and y-freq spans n1.
 
-            // Create 1-d ramp filter in y-direction
+            // Create 1-d ramp filter in x-direction (corresponds to n2 after transpose)
             int n2 = static_cast<int>(dims.n2);
-            std::vector<T> yfreq(dims.n2, 0);
-            for (int i = 0; i < n2; ++i) {
-                yfreq[i] = (i <= n2 / 2) ? (T)i / (T)n2 : (T)(i - n2) / (T)n2;
+            std::vector<T> xfreq(dims.n2 / 2 + 1, 0);
+            for (int i = 0; i < n2 / 2 + 1; ++i) { xfreq[i] = (T)i / (T)n2; }
+
+            // Create 1-d ramp filter in y-direction (corresponds to n1 after transpose)
+            int n1 = static_cast<int>(dims.n1);
+            std::vector<T> yfreq(dims.n1, 0);
+            for (int i = 0; i < n1; ++i) {
+                yfreq[i] = (i <= n1 / 2) ? (T)i / (T)n1 : (T)(i - n1) / (T)n1;
             }
 
             // create a 2D ramp filter by outer addition
-            for (size_t j = 0; j < dims.n2; ++j) {
-                for (size_t i = 0; i < dims.n3 / 2 + 1; ++i) {
+            for (size_t j = 0; j < dims.n1; ++j) {
+                for (size_t i = 0; i < dims.n2 / 2 + 1; ++i) {
                     auto f = std::sqrt(xfreq[i] * xfreq[i] + yfreq[j] * yfreq[j]);
                     filter_[{0, j, i}] = f;
                 }
@@ -73,16 +76,23 @@ namespace tomocam::opt {
 
             // Apply the ramp filter in frequency domain
             auto dims = input.dims();
-            auto scale = 1.0 / (dims.n2 * dims.n3);
-            auto fft_input = fft::fft2_r2c(input);
-            for (size_t i = 0; i < dims.n1; ++i) {
+            auto scale = 1.0 / (dims.n1 * dims.n2);
+
+            // transpose input to make y-z plane contiguous in memory
+            auto inout_T = array::transpose(input, {2, 0, 1});
+            auto tdims = inout_T.dims(); // (n3, n1, n2)
+
+            auto fft_input = fft::fft2_r2c(inout_T);
+            for (size_t i = 0; i < tdims.n1; ++i) {
                 auto slice = fft_input.slice(i, i + 1);
                 std::transform(std::execution::seq, slice.begin(), slice.end(),
                                filter_.begin(), slice.begin(),
                                std::multiplies<std::complex<T>>());
             }
-            auto filtered = fft::fft2_c2r(fft_input, dims);
-            return filtered * scale;
+            auto filtered = fft::fft2_c2r(fft_input, tdims);
+
+            // transpose back to original layout and apply scaling
+            return array::transpose(filtered * scale, {1, 2, 0});
         }
     };
 } // namespace tomocam::opt

@@ -41,6 +41,7 @@ namespace tomocam {
     class Array {
       private:
         dims_t dims_;
+        dims_t pads_;
         size_t size_;
         std::unique_ptr<T[]> ptr_;
 
@@ -130,6 +131,9 @@ namespace tomocam {
             return std::span<T>(
                 ptr_.get() + (i * dims_.n2 * dims_.n3 + j * dims_.n3), dims_.n3);
         }
+
+        void setPads(dims_t p) { pads_ = p; }
+        [[nodiscard]] dims_t pads() const { return pads_; }
 
         // multiplication operators
         Array<T> operator*(const Array<T> &v) {

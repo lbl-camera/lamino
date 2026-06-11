@@ -55,22 +55,23 @@ namespace tomocam {
             T sin_gamma = std::sin(gamma);
 
             // compute grid points
-            T dh = (2 * M_PI) / static_cast<T>(ncols - 1);
-            T dr = (2 * M_PI) / static_cast<T>(nrows - 1);
+            T dX = (2 * M_PI) / static_cast<T>(ncols);
+            T dY = (2 * M_PI) / static_cast<T>(nrows);
 
 #pragma omp parallel for collapse(3)
             for (size_t i = 0; i < dims.n1; ++i) {
                 for (size_t j = 0; j < dims.n2; ++j) {
                     for (size_t k = 0; k < dims.n3; ++k) {
-                        T radius = j * dr - M_PI;
-                        // polar coordinates
-                        T xcrd = radius * std::cos(theta[i]);
-                        T ycrd = radius * std::sin(theta[i]);
-                        T zcrd = k * dh - M_PI;
-                        // apply rotation
-                        x[{i, j, k}] = zcrd * cos_gamma - xcrd * sin_gamma;
-                        y[{i, j, k}] = ycrd;
-                        z[{i, j, k}] = zcrd * sin_gamma + xcrd * cos_gamma;
+
+                        T qX = (k + 0.5) * dX - M_PI;
+                        T qY = (j + 0.5) * dY - M_PI;
+
+                        // apply rotations
+                        x[{i, j, k}] = qX * std::cos(gamma) -
+                                       qY * std::sin(gamma) * std::cos(theta[i]);
+                        y[{i, j, k}] = qX * std::sin(gamma) +
+                                       qY * std::cos(gamma) * std::cos(theta[i]);
+                        z[{i, j, k}] = qY * std::sin(theta[i]);
                     }
                 }
             }
@@ -78,6 +79,7 @@ namespace tomocam {
         // delete copy constructor and assignment
         PolarGrid(const PolarGrid<T> &) = delete;
         PolarGrid<T> &operator=(const PolarGrid<T> &) = delete;
+
         // move constructor and assignment
         PolarGrid(PolarGrid<T> &&other) noexcept
             : npts(other.npts), theta(std::move(other.theta)), x(std::move(other.x)),
@@ -112,6 +114,9 @@ namespace tomocam {
 
         // theta values
         [[nodiscard]] const std::vector<T> &angles() const { return theta; }
+
+        // get theta value for a given index
+        [[nodiscard]] T angle(size_t i) const { return theta[i]; }
 
         // number of angles
         [[nodiscard]] size_t nprojs() const { return theta.size(); }

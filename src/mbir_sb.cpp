@@ -33,9 +33,6 @@
 #include "polar_grid.h"
 #include "tomocam.h"
 
-// padding factor
-constexpr double PAD_FACTOR = 1.4142; // sqrt(2) to avoid aliasing
-
 namespace tomocam {
 
     /** Dataset_t type definition
@@ -47,11 +44,11 @@ namespace tomocam {
     using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
 
     template <typename T>
-    std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                 const dims_t &recon_dims,
-                                 const ReconParams &recon_params) {
+    std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
+                                  const dims_t &recon_dims,
+                                  const ReconParams &recon_params) {
 
-        T padding = static_cast<T>(PAD_FACTOR);
+        T padding = static_cast<T>(recon_params.PAD_FACTOR);
         auto pad = [padding](size_t n) {
             size_t npad = 2 * (static_cast<size_t>(n * (padding - 1)) / 2);
             return n + npad;
@@ -104,6 +101,7 @@ namespace tomocam {
             A, yT, x0, recon_params.lambda, recon_params.mu, recon_params.maxIters,
             recon_params.innerIters, recon_params.tol, recon_params.xtol);
 
+        std::cout << "returned from optimization" << std::endl;
         // crop to original dimensions
         std::array<Array<T>, 3> recon_magnetisation;
         for (size_t i = 0; i < 3; ++i) {
@@ -115,10 +113,10 @@ namespace tomocam {
 
     // Explicit template instantiations
     template std::array<Array<float>, 3>
-    MBIR(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
-         const ReconParams &recon_params);
+    MBIR2(const std::vector<Dataset_t<float>> &datasets, const dims_t &recon_dims,
+          const ReconParams &recon_params);
     template std::array<Array<double>, 3>
-    MBIR(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
-         const ReconParams &recon_params);
+    MBIR2(const std::vector<Dataset_t<double>> &datasets, const dims_t &recon_dims,
+          const ReconParams &recon_params);
 
 } // namespace tomocam

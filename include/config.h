@@ -131,6 +131,7 @@ namespace tomocam {
             }
 
             auto projs = tomocam::tiff::read(*filename);
+            projs = tomocam::mask_infs_nans(projs);
             auto angles = read_angles_file<T>(*angles_file);
             auto gamma_rad = *gamma * M_PI / (T)180.0; // convert to radians
             datasets.push_back(

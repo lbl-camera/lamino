@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "array_ops.h"
 #include "tomocam.h"
 #ifdef USE_CUDA
 #include "gpu/tomocam.h"
@@ -49,15 +50,10 @@ int main(int argc, char **argv) {
     size_t max_iter = params.maxIters;
     float tol = params.tol;
     float xtol = params.xtol;
-    auto dims = params.recon_dims;
+    auto recon_dims = params.recon_dims;
 
     // print parameters
-#ifdef DEBUG
     params.print(std::cout);
-#endif
-
-    // set reconstruction dimensions
-    tomocam::dims_t recon_dims = {dims[2], dims[0], dims[1]};
 
     tomocam::Timer t0;
     t0.start();
@@ -68,8 +64,25 @@ int main(int argc, char **argv) {
     auto recon = tomocam::MBIR<float>(datasets, recon_dims, params);
 #endif
     t0.stop();
-    std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
-                             t0.seconds());
+    double elapsed = t0.seconds();
+
+    if (elapsed > 3600) {
+        int hours = static_cast<int>(elapsed / 3600);
+        int minutes = static_cast<int>((elapsed - hours * 3600) / 60);
+        double seconds = elapsed - hours * 3600 - minutes * 60;
+        std::cout << std::format("Reconstruction completed in {} hours, {} minutes, "
+                                 "and {:.2f} seconds.\n",
+                                 hours, minutes, seconds);
+    } else if (elapsed > 60) {
+        int minutes = static_cast<int>(elapsed / 60);
+        double seconds = elapsed - minutes * 60;
+        std::cout << std::format(
+            "Reconstruction completed in {} minutes and {:.2f} seconds.\n", minutes,
+            seconds);
+    } else {
+        std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
+                                 elapsed);
+    }
 
     // save result to tiff
     auto base_dir = std::filesystem::path(output.filepath).parent_path();
@@ -80,6 +93,7 @@ int main(int argc, char **argv) {
     if (output.has_format("tiff")) { tomocam::tiff::write3(output.filepath, recon); }
     if (output.has_format("vti")) {
         tomocam::vti::write_vectors(output.filepath, recon);
+        std::cout << std::format("Reconstruction saved to {}.\n", output.filepath);
     }
     return 0;
 }

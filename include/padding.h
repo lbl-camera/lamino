@@ -53,12 +53,13 @@ namespace tomocam {
             d = pad_size;
         }
 
-        for (size_t i = 0; i < dims.x(); i++) {
-            for (size_t j = 0; j < dims.y(); j++) {
+        for (size_t i = 0; i < dims.n1; i++) {
+            for (size_t j = 0; j < dims.n2; j++) {
                 std::copy(&arr[{i, j, 0}], &arr[{i, j, 0}] + arr.ncols(),
                           &arr2[{i, j, d}]);
             }
         }
+        arr2.setPads(dims_t{0, 0, d});
         return arr2;
     }
 
@@ -78,12 +79,14 @@ namespace tomocam {
             d = crop_size;
         }
 
-        for (size_t i = 0; i < dims.x(); i++) {
-            for (size_t j = 0; j < dims.y(); j++) {
-                std::copy(&arr[{i, j, d}], &arr[{i, j, d}] + dims.z(),
+        for (size_t i = 0; i < dims.n1; i++) {
+            for (size_t j = 0; j < dims.n2; j++) {
+                std::copy(&arr[{i, j, d}], &arr[{i, j, d}] + dims.n3,
                           &arr2[{i, j, 0}]);
             }
         }
+        auto pads = arr.pads();
+        arr2.setPads(dims_t{0, 0, pads.n3 - d});
         return arr2;
     }
 
@@ -123,6 +126,7 @@ namespace tomocam {
                           out.begin() + (j + d1) * arr2.ncols() + d2);
             }
         }
+        arr2.setPads(dims_t{0, d1, d2});
         return arr2;
     }
 
@@ -130,7 +134,7 @@ namespace tomocam {
     Array<T> crop2d(const Array<T> &arr, dims_t new_dims, PadType pad_type) {
 
         auto crop_size = arr.dims() - new_dims;
-        if ((crop_size.y() == 0) && (crop_size.z() == 0)) { return arr.clone(); }
+        if ((crop_size.n2 == 0) && (crop_size.n3 == 0)) { return arr.clone(); }
 
         Array<T> arr2(new_dims);
 
@@ -139,11 +143,11 @@ namespace tomocam {
         if (pad_type == PadType::RIGHT) {
             d1 = d2 = 0;
         } else if (pad_type == PadType::LEFT) {
-            d1 = crop_size.y();
-            d2 = crop_size.z();
+            d1 = crop_size.n2;
+            d2 = crop_size.n3;
         } else {
-            d1 = crop_size.y() / 2;
-            d2 = crop_size.z() / 2;
+            d1 = crop_size.n2 / 2;
+            d2 = crop_size.n3 / 2;
         }
 
         for (size_t i = 0; i < new_dims.n1; i++) {
@@ -155,6 +159,8 @@ namespace tomocam {
                           out.begin() + j * arr2.ncols());
             }
         }
+        auto pads = arr.pads();
+        arr2.setPads(dims_t{0, pads.n2 - d1, pads.n3 - d2});
         return arr2;
     }
 
@@ -193,6 +199,7 @@ namespace tomocam {
                           out.begin() + (j + d.n2) * arr2.ncols() + d.n3);
             }
         }
+        arr2.setPads(d);
         return arr2;
     }
 
@@ -200,7 +207,7 @@ namespace tomocam {
     Array<T> crop3d(const Array<T> &arr, dims_t new_dims, PadType pad_type) {
 
         auto crop_size = arr.dims() - new_dims;
-        if ((crop_size.x() == 0) && (crop_size.y() == 0) && (crop_size.z() == 0))
+        if ((crop_size.n1 == 0) && (crop_size.n2 == 0) && (crop_size.n3 == 0))
             return arr.clone();
         Array<T> arr2(new_dims);
 
@@ -219,6 +226,8 @@ namespace tomocam {
                           out.begin() + j * arr2.ncols());
             }
         }
+        auto pads = arr.pads();
+        arr2.setPads(pads - d);
         return arr2;
     }
 } // namespace tomocam

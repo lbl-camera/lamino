@@ -92,6 +92,28 @@ namespace tomocam::array {
     }
 
     template <typename T>
+    void resetPads(Array<T> &a) {
+        Array<T> tmp = Array<T>::zeros(a.dims());
+        tmp.setPads(a.pads());
+
+        dims_t dims = a.dims();
+        dims_t pads = a.pads();
+        size_t n2n3 = dims.n2 * dims.n3;
+        for (size_t i = pads.n1; i < dims.n1 - pads.n1; ++i) {
+            size_t slice_offset = i * n2n3;
+            for (size_t j = pads.n2; j < dims.n2 - pads.n2; ++j) {
+                size_t row_offset = slice_offset + j * dims.n3;
+                std::copy(std::execution::par_unseq,
+                          a.begin() + row_offset + pads.n3,
+                          a.begin() + row_offset + dims.n3 - pads.n3,
+                          tmp.begin() + row_offset + pads.n3);
+            }
+        }
+
+        a = std::move(tmp);
+    }
+
+    template <typename T>
     Array<T> transpose(const Array<T> &a, std::array<size_t, 3> axes) {
 
         // if axes is {0, 1, 2}, return a copy
