@@ -32,8 +32,6 @@ set(SRC
     src/gradient.cpp
     src/mbir_sb.cpp
     src/mbir_cg.cpp
-    src/nagopt.cpp
-    src/qggmrf.cpp
     src/recon.cpp
    )
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -41,7 +39,17 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 # append cu files if CUDA is enabled
 if (USE_CUDA)
     list(APPEND SRC
+        src/gpu/mbir.cu
+        src/gpu/device_array.cu
+        src/gpu/projection.cu
+        src/gpu/gradient.cu
         src/gpu/polar_grid.cu
+        src/gpu/array_ops.cu
+        src/gpu/bregman.cu
+        src/gpu/conjgrad.cu
+        src/gpu/fftshift.cu
+        src/gpu/finitediff.cu
+        src/gpu/padding.cu
     )
     include_directories(${CMAKE_SOURCE_DIR}/src/cuda)
 endif()
@@ -67,6 +75,7 @@ if (USE_CUDA)
     set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86")
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
     add_definitions(-DUSE_CUDA)
 endif()
 
@@ -74,7 +83,6 @@ endif()
 # tbb
 find_package(TBB REQUIRED)
 find_package(FFTW REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS CXX)
 find_package(TIFF REQUIRED)
 
 # finufft

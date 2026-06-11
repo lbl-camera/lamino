@@ -38,9 +38,8 @@ namespace tomocam::opt {
                          const VecArray<T> &x0, size_t max_iter, T tol, T lambda) {
 
         // initialize
-        VecArray<T> x = {x0[0].clone(), x0[1].clone(), x0[2].clone()};
-        VecArray<T> r = {Array<T>(x0[0].dims()), Array<T>(x0[1].dims()),
-                         Array<T>(x0[2].dims())};
+        VecArray<T> x = x0.clone();
+        VecArray<T> r = VecArray<T>::zeros(x0[0].dims());
         VecArray<T> p;
 
         // add demagnetization and Tikhonov regularization to the operator
@@ -58,20 +57,18 @@ namespace tomocam::opt {
         VecArray<T> tmp = Ad(x);
         for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
 
-        T rs_old = 0;
         VecArray<T> z;
         for (size_t i = 0; i < 3; i++) {
             z[i] = precond.apply(r[i]);
             p[i] = z[i].clone();
-            rs_old += array::dot(z[i], r[i]);
         }
+        T rs_old = z.dot(r);
 
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             // compute Ap
             VecArray<T> Ap = Ad(p);
-            T pAp = 0;
-            for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
+            T pAp = p.dot(Ap);
             if (std::abs(pAp) < 1.e-10) {
                 std::cerr << "pAp is close to zero\n";
                 break;
@@ -83,11 +80,8 @@ namespace tomocam::opt {
             }
 
             // apply preconditioner
-            T rs_new = 0;
-            for (size_t i = 0; i < 3; i++) {
-                z[i] = precond.apply(r[i]);
-                rs_new += array::dot(z[i], r[i]);
-            }
+            for (size_t i = 0; i < 3; i++) { z[i] = precond.apply(r[i]); }
+            T rs_new = z.dot(r);
             std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
                                      std::sqrt(rs_new));
             if (std::sqrt(rs_new) < tol) { break; }
@@ -102,7 +96,8 @@ namespace tomocam::opt {
             T data_fidelity = 0;
             T regularization = 0;
             auto Atx = A(x);
-            auto Htx = demag(x);
+            std::array<Array<T>, 3> x_std = {x[0].clone(), x[1].clone(), x[2].clone()};
+            auto Htx = demag(x_std);
             for (size_t i = 0; i < 3; i++) {
                 data_fidelity += array::norm2(Atx[i] - y[i]);
                 regularization += array::norm2(Htx[i] * lambda);

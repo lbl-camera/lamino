@@ -20,10 +20,12 @@
 #ifndef GPU_PADDING_H
 #define GPU_PADDING_H
 
+#include "dtypes.h"
 #include "gpu/device_array.h"
-#include "padding.h"
 
 namespace tomocam::gpu {
+
+    enum class PadType { LEFT, RIGHT, SYMMETRIC };
     /**
      * @tparam T
      * @param input

@@ -24,6 +24,7 @@
 #include <array>
 
 #include "gpu/device_array.h"
+#include "gpu/gpu_opt.h"
 
 namespace tomocam::gpu::opt {
 
@@ -32,8 +33,8 @@ namespace tomocam::gpu::opt {
      *        used in the split-Bregman TV shrinkage step.
      */
     template <typename T>
-    DeviceArray<T> compute_sk(const std::array<DeviceArray<T>, 3> &dx,
-                              const std::array<DeviceArray<T>, 3> &b);
+    DeviceArray<T> compute_sk(const std::array<std::array<DeviceArray<T>, 3>, 3> &dx,
+                              const std::array<VecArray<T>, 3> &b);
 
     /**
      * @brief Isotropic TV shrinkage:

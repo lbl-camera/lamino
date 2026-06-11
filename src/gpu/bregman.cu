@@ -48,7 +48,7 @@ namespace tomocam::gpu::opt {
             T dx = thrust::get<0>(t);
             T b = thrust::get<1>(t);
             T sk = thrust::get<2>(t);
-            T val = (dx + b) / (sk + EPSILON);
+            T val = (dx + b) / (sk + (T)EPSILON);
             return max(T(0), sk - lambda / mu) * val;
         }
     };
@@ -71,90 +71,93 @@ namespace tomocam::gpu::opt {
         }
     };
     template <typename T>
-    DeviceArray<T> compute_sk(const std::array<DeviceArray<T>, 3> &dx,
-                              const std::array<DeviceArray<T>, 3> &b) {
-        DeviceArray<T> sk(dx[0].dims());
+    DeviceArray<T> compute_sk(const std::array<std::array<DeviceArray<T>, 3>, 3> &dx,
+                              const std::array<VecArray<T>, 3> &b) {
+        auto dims = dx[0][0].dims();
+        DeviceArray<T> sk(dims);
         for (size_t i = 0; i < 3; ++i) {
-            DeviceArray<T> temp(dx[i].dims());
-            thrust::transform(dx[i].begin(), dx[i].begin() + dx[i].size(),
-                              b[i].begin(), temp.begin(), AddSquareFn<T>());
-            sk += temp;
+            for (size_t j = 0; j < 3; ++j) {
+                DeviceArray<T> temp(dims);
+                thrust::transform(dx[i][j].begin(), dx[i][j].end(), b[i][j].begin(),
+                                  temp.begin(), AddSquareFn<T>());
+                sk += temp;
+            }
         }
-
         return array::sqrt(sk);
     }
 
     /// Split Bregman method for TV-regularized least squares problems
     template <typename T>
-    DeviceArray<T> split_bregman(const gpuFunction<T> &A, const DeviceArray<T> &yT,
-                                 const DeviceArray<T> &x0, T lambda, T mu,
-                                 size_t outer_max, size_t inner_max, T tol, T xtol) {
+    VecArray<T> split_bregman(const gpuFunction<T> &A, const VecArray<T> &yT,
+                              const VecArray<T> &x0, T lambda, T mu,
+                              size_t outer_max, size_t inner_max, T tol, T xtol) {
 
-        DeviceArray<T> x = x0.clone();
-        DeviceArray<T> x_old = x0.clone();
+        // initialize variables
+        VecArray<T> x = x0.clone();
+        VecArray<T> x_old = x0.clone();
 
         // bregman variables
-        std::array<DeviceArray<T>, 3> b;
-        std::array<DeviceArray<T>, 3> d;
+        std::array<VecArray<T>, 3> b;
+        std::array<VecArray<T>, 3> d;
         for (size_t i = 0; i < 3; ++i) {
-            b[i] = DeviceArray<T>(x.dims());
-            d[i] = DeviceArray<T>(x.dims());
+            for (size_t j = 0; j < 3; ++j) {
+                b[i][j] = DeviceArray<T>(x0[0].dims());
+                d[i][j] = DeviceArray<T>(x0[0].dims());
+            }
         }
-        // Checkpoint: x + x_old + b[0..2] + d[0..2] = 8 N
-        MEM_CHECK("sb: persistent (x, x_old, b[3], d[3] = 8N)",
-                  8 * x.size() * sizeof(T));
 
         // update A^TA to add laplacian of x
-        // Ap  = (A^TA - ∇^T∇) u
-        gpuFunction<T> Ap = [&A, &mu](const DeviceArray<T> &u) {
+        // Ap  = (A^TA + μ∇^T∇) u
+        gpuFunction<T> Ap = [&A, &mu](const VecArray<T> &u) {
             auto Au = A(u);
-            auto lap_u = neg_laplacian(u);
-            array::xpay(Au, lap_u, mu);
+            for (size_t i = 0; i < 3; ++i) {
+                auto lap_u = neg_laplacian(u[i]);
+                array::xpay(Au[i], lap_u, mu);
+            }
             return Au;
         };
 
         for (int iter = 0; iter < outer_max; ++iter) {
 
             // x-update: solve (A^TA + μ∇^T∇)x = A^T y + μ∇^T(d - b)
-            std::array<DeviceArray<T>, 3> d_b;
-            for (size_t i = 0; i < 3; ++i) { d_b[i] = d[i] - b[i]; }
+            std::array<std::array<DeviceArray<T>, 3>, 3> d_b;
+            for (size_t i = 0; i < 3; ++i) {
+                for (size_t j = 0; j < 3; ++j) { d_b[i][j] = d[i][j] - b[i][j]; }
+            }
 
             // compute right-hand side: A^T y + μ∇^T(d - b)
             auto rhs = yT.clone();
-            array::xpay(rhs, neg_divergence(d_b), mu);
-            // Checkpoint: 8N persistent + d_b[3] (3N) + rhs (1N) = 12N
-            // (neg_divergence transient +2N has already resolved)
-            MEM_CHECK("sb: outer workspace resolved (8N + d_b[3] + rhs = 12N)",
-                      12 * x.size() * sizeof(T));
+            for (size_t i = 0; i < 3; ++i) {
+                auto neg_div_db = neg_divergence(d_b[i]);
+                array::xpay(rhs[i], neg_div_db, mu);
+            }
 
             // use conjugate gradient to solve the linear system
-            // Checkpoint: entering cgsolver, expect +6N inside (CG persistent)
-            MEM_CHECK("sb: entering cgsolver (12N + ~6N CG persistent expected)",
-                      18 * x.size() * sizeof(T));
             x = cgsolver(Ap, rhs, x, inner_max, tol, xtol);
 
             // isotropic TV shrinkage
-            auto dx = grad(x);
+            std::array<std::array<DeviceArray<T>, 3>, 3> dx;
+            for (size_t i = 0; i < 3; ++i) { dx[i] = std::move(grad(x[i])); }
 
             // sk = sqrt(∑(dx[i] + b[i])^2)
             auto sk = compute_sk(dx, b);
-            // Checkpoint: after CG, grad, sk. Live: 8N persistent + dx[3] (3N) + sk (1N) = 12N
-            MEM_CHECK("sb: post-cgsolver, after grad+sk (8N + dx[3] + sk = 12N)",
-                      12 * x.size() * sizeof(T));
 
             // update d inplace
-            // d[i] = max(0, sk - lambda / mu) * (dx[i] + b[i]) / (sk + EPSILON)
             for (size_t i = 0; i < 3; ++i) {
-                d[i] = shrink(dx[i], b[i], sk, lambda, mu);
+                for (size_t j = 0; j < 3; ++j) {
+                    d[i][j] = shrink(dx[i][j], b[i][j], sk, lambda, mu);
+                }
             }
 
             // Bregman update
             // b[i] = b[i] + (dx[i] - d[i])
-            for (size_t i = 0; i < 3; ++i) { b[i] += dx[i] - d[i]; }
+            for (size_t i = 0; i < 3; ++i) {
+                for (size_t j = 0; j < 3; ++j) { b[i][j] += dx[i][j] - d[i][j]; }
+            }
 
             // Check convergence
             // norm_diff = ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂
-            T norm_diff = array::norm2(x - x_old) / (array::norm2(x_old) + EPSILON);
+            T norm_diff = (x - x_old).norm2() / (x_old.norm2() + (T)EPSILON);
             std::cout << std::format(
                 "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
             x_old = x.clone();
@@ -164,26 +167,32 @@ namespace tomocam::gpu::opt {
     }
 
     // explicit template instantiations for float and double
-    template DeviceArray<float>
-    split_bregman(const gpuFunction<float> &A, const DeviceArray<float> &yT,
-                  const DeviceArray<float> &x0, float lambda, float mu,
-                  size_t outer_max, size_t inner_max, float tol, float xtol);
-    template DeviceArray<double>
-    split_bregman(const gpuFunction<double> &A, const DeviceArray<double> &yT,
-                  const DeviceArray<double> &x0, double lambda, double mu,
+    template VecArray<float> split_bregman(const gpuFunction<float> &A,
+                                           const VecArray<float> &yT,
+                                           const VecArray<float> &x0, float lambda,
+                                           float mu, size_t outer_max,
+                                           size_t inner_max, float tol, float xtol);
+    template VecArray<double>
+    split_bregman(const gpuFunction<double> &A, const VecArray<double> &yT,
+                  const VecArray<double> &x0, double lambda, double mu,
                   size_t outer_max, size_t inner_max, double tol, double xtol);
-
+#ifdef DEBUG
+    // compute_sk test
     template DeviceArray<float>
-    compute_sk(const std::array<DeviceArray<float>, 3> &,
-               const std::array<DeviceArray<float>, 3> &);
+    compute_sk(const std::array<std::array<DeviceArray<float>, 3>, 3> &dx,
+               const std::array<VecArray<float>, 3> &b);
     template DeviceArray<double>
-    compute_sk(const std::array<DeviceArray<double>, 3> &,
-               const std::array<DeviceArray<double>, 3> &);
+    compute_sk(const std::array<std::array<DeviceArray<double>, 3>, 3> &dx,
+               const std::array<VecArray<double>, 3> &b);
 
-    template DeviceArray<float> shrink(const DeviceArray<float> &,
-                                       const DeviceArray<float> &,
-                                       const DeviceArray<float> &, float, float);
-    template DeviceArray<double> shrink(const DeviceArray<double> &,
-                                        const DeviceArray<double> &,
-                                        const DeviceArray<double> &, double, double);
+    // shrink test
+    template DeviceArray<float> shrink(const DeviceArray<float> &dx,
+                                       const DeviceArray<float> &b,
+                                       const DeviceArray<float> &sk, float lambda,
+                                       float mu);
+    template DeviceArray<double> shrink(const DeviceArray<double> &dx,
+                                        const DeviceArray<double> &b,
+                                        const DeviceArray<double> &sk, double lambda,
+                                        double mu);
+#endif
 } // namespace tomocam::gpu::opt

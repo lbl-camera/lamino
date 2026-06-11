@@ -29,46 +29,38 @@ namespace tomocam::gpu {
 
     /**
      * @brief GPU forward projection: volume -> projections.
-     * @param volume  Device array with shape (nz, ny, nx).
+     * @param magnetization 3D magnetization components as std::array of 3
+     * DeviceArrays.
      * @param pg      GPU polar grid.
      * @return        Device array of projections with shape (ntheta, nrows, ncols).
      */
     template <typename T>
-    DeviceArray<T> forward(const DeviceArray<T> &volume, const PolarGrid<T> &pg);
+    DeviceArray<T> forward(const std::array<DeviceArray<T>, 3> &magnetization,
+                           const PolarGrid<T> &pg, T gamma);
 
     /**
-     * @brief GPU backward (adjoint) projection: projections -> volume.
+     * @brief GPU adjoint projection: projections -> magnetization.
      * @param proj        Device array of projections.
      * @param pg          GPU polar grid.
-     * @param recon_dims  Dimensions of the output volume.
-     * @return            Device array with shape recon_dims.
+     * @param recon_dims  Dimensions of the output
+     * @return            array of 3 DeviceArrays with shape recon_dims,
+     * corresponding to the 3 magnetization components.
      */
     template <typename T>
-    DeviceArray<T> backward(const DeviceArray<T> &proj, const PolarGrid<T> &pg,
-                            const dims_t &recon_dims);
-
-    /**
-     * @brief GPU adjoint projection (no filter): projections -> volume.
-     *        Inline alias for backward(), matching the CPU backproj() interface.
-     * @param proj        Device array of projections.
-     * @param pg          GPU polar grid.
-     * @param recon_dims  Dimensions of the output volume.
-     * @return            Device array with shape recon_dims.
-     */
-    template <typename T>
-    inline DeviceArray<T> backproj(const DeviceArray<T> &proj, const PolarGrid<T> &pg,
-                                   const dims_t &recon_dims) {
-        return backward(proj, pg, recon_dims);
-    }
+    std::array<DeviceArray<T>, 3> adjoint(const DeviceArray<T> &proj,
+                                          const PolarGrid<T> &pg,
+                                          const dims_t &recon_dims, T gamma);
 
     /**
      * @brief GPU system matrix: (A^T A) x.
-     * @param x   Device array with shape (nz, ny, nx).
+     * @param x   DeviceArray[3] with shape (nz, ny, nx).
      * @param pg  GPU polar grid.
-     * @return    Device array of shape (nz, ny, nx).
+     * @param gamma  Orientation in plane normal to beam direction
+     * @return    DeviceArray[3] of shape (nz, ny, nx).
      */
     template <typename T>
-    DeviceArray<T> sysmat(const DeviceArray<T> &x, const PolarGrid<T> &pg);
+    std::array<DeviceArray<T>, 3> sysmat(const std::array<DeviceArray<T>, 3> &x,
+                                         const PolarGrid<T> &pg, T gamma);
 } // namespace tomocam::gpu
 
 #endif // TOMOCAM_GPU_PROJECTION_H

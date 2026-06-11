@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < N; i++) { b[{0, 0, i}] = diagMat[i] * x_true[{0, 0, i}]; }
 
     // Conjugate Gradient solver for diagonal matrix (vector version)
-    using VecArray = std::array<tomocam::Array<float>, 3>;
+    using VecArray = tomocam::opt::VecArray<float>;
     std::function<VecArray(const VecArray &)> A = [&](const VecArray &v) {
         VecArray Av;
         for (size_t j = 0; j < 3; j++) {

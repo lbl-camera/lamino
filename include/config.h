@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "array.h"
+#include "recon_params.h"
 #include "tiff.h"
 
 namespace tomocam {
@@ -138,125 +139,80 @@ namespace tomocam {
         return datasets;
     }
 
-    enum class Regularizer { qGGMRF, SPLIT_BREGMAN };
+    ReconParams parse_recon_params(const toml::table &config) {
 
-    // Reconstruction parameters
-    struct ReconParams {
-        Regularizer regularizer =
-            Regularizer::SPLIT_BREGMAN;               // Regularization method
-        std::array<size_t, 3> recon_dims = {0, 0, 0}; // Reconstruction dimensions
-        size_t maxIters = 50;                         // Maximum number of iterations
-        size_t innerIters = 3; // Number of inner iterations for Split-Bregman
-        float sigma = 1000.0f; // Regularization parameter (qGGMRF)
-        float p = 1.2f;        // qGGMRF parameter p
-        float lambda = 0.1f;   // Regularization weight (Split-Bregman)
-        float mu = 10.0f;      // Augmented Lagrangian parameter (Split-Bregman)
-        float tol = 1e-5f;     // Tolerance for convergence
-        float xtol = 1e-5f;    // Tolerance for solution change
-
-        ReconParams() = default;
-        ReconParams(const toml::table &config) {
-
-            // Read [recon_params] section
-            auto recon = config["recon_params"];
-            if (!recon) {
-                throw std::runtime_error(
-                    "Missing [recon_params] section in config file");
-            }
-            // read max_outer_iters
-            maxIters = recon["max_iters"].value_or<size_t>(50);
-            innerIters = recon["inner_iters"].value_or<size_t>(3);
-
-            // read recon_dims
-            const auto *dims = recon["recon_dims"].as_array();
-            if (dims && dims->size() == 3) {
-                for (size_t i = 0; i < 3; ++i) {
-                    size_t temp = (*dims)[i].value_or<size_t>(0);
-                    if (temp == 0) {
-                        throw std::runtime_error(
-                            std::format("[recon_params] 'recon_dims[{}]' must be a "
-                                        "positive integer",
-                                        i));
-                    }
-                    if (temp % 2 == 0) {
-                        temp -= 1; // make sure it's odd
-                    }
-                    recon_dims[i] = temp;
-                }
-            } else {
-                throw std::runtime_error("[recon_params] 'recon_dims' must be an "
-                                         "array of three integers");
-            }
-            // if reocn dims[0]/dims[2] > 0.15, remind user that since this is
-            // laminography, the thickness is expected to be much smaller than the
-            // in-plane dimensions, and this may lead to increased memory usage
-            float ratio = static_cast<float>(recon_dims[0]) /
-                          static_cast<float>(recon_dims[2]);
-            if (ratio > 0.15f) {
-                std::cerr << std::format(
-                    "Warning: recon_dims[0] / recon_dims[2] = {:.2f} > 0.15. "
-                    "In laminography, the thickness (recon_dims[0]) "
-                    "is expected to be much smaller than the in-plane "
-                    "dimensions (recon_dims[1], recon_dims[2]). "
-                    "This may lead to increased memory usage.\n",
-                    ratio);
-            }
-            tol = recon["tol"].value_or<float>(1e-5f);
-            xtol = recon["xtol"].value_or<float>(1e-5f);
-            // read regularizer type
-            auto reg = recon["regularizer"].as_table();
-            if (!reg) {
-                throw std::runtime_error(
-                    "Missing [recon_params.regularizer] section in config file");
-            }
-            auto reg_str = (*reg)["method"].value_or<std::string>("split_bregman");
-            if (reg_str == "qGGMRF") {
-                regularizer = Regularizer::qGGMRF;
-                auto params = (*reg)["qGGMRF"].as_table();
-                if (!params) {
-                    throw std::runtime_error(
-                        "Missing [recon_params.regularizer.qGGMRF] section in "
-                        "config file");
-                }
-                sigma = (*params)["sigma"].value_or<float>(1000.0f);
-                p = (*params)["p"].value_or<float>(1.2f);
-            } else if (reg_str == "split_bregman") {
-                regularizer = Regularizer::SPLIT_BREGMAN;
-                auto params = (*reg)["split_bregman"].as_table();
-                if (!params) {
-                    throw std::runtime_error(
-                        "Missing [recon_params.regularizer.split_bregman] section "
-                        "in config file");
-                }
-                lambda = (*params)["lambda"].value_or<float>(0.1f);
-                mu = (*params)["mu"].value_or<float>(10.0f);
-            } else {
-                throw std::runtime_error("[recon_params] 'regularizer' must be "
-                                         "either 'qGGMRF' or 'split_bregman'");
-            }
+        ReconParams p;
+        // Read [recon_params] section
+        auto recon = config["recon_params"];
+        if (!recon) {
+            throw std::runtime_error(
+                "Missing [recon_params] section in config file");
         }
+        // read max_outer_iters
+        p.maxIters = recon["max_iters"].value_or<size_t>(100);
 
-        void print(std::ostream &os) const {
-
-            os << "Reconstruction Parameters:\n";
-            os << "  max_outer_iters: " << maxIters << "\n";
-            os << "  inner_iters: " << innerIters << "\n";
-            os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
-                              recon_dims[1], recon_dims[2]);
-            os << "  tol: " << tol << "\n";
-            os << "  xtol: " << xtol << "\n";
-            os << "  regularizer: "
-               << (regularizer == Regularizer::qGGMRF ? "qGGMRF" : "Split-Bregman")
-               << "\n";
-            if (regularizer == Regularizer::qGGMRF) {
-                os << "    sigma: " << sigma << "\n";
-                os << "    p: " << p << "\n";
-            } else {
-                os << "    lambda: " << lambda << "\n";
-                os << "    mu: " << mu << "\n";
+        // read recon_dims
+        std::array<size_t, 3> recon_dims;
+        const auto *dims = recon["recon_dims"].as_array();
+        if (dims && dims->size() == 3) {
+            for (size_t i = 0; i < 3; ++i) {
+                size_t temp = (*dims)[i].value_or<size_t>(0);
+                if (temp == 0) {
+                    throw std::runtime_error(
+                        std::format("[recon_params] 'recon_dims[{}]' must be a "
+                                    "positive integer",
+                                    i));
+                }
+                if (temp % 2 == 0) {
+                    temp -= 1; // make sure it's odd
+                }
+                recon_dims[i] = temp;
             }
+        } else {
+            throw std::runtime_error("[recon_params] 'recon_dims' must be an "
+                                     "array of three integers");
         }
-    };
+        p.recon_dims = recon_dims;
+        // if reocn dims[0]/dims[2] > 0.15, remind user that since this is
+        // laminography, the thickness is expected to be much smaller than the
+        // in-plane dimensions, and this may lead to increased memory usage
+        float ratio =
+            static_cast<float>(recon_dims[0]) / static_cast<float>(recon_dims[2]);
+        if (ratio > 0.15f) {
+            std::cerr << std::format(
+                "Warning: recon_dims[0] / recon_dims[2] = {:.2f} > 0.15. "
+                "In laminography, the thickness (recon_dims[0]) "
+                "is expected to be much smaller than the in-plane "
+                "dimensions (recon_dims[1], recon_dims[2]). "
+                "This may lead to increased memory usage.\n",
+                ratio);
+        }
+        p.tol = recon["tol"].value_or<float>(1e-5f);
+        p.xtol = recon["xtol"].value_or<float>(1e-5f);
+        // read regularizer type
+        auto reg = recon["regularizer"].as_table();
+        if (!reg) {
+            throw std::runtime_error(
+                "Missing [recon_params.regularizer] section in config file");
+        }
+        auto reg_str = (*reg)["method"].value_or<std::string>("split_bregman");
+        if (reg_str == "split_bregman") {
+            p.regularizer = Regularizer::SPLIT_BREGMAN;
+            auto params = (*reg)["split_bregman"].as_table();
+            if (!params) {
+                throw std::runtime_error(
+                    "Missing [recon_params.regularizer.split_bregman] section "
+                    "in config file");
+            }
+            p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
+            p.lambda = (*params)["lambda"].value_or<float>(0.1f);
+            p.mu = (*params)["mu"].value_or<float>(10.0f);
+        } else {
+            throw std::runtime_error("[recon_params] 'regularizer' must be "
+                                     "either 'qGGMRF' or 'split_bregman'");
+        }
+        return p;
+    }
 
     // Output parameters
     struct OutputParams {

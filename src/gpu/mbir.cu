@@ -25,6 +25,7 @@
 #include "recon_params.h"
 
 #include "array.h"
+#include "array_ops.h"
 #include "gpu/device_array.h"
 #include "gpu/device_array_ops.h"
 #include "gpu/gpu_opt.h"
@@ -38,12 +39,15 @@ namespace tomocam::gpu {
 
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                       const ReconParams &params) {
+                                 const ReconParams &params) {
 
         T scale = (T)0;
-        for (auto &[projs, angles, gamma, recon_dims] : datasets) {
-            scale = std::max(scale, array::max(projs));
+        for (auto &[projs, angles, gamma] : datasets) {
+            scale = std::max(scale, tomocam::array::max(projs));
         }
+
+        // get recon dimensions from the params
+        dims_t recon_dims = params.recon_dims;
 
         // extend recon dimenstion by PAD_FACTOR
         T padding = static_cast<T>(params.PAD_FACTOR) - (T)1.0;
@@ -58,16 +62,17 @@ namespace tomocam::gpu {
         // setup the linear system for all datasets
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids;
-        std::vector<T> gammas(n_datasets);
+        std::vector<T> gammas(n_datasets, (T)0);
         std::array<DeviceArray<T>, 3> yT;
 
         for (size_t i = 0; i < n_datasets; ++i) {
             auto &[projs, angles, gamma_ref] = datasets[i];
-            T gammas[i] = gramma_ref;
+            auto gamma = gamma_ref;
+            gammas[i] = gamma;
 
-            // normalize projections
+            // move data to device and normalize
             DeviceArray<T> y(projs);
-            y =/ scale;
+            y  /= scale;
 
             // zero-pad projections by sqrt(2) to avoid aliasing
             float padding = static_cast<T>(params.PAD_FACTOR);
@@ -76,8 +81,7 @@ namespace tomocam::gpu {
             // setup polar grid
             size_t nrows = y.nrows();
             size_t ncols = y.ncols();
-            polar_grids[i] =
-                std::move(PolarGrid<T>(angles, gammas[i], nrows, ncols));
+            polar_grids[i] = std::move(PolarGrid<T>(angles, gamma, nrows, ncols));
 
             // backproject y to get A^T y for optimization
             auto yTmp = backproj(y, polar_grids[i], out_dims);
@@ -120,21 +124,20 @@ namespace tomocam::gpu {
             }
             default: throw std::invalid_argument("Unsupported optimizer type");
         }
+        // move data back to host
+        std::array<Array<T>, 3> recon_host;
+        for (size_t i = 0; i < 3; ++i) { recon_host[i] = recon[i].to_host(); }
 
         // crop to original dimensions
         for (size_t i = 0; i < 3; ++i) {
-            recon[i] = crop3d(recon[i], recon_dims, PadType::SYMMETRIC);
+            recon_host[i] = crop3d(recon_host[i], recon_dims, PadType::SYMMETRIC);
         }
     }
 
     // explicit template instantiation
-    template DeviceArray<float> MBIR<float>(const DeviceArray<float> &projs,
-                                            const std::vector<float> &angles,
-                                            float gamma, const dims_t &recon_dims,
-                                            const ReconParams &cfg);
-    template DeviceArray<double> MBIR<double>(const DeviceArray<double> &projs,
-                                              const std::vector<double> &angles,
-                                              double gamma, const dims_t &recon_dims,
-                                              const ReconParams &cfg);
+    template std::array<Array<float>, 3>
+    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
+    template std::array<Array<double>, 3>
+    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
 
 } // namespace tomocam::gpu

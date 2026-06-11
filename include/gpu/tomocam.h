@@ -33,67 +33,19 @@
 namespace tomocam::gpu {
 
     /**
-     * @brief GPU filtered backprojection: reconstruct a 3D volume from projections
-     *        with frequency-domain filtering.
-     * @param projections Device array of projections with shape (ntheta, nrows,
-     * ncols).
-     * @param grid        GPU polar grid defining projection geometry.
-     * @param dims        Dimensions of the output volume.
-     * @param filter_type Name of the filter to apply (e.g. "ramp", "ram-lak").
-     * @return            Reconstructed volume as a DeviceArray.
-     *
-     */
-
-    template <typename T>
-    DeviceArray<T> fbp(const DeviceArray<T> &projections, const PolarGrid<T> &grid,
-                       const dims_t &dims, const std::string &filter_type = "ramp");
-
-    /**
-     * @brief GPU model-based iterative reconstruction (MBIR): reconstruct a 3D
-     *        volume from projections by iteratively minimizing a cost function
-     *        that includes a data fidelity term and a regularization term.
-     * @param projs   DeviceArray of projections with shape (ntheta, nrows, ncols).
-     * @param angles  std::vector of projection angles in radians, with length
-     * ntheta.
-     * @param gamma   Inplane orientation of the sample in radians
-     * @param recon_dims Dimensions of the output volume (nx, ny, nz).
-     * @param params  Reconstruction parameters (e.g. number of iterations,
-     * regularization weight, etc.).
-     * @return        Reconstructed volume as a DeviceArray.
-     */
-    template <typename T>
-    DeviceArray<T> MBIR(const DeviceArray<T> &projs, const std::vector<T> &angles,
-                        T gamma, const dims_t &recon_dims,
-                        const ReconParams &params);
-
-    /**
-     * TODO: genrealize to accept multiple datasets one per each gamma orientation
-     *
      * @brief Host wrapper for GPU MBIR: takes projections and angles on the host,
      *        moves data to GPU, calls the GPU MBIR function, and returns the
      *        reconstructed volume back on the host.
      * @param dataset  Dataset containing projections, angles, and gamma reference.
      * @param params   Reconstruction parameters (e.g. number of iterations,
      * regularization weight, etc.).
-     * @return         Reconstructed volume as a host array (std::vector or
+     * @return         Reconstructed vector components
      * similar).
      */
     template <typename T>
-    Array<T> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                  const dims_t &recon_dims, const ReconParams &params) {
+    std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
+                                 const ReconParams &params);
 
-        auto &[projs, angles, gamma_ref] = datasets[0];
-        T gamma = gamma_ref;
-
-        // Move data to GPU
-        DeviceArray<T> d_projs(projs);
-
-        // Call GPU MBIR
-        DeviceArray<T> d_recon = MBIR(d_projs, angles, gamma, recon_dims, params);
-
-        // Move result back to host and return
-        return d_recon.to_host();
-    }
 } // namespace tomocam::gpu
 
 #endif // TOMOCAM_GPU_H

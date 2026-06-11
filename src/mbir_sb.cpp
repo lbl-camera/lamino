@@ -65,8 +65,7 @@ namespace tomocam {
 
         // setup system matrices and backprojections
         size_t n_datasets = datasets.size();
-        std::array<Array<T>, 3> yT;
-        for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(out_dims); }
+        opt::VecArray<T> yT = opt::VecArray<T>::zeros(out_dims);
         std::vector<T> gamma(n_datasets);
         std::vector<PolarGrid<T>> polar_grid(n_datasets);
         for (size_t j = 0; j < n_datasets; ++j) {
@@ -90,18 +89,17 @@ namespace tomocam {
             for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
         opt::Function<T> A = [&polar_grid,
-                              &gamma](const std::array<Array<T>, 3> &x) {
-            std::array<Array<T>, 3> Ax = sysmat(x, polar_grid[0], gamma[0]);
+                              &gamma](const opt::VecArray<T> &x) {
+            opt::VecArray<T> Ax(sysmat(x.data(), polar_grid[0], gamma[0]));
             for (size_t j = 1; j < polar_grid.size(); ++j) {
-                auto Axtmp = sysmat(x, polar_grid[j], gamma[j]);
+                auto Axtmp = sysmat(x.data(), polar_grid[j], gamma[j]);
                 for (size_t i = 0; i < 3; ++i) { Ax[i] += Axtmp[i]; }
             }
             return Ax;
         };
 
         // initial guess
-        std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
+        opt::VecArray<T> x0 = opt::VecArray<T>::zeros(out_dims);
         auto recon_m = opt::split_bregman<T>(
             A, yT, x0, recon_params.lambda, recon_params.mu, recon_params.maxIters,
             recon_params.innerIters, recon_params.tol, recon_params.xtol);

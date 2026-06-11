@@ -26,6 +26,9 @@
 #include <vector>
 
 #include "tomocam.h"
+#ifdef USE_CUDA
+#include "gpu/tomocam.h"
+#endif
 
 int main(int argc, char **argv) {
 
@@ -40,12 +43,10 @@ int main(int argc, char **argv) {
     // read parameters from toml file
     auto config = tomocam::read_toml_file(argv[1]);
     auto datasets = tomocam::parse_input_datasets<float>(config);
-    auto params = tomocam::ReconParams(config);
+    auto params = tomocam::parse_recon_params(config);
     auto output = tomocam::OutputParams(config);
 
     size_t max_iter = params.maxIters;
-    float sigma = params.sigma;
-    float p = 1.2;
     float tol = params.tol;
     float xtol = params.xtol;
     auto dims = params.recon_dims;
@@ -60,7 +61,12 @@ int main(int argc, char **argv) {
 
     tomocam::Timer t0;
     t0.start();
-    auto recon = tomocam::MBIR2<float>(datasets, recon_dims, params);
+#ifdef USE_CUDA
+    std::cout << "Using CUDA for reconstruction.\n";
+    auto recon = tomocam::gpu::MBIR<float>(datasets, params);
+#else
+    auto recon = tomocam::MBIR<float>(datasets, recon_dims, params);
+#endif
     t0.stop();
     std::cout << std::format("Reconstruction completed in {:.2f} seconds.\n",
                              t0.seconds());

@@ -36,10 +36,6 @@
 #include "padding.h"
 #include "polar_grid.h"
 
-#ifdef USE_CUDA
-#include "gpu/gpu_nufft.h"
-#endif
-
 #include "tomocam.h"
 
 namespace tomocam {
@@ -70,11 +66,7 @@ namespace tomocam {
             auto c_cmplx = Array<complex_t>::zeros(pg.dims());
 
             // call NUFFT3d type-2
-#ifdef USE_CUDA
-            gpu::nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
-#else
             nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
-#endif
 
             // add to projection scaled by coeff
             for (size_t j = 0; j < pg.nprojs(); ++j) {
@@ -141,11 +133,7 @@ namespace tomocam {
 
             // apply NUFFT for this component
             Array<complex_t> m_cmplx(recon_dims);
-#ifdef USE_CUDA
-            gpu::nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-#else
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-#endif
             m_components[i] = std::move(array::to_real<T>(m_cmplx) / scale);
         }
 

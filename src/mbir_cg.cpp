@@ -67,8 +67,7 @@ namespace tomocam {
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
 
         // array for backprojected measurements
-        std::array<Array<T>, 3> yT;
-        for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(out_dims); }
+        opt::VecArray<T> yT = opt::VecArray<T>::zeros(out_dims);
         std::vector<T> gammas(n_datasets);
         for (size_t j = 0; j < n_datasets; ++j) {
             auto &[proj, angles, gamma_ref] = datasets[j];
@@ -94,18 +93,17 @@ namespace tomocam {
 
         // setup the linear system for CG solver
         opt::Function<T> A = [&polar_grids,
-                              &gammas](const std::array<Array<T>, 3> &x) {
-            std::array<Array<T>, 3> Ax = sysmat(x, polar_grids[0], gammas[0]);
+                              &gammas](const opt::VecArray<T> &x) {
+            opt::VecArray<T> Ax(sysmat(x.data(), polar_grids[0], gammas[0]));
             for (size_t j = 1; j < polar_grids.size(); ++j) {
-                auto Atmp = sysmat(x, polar_grids[j], gammas[j]);
+                auto Atmp = sysmat(x.data(), polar_grids[j], gammas[j]);
                 for (size_t i = 0; i < 3; ++i) { Ax[i] += Atmp[i]; }
             }
             return Ax;
         };
 
         // initial guess
-        std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
+        opt::VecArray<T> x0 = opt::VecArray<T>::zeros(out_dims);
 
         // demagnetization constraint weight
         // Lambda controls divergence-free constraint: higher values enforce ∇·M ≈ 0
@@ -113,7 +111,7 @@ namespace tomocam {
         T lambda = recon_params.lambda;
 
         // solve linear system using CG solver with demagnetization constraint
-        std::array<Array<T>, 3> recon_m = opt::cgsolver<T>(
+        opt::VecArray<T> recon_m = opt::cgsolver<T>(
             A, yT, x0, recon_params.maxIters, recon_params.tol, lambda);
 
         // crop to original dimensions

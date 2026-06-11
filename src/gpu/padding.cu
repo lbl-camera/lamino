@@ -18,8 +18,9 @@
  *---------------------------------------------------------------------------------
  */
 
-#include "gpu/padding.h"
 #include <stdexcept>
+
+#include "gpu/padding.h"
 
 namespace tomocam::gpu {
 

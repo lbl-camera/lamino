@@ -18,6 +18,7 @@
  *---------------------------------------------------------------------------------
  */
 
+#include <array>
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -27,8 +28,8 @@
 #include <cuda_runtime.h>
 #endif
 
-#ifndef DTYPES__H
-#define DTYPES__H
+#ifndef DTYPES_H
+#define DTYPES_H
 
 namespace tomocam {
 
@@ -55,14 +56,6 @@ namespace tomocam {
             return (n1 > v.x) && (n2 > v.y) && (n3 > v.z);
         }
 #endif
-        [[nodiscard]] std::tuple<size_t, size_t, size_t>
-        unravel_idx(size_t idx) const {
-            size_t i = idx / n2 / n3;
-            size_t j = (idx / n3) % n2;
-            size_t k = idx % n3;
-            return std::make_tuple(i, j, k);
-        }
-
         [[nodiscard]] size_t size() const { return (n1 * n2 * n3); }
 
         [[nodiscard]] size_t flat_idx(size_t i, size_t j, size_t k) const {
@@ -86,9 +79,7 @@ namespace tomocam {
         bool operator==(const dims_t &v) const {
             return n1 == v.n1 && n2 == v.n2 && n3 == v.n3;
         }
-        bool operator!=(const dims_t &v) const {
-            return !(*this == v);
-        }
+        bool operator!=(const dims_t &v) const { return !(*this == v); }
     };
 
     inline std::ostream &operator<<(std::ostream &outs, dims_t d) {

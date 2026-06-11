@@ -28,7 +28,7 @@
 namespace tomocam::gpu {
 
     template <typename T>
-    DeviceArray<T> sysmat(const DeviceArray<T> &x, const gpu::PolarGrid<T> &grid) {
+    DeviceArray<T> sysmat(const DeviceArray<T> &x, const gpu::PolarGrid<T> &grid, T gamma) {
 
         auto d_fz = gpu::array::to_complex(x);
         auto d_cz = DeviceArray<cuda::std::complex<T>>(grid.dims());

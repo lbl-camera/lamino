@@ -20,18 +20,12 @@
 #ifndef POLAR_GRID_H
 #define POLAR_GRID_H
 
+#include "array.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <vector>
-
-#include "array.h"
-
-#ifdef USE_CUDA
-#include "gpu/device_array.h"
-#include "gpu/polar_grid_kernel.h"
-#endif
 
 namespace tomocam {
 
@@ -39,15 +33,9 @@ namespace tomocam {
     struct PolarGrid {
         size_t npts;
         std::vector<T> theta;
-#ifdef USE_CUDA
-        gpu::DeviceArray<T> x;
-        gpu::DeviceArray<T> y;
-        gpu::DeviceArray<T> z;
-#else
         Array<T> x;
         Array<T> y;
         Array<T> z;
-#endif
 
         // default constructor
         PolarGrid() : npts(0) {}
@@ -59,12 +47,6 @@ namespace tomocam {
             theta = angles;
             dims_t dims = dims_t{theta.size(), nrows, ncols};
             npts = dims.n1 * dims.n2 * dims.n3;
-#ifdef USE_CUDA
-            x = gpu::DeviceArray<T>(dims);
-            y = gpu::DeviceArray<T>(dims);
-            z = gpu::DeviceArray<T>(dims);
-            gpu::calc_polar_grid<T>(x, y, z, theta, gamma);
-#else
             x = Array<T>(dims);
             y = Array<T>(dims);
             z = Array<T>(dims);
@@ -92,7 +74,6 @@ namespace tomocam {
                     }
                 }
             }
-#endif
         }
         // delete copy constructor and assignment
         PolarGrid(const PolarGrid<T> &) = delete;
