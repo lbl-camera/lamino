@@ -26,20 +26,21 @@
 #include "gpu/device_array.h"
 #include "gpu/device_ptr.h"
 #include "gpu/utils.h"
+#include "gpu/vec_array.h"
 
 namespace tomocam::gpu::opt {
 
     // gradient
     template <typename T>
-    std::array<DeviceArray<T>, 3> grad(const DeviceArray<T> &u);
+    VecArray<T> grad(const DeviceArray<T> &u);
 
     // divergence
     template <typename T>
-    DeviceArray<T> divergence(const std::array<DeviceArray<T>, 3> &u);
+    DeviceArray<T> divergence(const VecArray<T> &u);
 
     // negative divergence
     template <typename T>
-    DeviceArray<T> neg_divergence(const std::array<DeviceArray<T>, 3> &u) {
+    DeviceArray<T> neg_divergence(const VecArray<T> &u) {
         auto div = divergence(u);
         return (div * (-1));
     }
@@ -54,7 +55,6 @@ namespace tomocam::gpu::opt {
         auto lap = laplacian(u);
         return (lap * (-1));
     }
-
 } // namespace tomocam::gpu::opt
 
 #endif // FINITEDIFF_H
