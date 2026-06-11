@@ -31,63 +31,39 @@
 namespace tomocam::opt {
 
     template <typename T>
-    class VecArray {
-        std::array<Array<T>, 3> data_;
+    using VecArray = std::array<Array<T>, 3>;
 
-      public:
-        VecArray() = default;
-        VecArray(Array<T> a, Array<T> b, Array<T> c)
-            : data_{std::move(a), std::move(b), std::move(c)} {}
-        explicit VecArray(std::array<Array<T>, 3> &&arr) : data_(std::move(arr)) {}
-
-        Array<T>       &operator[](size_t i)       { return data_[i]; }
-        const Array<T> &operator[](size_t i) const { return data_[i]; }
-
-        const std::array<Array<T>, 3> &data() const { return data_; }
-
-        VecArray clone() const {
-            return {data_[0].clone(), data_[1].clone(), data_[2].clone()};
-        }
-        static VecArray zeros(dims_t dims) {
-            return {Array<T>::zeros(dims), Array<T>::zeros(dims),
-                    Array<T>::zeros(dims)};
-        }
-
-        T dot(const VecArray &b) const {
-            return array::dot(data_[0], b[0]) + array::dot(data_[1], b[1]) +
-                   array::dot(data_[2], b[2]);
-        }
-        T norm2() const {
-            return array::norm2(data_[0]) + array::norm2(data_[1]) +
-                   array::norm2(data_[2]);
-        }
-
-        VecArray operator+(const VecArray &b) const {
-            return {data_[0] + b[0], data_[1] + b[1], data_[2] + b[2]};
-        }
-        VecArray &operator+=(const VecArray &b) {
-            data_[0] += b[0];
-            data_[1] += b[1];
-            data_[2] += b[2];
-            return *this;
-        }
-        VecArray operator-(const VecArray &b) const {
-            return {data_[0] - b[0], data_[1] - b[1], data_[2] - b[2]};
-        }
-        VecArray &operator-=(const VecArray &b) {
-            data_[0] -= b[0];
-            data_[1] -= b[1];
-            data_[2] -= b[2];
-            return *this;
-        }
-        VecArray operator*(T s) const {
-            auto result = clone();
-            result.data_[0] *= s;
-            result.data_[1] *= s;
-            result.data_[2] *= s;
-            return result;
-        }
-    };
+    // addtion operator for VecArray
+    template <typename T>
+    VecArray<T> operator+(const VecArray<T> &a, const VecArray<T> &b) {
+        return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
+    }
+    // in-place addition operator for VecArray
+    template <typename T>
+    VecArray<T> &operator+=(VecArray<T> &a, const VecArray<T> &b) {
+        a[0] += b[0];
+        a[1] += b[1];
+        a[2] += b[2];
+        return a;
+    }
+    // subtraction operator for VecArray
+    template <typename T>
+    VecArray<T> operator-(const VecArray<T> &a, const VecArray<T> &b) {
+        return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+    }
+    // in-place subtraction operator for VecArray
+    template <typename T>
+    VecArray<T> &operator-=(VecArray<T> &a, const VecArray<T> &b) {
+        a[0] -= b[0];
+        a[1] -= b[1];
+        a[2] -= b[2];
+        return a;
+    }
+    // scalar multiplication operator for VecArray
+    template <typename T>
+    VecArray<T> operator*(const VecArray<T> &a, T scalar) {
+        return {a[0] * scalar, a[1] * scalar, a[2] * scalar};
+    }
 
     template <typename T>
     using Function = std::function<VecArray<T>(const VecArray<T> &)>;
@@ -147,10 +123,12 @@ namespace tomocam::opt {
      * @return Optimized solution (array of 3 components)
      */
     template <typename T>
-    VecArray<T> nagopt(const std::function<VecArray<T>(const VecArray<T> &)> &grad,
-                       const std::function<T(const VecArray<T> &)> &loss,
-                       VecArray<T> &x, size_t max_iters, T lipschitz, T tol, T xtol,
-                       size_t max_inner_iters = 20, Logger *logger = nullptr);
+    std::array<Array<T>, 3> nagopt(
+        const std::function<std::array<Array<T>, 3>(const std::array<Array<T>, 3> &)>
+            &grad,
+        const std::function<T(const std::array<Array<T>, 3> &)> &loss,
+        std::array<Array<T>, 3> &x, size_t max_iters, T lipschitz, T tol, T xtol,
+        size_t max_inner_iters = 20, Logger *logger = nullptr);
 
     /**
      * @brief Estimate the Lipschitz constant of a gradient function using the power
