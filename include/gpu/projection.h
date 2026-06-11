@@ -21,9 +21,12 @@
 #ifndef TOMOCAM_GPU_PROJECTION_H
 #define TOMOCAM_GPU_PROJECTION_H
 
+#include <array>
+
 #include "dtypes.h"
 #include "gpu/device_array.h"
 #include "gpu/polar_grid.h"
+#include "gpu/vec_array.h"
 
 namespace tomocam::gpu {
 
@@ -35,8 +38,8 @@ namespace tomocam::gpu {
      * @return        Device array of projections with shape (ntheta, nrows, ncols).
      */
     template <typename T>
-    DeviceArray<T> forward(const std::array<DeviceArray<T>, 3> &magnetization,
-                           const PolarGrid<T> &pg, T gamma);
+    DeviceArray<T> forward(const VecArray<T> &magnetization, const PolarGrid<T> &pg,
+                           T gamma);
 
     /**
      * @brief GPU adjoint projection: projections -> magnetization.
@@ -47,9 +50,8 @@ namespace tomocam::gpu {
      * corresponding to the 3 magnetization components.
      */
     template <typename T>
-    std::array<DeviceArray<T>, 3> adjoint(const DeviceArray<T> &proj,
-                                          const PolarGrid<T> &pg,
-                                          const dims_t &recon_dims, T gamma);
+    VecArray<T> adjoint(const DeviceArray<T> &proj, const PolarGrid<T> &pg,
+                        const dims_t &recon_dims, T gamma);
 
     /**
      * @brief GPU system matrix: (A^T A) x.
@@ -59,8 +61,7 @@ namespace tomocam::gpu {
      * @return    DeviceArray[3] of shape (nz, ny, nx).
      */
     template <typename T>
-    std::array<DeviceArray<T>, 3> sysmat(const std::array<DeviceArray<T>, 3> &x,
-                                         const PolarGrid<T> &pg, T gamma);
+    VecArray<T> sysmat(const VecArray<T> &x, const PolarGrid<T> &pg, T gamma);
 } // namespace tomocam::gpu
 
 #endif // TOMOCAM_GPU_PROJECTION_H
