@@ -37,8 +37,9 @@ namespace tomocam::opt {
                          T lambda) {
 
         // initialize
-        VecArray<T> x = x0.clone();
-        VecArray<T> r = VecArray<T>::zeros(x0[0].dims());
+        VecArray<T> x = {x0[0].clone(), x0[1].clone(), x0[2].clone()};
+        VecArray<T> r = {Array<T>(x0[0].dims()), Array<T>(x0[1].dims()),
+                         Array<T>(x0[2].dims())};
         VecArray<T> p;
 
         // placeholder for preconditioner, currently identity
@@ -47,18 +48,20 @@ namespace tomocam::opt {
         VecArray<T> tmp = A(x);
         for (size_t i = 0; i < 3; i++) { r[i] = y[i] - tmp[i]; }
 
+        T rs_old = 0;
         VecArray<T> z;
         for (size_t i = 0; i < 3; i++) {
             z[i] = precond_apply(r[i]);
             p[i] = z[i].clone();
+            rs_old += array::dot(z[i], r[i]);
         }
-        T rs_old = z.dot(r);
 
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             // compute Ap
-            VecArray<T> Ap = Ad(p);
-            T pAp = p.dot(Ap);
+            VecArray<T> Ap = A(p);
+            T pAp = 0;
+            for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
             if (std::abs(pAp) < 1.e-10) {
                 std::cerr << "pAp is close to zero\n";
                 break;
@@ -76,29 +79,19 @@ namespace tomocam::opt {
             }
 
             // apply preconditioner
-            for (size_t i = 0; i < 3; i++) { z[i] = precond.apply(r[i]); }
-            T rs_new = z.dot(r);
-            std::cout << std::format("\tCG iter: {}, residual: {}\n", iter,
-                                     std::sqrt(rs_new));
-            if (std::sqrt(rs_new) < tol) { break; }
-
+            T rs_new = 0;
+            for (size_t i = 0; i < 3; i++) {
+                z[i] = precond_apply(r[i]);
+                rs_new += array::dot(z[i], r[i]);
+            }
+            // update p
             for (size_t i = 0; i < 3; i++) {
                 p[i] = z[i] + p[i] * (rs_new / rs_old);
             }
             rs_old = rs_new;
 
-#ifdef DEBUG
-            // calculate ratio of data-fidelity to regularization
-            T data_fidelity = 0;
-            T regularization = 0;
-            auto Atx = A(x);
-            std::array<Array<T>, 3> x_std = {x[0].clone(), x[1].clone(),
-                                             x[2].clone()};
-            auto Htx = demag(x_std);
-            for (size_t i = 0; i < 3; i++) {
-                data_fidelity += array::norm2(Atx[i] - y[i]);
-                regularization += array::norm2(Htx[i] * lambda);
-            }
+            T res = 0;
+            for (size_t i = 0; i < 3; i++) { res += array::dot(r[i], r[i]); }
             std::cout << std::format(
                 "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter,
                 std::sqrt(res), dx_norm);
