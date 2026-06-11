@@ -32,6 +32,7 @@
 #include "gpu/padding.h"
 #include "gpu/polar_grid.h"
 #include "gpu/projection.h"
+#include "gpu/vec_array.h"
 
 namespace tomocam::gpu {
     template <typename T>
@@ -63,7 +64,8 @@ namespace tomocam::gpu {
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids;
         std::vector<T> gammas(n_datasets, (T)0);
-        std::array<DeviceArray<T>, 3> yT;
+        VecArray<T> yT{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
+                       DeviceArray<T>(out_dims)};
 
         for (size_t i = 0; i < n_datasets; ++i) {
             auto &[projs, angles, gamma_ref] = datasets[i];
@@ -72,7 +74,7 @@ namespace tomocam::gpu {
 
             // move data to device and normalize
             DeviceArray<T> y(projs);
-            y  /= scale;
+            y /= scale;
 
             // zero-pad projections by sqrt(2) to avoid aliasing
             float padding = static_cast<T>(params.PAD_FACTOR);
@@ -84,28 +86,25 @@ namespace tomocam::gpu {
             polar_grids[i] = std::move(PolarGrid<T>(angles, gamma, nrows, ncols));
 
             // backproject y to get A^T y for optimization
-            auto yTmp = backproj(y, polar_grids[i], out_dims);
+            auto yTmp = adjoint(y, polar_grids[i], out_dims, gamma);
             for (size_t j = 0; j < 3; ++j) { yT[j] += yTmp[j]; }
         }
 
         // setup the linear operator for all datasets
-        opt::gpuFunction<T> A = [&](const std::array<DeviceArray<T>, 3> &x) {
+        opt::gpuFunction<T> A = [&polar_grids, &gammas](const gpu::VecArray<T> &x) {
             auto Ax = sysmat<T>(x, polar_grids[0], gammas[0]);
-            for (size_t i = 1; i < n_datasets; ++i) {
-                Ax += sysmat<T>(x, polar_grids[i], gammas[i]);
+            for (size_t i = 1; i < gammas.size(); ++i) {
+                auto tmp = sysmat<T>(x, polar_grids[i], gammas[i]);
+                for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
             }
             return Ax;
         };
 
         // initialize solution with zeros
-        auto x0 = std::array<DeviceArray<T>, 3>{DeviceArray<T>(out_dims),
-                                                DeviceArray<T>(out_dims),
-                                                DeviceArray<T>(out_dims)};
+        VecArray<T> x0{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
+                       DeviceArray<T>(out_dims)};
 
-        // run optimization
-        auto recon = std::array<DeviceArray<T>, 3>{DeviceArray<T>(out_dims),
-                                                   DeviceArray<T>(out_dims),
-                                                   DeviceArray<T>(out_dims)};
+        VecArray<T> recon;
         switch (params.regularizer) {
             case Regularizer::UNCONSTRAINED: {
                 std::cout
@@ -124,14 +123,17 @@ namespace tomocam::gpu {
             }
             default: throw std::invalid_argument("Unsupported optimizer type");
         }
+        // crop to original dimensions
+        for (size_t i = 0; i < 3; ++i) {
+            recon[i] = crop3d(recon[i], recon_dims, PadType::SYMMETRIC);
+        }
+
         // move data back to host
         std::array<Array<T>, 3> recon_host;
         for (size_t i = 0; i < 3; ++i) { recon_host[i] = recon[i].to_host(); }
 
-        // crop to original dimensions
-        for (size_t i = 0; i < 3; ++i) {
-            recon_host[i] = crop3d(recon_host[i], recon_dims, PadType::SYMMETRIC);
-        }
+        return recon_host;
+
     }
 
     // explicit template instantiation
