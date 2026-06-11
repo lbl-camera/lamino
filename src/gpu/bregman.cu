@@ -27,6 +27,7 @@
 #include "gpu/bregman.h"
 #include "gpu/device_array.h"
 #include "gpu/device_array_ops.h"
+#include "gpu/vec_array.h"
 #include "gpu/finitediff.h"
 #include "gpu/gpu_opt.h"
 #include "gpu/mem_check.h"
@@ -71,7 +72,7 @@ namespace tomocam::gpu::opt {
         }
     };
     template <typename T>
-    DeviceArray<T> compute_sk(const std::array<std::array<DeviceArray<T>, 3>, 3> &dx,
+    DeviceArray<T> compute_sk(const std::array<VecArray<T>, 3> &dx,
                               const std::array<VecArray<T>, 3> &b) {
         auto dims = dx[0][0].dims();
         DeviceArray<T> sk(dims);
@@ -120,7 +121,7 @@ namespace tomocam::gpu::opt {
         for (int iter = 0; iter < outer_max; ++iter) {
 
             // x-update: solve (A^TA + μ∇^T∇)x = A^T y + μ∇^T(d - b)
-            std::array<std::array<DeviceArray<T>, 3>, 3> d_b;
+            std::array<VecArray<T>, 3> d_b;
             for (size_t i = 0; i < 3; ++i) {
                 for (size_t j = 0; j < 3; ++j) { d_b[i][j] = d[i][j] - b[i][j]; }
             }
@@ -136,7 +137,7 @@ namespace tomocam::gpu::opt {
             x = cgsolver(Ap, rhs, x, inner_max, tol, xtol);
 
             // isotropic TV shrinkage
-            std::array<std::array<DeviceArray<T>, 3>, 3> dx;
+            std::array<VecArray<T>, 3> dx;
             for (size_t i = 0; i < 3; ++i) { dx[i] = std::move(grad(x[i])); }
 
             // sk = sqrt(∑(dx[i] + b[i])^2)
@@ -179,10 +180,10 @@ namespace tomocam::gpu::opt {
 #ifdef DEBUG
     // compute_sk test
     template DeviceArray<float>
-    compute_sk(const std::array<std::array<DeviceArray<float>, 3>, 3> &dx,
+    compute_sk(const std::array<VecArray<float>, 3> &dx,
                const std::array<VecArray<float>, 3> &b);
     template DeviceArray<double>
-    compute_sk(const std::array<std::array<DeviceArray<double>, 3>, 3> &dx,
+    compute_sk(const std::array<VecArray<double>, 3> &dx,
                const std::array<VecArray<double>, 3> &b);
 
     // shrink test
