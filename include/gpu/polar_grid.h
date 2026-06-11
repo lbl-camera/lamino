@@ -24,6 +24,8 @@
 #include <cstddef>
 #include <vector>
 
+#include <thrust/device_vector.h>
+
 #include "dtypes.h"
 #include "gpu/device_array.h"
 #include "gpu/device_ptr.h"
@@ -44,6 +46,7 @@ namespace tomocam::gpu {
         DeviceArray<T> x;
         DeviceArray<T> y;
         DeviceArray<T> z;
+        thrust::device_vector<T> angles;
 
         /// Returns dimensions (nangles, nrows, ncols) of the coordinate arrays.
         [[nodiscard]] dims_t dims() const { return x.dims(); }
