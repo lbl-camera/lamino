@@ -52,11 +52,8 @@ namespace tomocam::gpu {
     }
 
     template <typename T>
-    void make_polar_grid(const std::vector<T> &angles, T gamma,
+    void make_polar_grid(thrust::device_vector<T> &d_angles, T gamma,
                          DeviceArray<T> &x, DeviceArray<T> &y, DeviceArray<T> &z) {
-
-        // move angles to device
-        thrust::device_vector<T> d_angles = angles;
 
         auto dims = x.dims();
         dim3 blockSize(1, 16, 16);
@@ -77,7 +74,8 @@ namespace tomocam::gpu {
         x = DeviceArray<T>(dims);
         y = DeviceArray<T>(dims);
         z = DeviceArray<T>(dims);
-        make_polar_grid(theta, gamma, x, y, z);
+        angles = thrust::device_vector<T>(theta);
+        make_polar_grid(angles, gamma, x, y, z);
     }
 
     template struct PolarGrid<float>;
