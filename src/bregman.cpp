@@ -41,7 +41,7 @@ namespace tomocam::opt {
                               size_t outer_max, size_t inner_max, T tol, T xtol) {
 
         // sanity check x0.dims must be the same as yT.dims
-        if ((x0.size() != yT.size()) || (x0[0].dims() != yT[0].dims())) {
+        if (x0[0].dims() != yT[0].dims()) {
             throw std::invalid_argument(
                 "yT is not the raw data, but backprojected data, so it should have "
                 "the same dimensions as x0");
@@ -49,8 +49,12 @@ namespace tomocam::opt {
 
         // Initialize variables
         auto dims = x0[0].dims();
-        VecArray<T> x = x0.clone();
-        VecArray<T> x_old = x0.clone();
+        std::array<Array<T>, 3> x;
+        std::array<Array<T>, 3> x_old;
+        for (size_t i = 0; i < 3; ++i) {
+            x[i] = x0[i].clone();
+            x_old[i] = x0[i].clone();
+        }
 
         // aux variable d and b are 3x3 matrices since gradient of vector is a 3x3
         // matrix
@@ -65,7 +69,7 @@ namespace tomocam::opt {
 
         // update A^TA to add laplacian of x
         // Ap  = (A^TA  +   ∇^T∇) u
-        Function<T> Ap = [&](const VecArray<T> &u) {
+        Function<T> Ap = [&](const std::array<Array<T>, 3> &u) {
             auto du = A(u);
             for (size_t i = 0; i < 3; ++i) { du[i] += laplacian<T>(u[i]) * mu; }
             return du;
@@ -74,11 +78,9 @@ namespace tomocam::opt {
         for (size_t iter = 0; iter < outer_max; ++iter) {
 
             // update RHS := R^T y1 + R^Ty2 + μ∇^T(d - b)
-            VecArray<T> rhs;
+            std::array<Array<T>, 3> rhs;
             for (size_t i = 0; i < 3; ++i) {
-                std::array<Array<T>, 3> diff;
-                for (size_t j = 0; j < 3; ++j) { diff[j] = d[i][j] - b[i][j]; }
-                rhs[i] = yT[i] + divergence(diff) * mu;
+                rhs[i] = yT[i] + divergence(d[i] - b[i]) * mu;
             }
 
             // use conjugate gradient to solve the linear system
