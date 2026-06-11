@@ -24,23 +24,44 @@
 #include "gpu/device_array_ops.h"
 #include "gpu/nufft.h"
 #include "gpu/polar_grid.h"
+#include "gpu/vec_array.h"
+#include "gpu/xmcdprojs.h"
 
 namespace tomocam::gpu {
 
     template <typename T>
-    DeviceArray<T> sysmat(const DeviceArray<T> &x, const gpu::PolarGrid<T> &grid, T gamma) {
+    using Complex = cuda::std::complex<T>;
 
-        auto d_fz = gpu::array::to_complex(x);
-        auto d_cz = DeviceArray<cuda::std::complex<T>>(grid.dims());
-        // type-2 non-uniform FFT
-        gpu::nufft::nufft3d2(d_cz, d_fz, grid);
-        // type-1 non-uniform FFT
-        gpu::nufft::nufft3d1(d_cz, d_fz, grid);
-        return gpu::array::to_real(d_fz);
+    template <typename T>
+    VecArray<T> sysmat(const VecArray<T> &x, const gpu::PolarGrid<T> &grid,
+                       T gamma) {
+
+        VecArray<T> Ax;
+
+        // Uniform -> Polar (nufft3d2 output is complex)
+        VecArray<Complex<T>> tmp;
+        for (size_t i = 0; i < 3; ++i) {
+            auto xcmplx = gpu::array::to_complex(x[i]);
+            auto ccmplx = DeviceArray<Complex<T>>(grid.dims());
+            gpu::nufft::nufft3d2(ccmplx, xcmplx, grid);
+            tmp[i] = std::move(ccmplx);
+        }
+        // Apply (e ⊗ e) projection matrix in the polar domain
+        xmcd_projection(tmp, grid, gamma);
+
+        // Polar -> Uniform (nufft3d1), take real part
+        for (size_t i = 0; i < 3; ++i) {
+            auto xcmplx = DeviceArray<Complex<T>>(x[i].dims());
+            gpu::nufft::nufft3d1(tmp[i], xcmplx, grid);
+            Ax[i] = gpu::array::to_real(xcmplx);
+        }
+        return Ax;
     }
     // explicit instantiations
-    template DeviceArray<float> sysmat(const DeviceArray<float> &x,
-                                       const gpu::PolarGrid<float> &grid);
-    template DeviceArray<double> sysmat(const DeviceArray<double> &x,
-                                        const gpu::PolarGrid<double> &grid);
+    template VecArray<float> sysmat(const VecArray<float> &x,
+                                    const gpu::PolarGrid<float> &grid, float gamma);
+    template VecArray<double> sysmat(const VecArray<double> &x,
+                                     const gpu::PolarGrid<double> &grid,
+                                     double gamma);
+
 } // namespace tomocam::gpu
