@@ -21,8 +21,10 @@
 #ifndef CUFFT_PLAN_H
 #define CUFFT_PLAN_H
 
-#include <cufft.h>
 #include <cuda/std/complex>
+#include <cufft.h>
+
+#include "gpu/utils.h"
 
 namespace tomocam::gpu::fft {
 
@@ -110,11 +112,13 @@ namespace tomocam::gpu::fft {
             if (ierr != 0) { throw std::runtime_error("Error in cufftExec"); }
         }
 
-        // Overloads for cuda::std::complex (binary-compatible with cufft complex types)
+        // Overloads for cuda::std::complex (binary-compatible with cufft complex
+        // types)
         void execute(cuda::std::complex<T> *in, cuda::std::complex<T> *out,
                      int direction) {
             execute(reinterpret_cast<typename Traits::complex_type *>(in),
-                    reinterpret_cast<typename Traits::complex_type *>(out), direction);
+                    reinterpret_cast<typename Traits::complex_type *>(out),
+                    direction);
         }
 
         void execute(T *in, typename Traits::complex_type *out) {
