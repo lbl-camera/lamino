@@ -61,6 +61,9 @@ namespace tomocam::gpu {
         /// @param nrows  Number of radial samples
         /// @param ncols  Number of axial samples
         PolarGrid(const std::vector<T> &theta, T gamma, size_t nrows, size_t ncols);
+
+        // default constructor
+        PolarGrid() : npts(0), x(), y(), z(), angles() {}
     };
 } // namespace tomocam::gpu
 
