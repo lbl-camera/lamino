@@ -18,68 +18,20 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef TOMOCAM__H
-#define TOMOCAM__H
+#ifndef TOMOCAM_H
+#define TOMOCAM_H
 
+#include <tuple>
 #include <vector>
 
 #include "array.h"
-#include "config.h"
 #include "dtypes.h"
 #include "padding.h"
 #include "polar_grid.h"
 #include "projection.h"
-#include "tiff.h"
-#include "timer.h"
-#include "write_vti.h"
+#include "recon_params.h"
 
 namespace tomocam {
-    /// Restrict T to floating-point types
-    template <typename T>
-    concept Float = std::is_floating_point<T>::value;
-
-    /**
-     * @brief Composition of backprojection and projection operators defined as a
-     * system matrix.
-     *
-     * @param x 3D vector field represented as an array of three components.
-     * @param grid The polar grid defining the projection geometry.
-     * @param gamma Sample orientation in plane normal to beam direction.
-     * @return  \f$ A x = R^T R x \f$
-     */
-    template <typename Float>
-    std::array<Array<Float>, 3> sysmat(const std::array<Array<Float>, 3> &x,
-                                       const PolarGrid<Float> &grid, Float gamma);
-
-    /**
-     * @brief Computes the gradient of the objective function for iterative
-     * reconstruction.
-     *
-     * @param m Current estimate of the 3-d vector field
-     * @param pT backprojection data as an Array.
-     * @param grid The polar grid defining the projection geometry.
-     * @param gamma Sample orientation in plane normal to beam direction.
-     * @return The gradient as an Array.
-     */
-    template <typename Float>
-    std::array<Array<Float>, 3> gradient(const std::array<Array<Float>, 3> &m,
-                                         const std::array<Array<Float>, 3> &pT,
-                                         const PolarGrid<Float> &grid, Float gamma);
-
-    /**
-     * @brief Computes the residual between the projected data and the measured data.
-     *
-     * @param m Current estimate of the 3-d vector field
-     * @param pT backprojected data as split into its components.
-     * @param grid The polar grid defining the projection geometry.
-     * @param pTp Precomputed inner product of the measured data.
-     * @param gamma Sample orientation in plane normal to beam direction.
-     * @return The computed residual as a scalar value of type T.
-     */
-    template <typename Float>
-    Float residual(const std::array<Array<Float>, 3> &m,
-                   const std::array<Array<Float>, 3> &pT,
-                   const PolarGrid<Float> &grid, Float pTp, Float gamma);
 
     /**
      * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
@@ -87,10 +39,9 @@ namespace tomocam {
      *
      * @tparam T Floating-point type (float or double).
      * @param datasets A vector of tuples, where each tuple contains:
-     *   1). An Array representing projection data
-     *   2). A vector of representing the projection angles for the dataset
-     *   3). A orientation angle (gamma), a proxy for angle between the sample
-     *       magnetization and the beam polarization direction.
+     *   1). A tomocam::Array representing projection data
+     *   2). An std::vector of representing the projection angles for the dataset
+     *   3). Orientation angle (gamma), rotation around the beam axis
      * @param recon_dims The dimensions of the reconstructed volume as a dims_t
      * object.
      * @param params Reconstruction parameters including regularization type, and
@@ -98,60 +49,11 @@ namespace tomocam {
      * @return A array of three components representing the reconstructed 3D vector
      * field, cropped to the specified dimensions.
      */
-    template <typename Float>
-    std::array<Array<Float>, 3>
-    MBIR1(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
-              &datasets,
-          const dims_t &recon_dims, const ReconParams &params);
+    template <typename T>
+    std::array<Array<T>, 3>
+    MBIR(const std::vector<std::tuple<Array<T>, std::vector<T>, T>> &datasets,
+         const ReconParams &params);
 
-    /**
-     * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
-     * tomographic imaging.
-     *
-     * Reconstructs 3D volumetric data from set of projection images using a
-     * regularized optimization. Using split-Bregman method for optimization.
-     *
-     * @tparam T Floating-point type (float or double).
-     * @param datasets A vector of tuples, where each tuple contains:
-     *   1). An Array representing projection data
-     *   2). A vector of representing the projection angles for the dataset
-     *   3). A orientation angle (gamma), a proxy for angle between the sample
-     * magnetization and the beam polarization direction.
-     * @param recon_dims The dimensions of the reconstructed volume as dims_t object.
-     * @param params Reconstruction parameters including regularization type, and
-     * optimization parameters.
-     * @return A array of three components representing the reconstructed 3D vector
-     * field, cropped to the specified dimensions.
-     */
-
-    template <typename Float>
-    std::array<Array<Float>, 3>
-    MBIR2(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
-              &datasets,
-          const dims_t &recon_dims, const ReconParams &params);
-
-    /**
-     * @brief Performs Model-Based Iterative Reconstruction (MBIR) for vector
-     * tomography using NAG-style optimization + qGGMRF regularization.
-     *
-     * @tparam T Floating-point type (float or double).
-     * @param datasets A vector of tuples, where each tuple contains:
-     *   1). An Array representing projection data
-     *   2). A vector of representing the projection angles for the dataset
-     *   3). A orientation angle (gamma), a proxy for angle between the sample
-     *       magnetization and the beam polarization direction.
-     * @param recon_dims The dimensions of the reconstructed volume as a dims_t
-     * object.
-     * @param params Reconstruction parameters including regularization type, and
-     * optimization parameters.
-     * @return A array of three components representing the reconstructed 3D vector
-     * field, cropped to the specified dimensions.
-     */
-    template <typename Float>
-    std::array<Array<Float>, 3>
-    MBIR3(const std::vector<std::tuple<Array<Float>, std::vector<Float>, Float>>
-              &datasets,
-          const dims_t &recon_dims, const ReconParams &params);
 } // namespace tomocam
 
-#endif // TOMOCAM__H
+#endif // TOMOCAM_H
