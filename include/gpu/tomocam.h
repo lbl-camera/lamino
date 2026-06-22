@@ -24,13 +24,15 @@
 #include <string>
 #include <vector>
 
-#include "dtypes.h"
 #include "gpu/device_array.h"
 #include "gpu/polar_grid.h"
 #include "gpu/projection.h"
 #include "recon_params.h"
 
 namespace tomocam::gpu {
+
+    template <typename T>
+    using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
 
     /**
      * @brief Host wrapper for GPU MBIR: takes projections and angles on the host,
