@@ -33,6 +33,21 @@ namespace tomocam::opt {
     template <typename T>
     using VecArray = std::array<Array<T>, 3>;
 
+    template <typename T>
+    VecArray<T> createVecArray() {
+        return {Array<T>(), Array<T>(), Array<T>()};
+    }
+
+    template <typename T>
+    VecArray<T> createVecArray(dims_t dims) {
+        return {Array<T>(dims), Array<T>(dims), Array<T>(dims)};
+    }
+
+    template <typename T>
+    VecArray<T> clone(const VecArray<T> &vec) {
+        return {vec[0].clone(), vec[1].clone(), vec[2].clone()};
+    }
+
     // addtion operator for VecArray
     template <typename T>
     VecArray<T> operator+(const VecArray<T> &a, const VecArray<T> &b) {
@@ -63,6 +78,13 @@ namespace tomocam::opt {
     template <typename T>
     VecArray<T> operator*(const VecArray<T> &a, T scalar) {
         return {a[0] * scalar, a[1] * scalar, a[2] * scalar};
+    }
+
+    template <typename T>
+    T dot(const VecArray<T> &a, const VecArray<T> &b) {
+        T result = 0;
+        for (size_t i = 0; i < 3; ++i) { result += array::dot(a[i], b[i]); }
+        return result;
     }
 
     template <typename T>
@@ -107,7 +129,7 @@ namespace tomocam::opt {
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &b,
                          const VecArray<T> &x0, size_t max_iters, T tol, T xtol,
-                         T lambda);
+                         T lambda = 0);
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
      * version)
