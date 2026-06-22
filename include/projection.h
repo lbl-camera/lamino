@@ -65,6 +65,19 @@ namespace tomocam {
     std::array<Array<T>, 3> adjoint(const Array<T> &proj, const PolarGrid<T> &pg,
                                     const dims_t &recon_dims, T gamma);
 
+    /**
+     * @brief Composition of backprojection and projection operators defined as a
+     * system matrix.
+     *
+     * @param x 3D vector field represented as an array of three components.
+     * @param grid The polar grid defining the projection geometry.
+     * @param gamma Sample orientation in plane normal to beam direction.
+     * @return  \f$ A x = R^T R x \f$
+     */
+    template <typename T>
+    std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
+                                   const PolarGrid<T> &grid, T gamma);
+
 } // namespace tomocam
 
 #endif // PROJECTION__H
