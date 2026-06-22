@@ -21,6 +21,8 @@
 #ifndef CUFFT_PLAN_CACHE_H
 #define CUFFT_PLAN_CACHE_H
 
+#include <array>
+#include <cuda_runtime.h>
 #include <mutex>
 #include <unordered_map>
 
@@ -85,9 +87,9 @@ namespace tomocam::gpu::fft {
         }
     };
 
-    namespace cache {
+    namespace plans {
         template <typename T>
-        inline cuFFTPlanCache<T> plans;
+        inline cuFFTPlanCache<T> cache;
     }
 } // namespace tomocam::gpu::fft
 
