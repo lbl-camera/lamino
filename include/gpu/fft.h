@@ -18,7 +18,6 @@
  *---------------------------------------------------------------------------------
  */
 
-
 #ifndef GPU_FFT_H
 #define GPU_FFT_H
 
@@ -49,7 +48,7 @@ namespace tomocam::gpu::fft {
         std::array<int, 3> n_modes = {batch, n1, n2};
         int device_id = -1;
         SAFE_CALL(cudaGetDevice(&device_id));
-        auto &plan = cache::plans<T>.get_plan(dim, n_modes, CUFFT_C2C, device_id);
+        auto &plan = plans::cache<T>.get_plan(dim, n_modes, CUFFT_C2C, device_id);
         plan.execute(data.data(), output.data(), CUFFT_FORWARD);
         return output;
     }
@@ -70,7 +69,7 @@ namespace tomocam::gpu::fft {
         std::array<int, 3> n_modes = {batch, n1, n2};
         int device_id = -1;
         SAFE_CALL(cudaGetDevice(&device_id));
-        auto &plan = cache::plans<T>.get_plan(dim, n_modes, CUFFT_C2C, device_id);
+        auto &plan = plans::cache<T>.get_plan(dim, n_modes, CUFFT_C2C, device_id);
         plan.execute(data.data(), output.data(), CUFFT_INVERSE);
         return output;
     }
@@ -91,7 +90,7 @@ namespace tomocam::gpu::fft {
         std::array<int, 3> n_modes = {batch, n1, n2};
         int device_id = -1;
         SAFE_CALL(cudaGetDevice(&device_id));
-        auto &plan = cache::plans<T>.get_plan(dim, n_modes, CUFFT_R2C, device_id);
+        auto &plan = plans::cache<T>.get_plan(dim, n_modes, CUFFT_R2C, device_id);
         plan.execute(data.data(), output.data());
         return output;
     }
@@ -113,7 +112,7 @@ namespace tomocam::gpu::fft {
 
         int device_id = -1;
         SAFE_CALL(cudaGetDevice(&device_id));
-        auto &plan = cache::plans<T>.get_plan(dim, n_modes, CUFFT_C2R, device_id);
+        auto &plan = plans::cache<T>.get_plan(dim, n_modes, CUFFT_C2R, device_id);
         plan.execute(data.data(), output.data());
         return output;
     }
