@@ -1,17 +1,18 @@
 # Tomocam
 
-A C++ library for tomographic reconstruction of magnetic field in thin material exhibiting magetic circular dichroism (MCD).
+A C++/CUDA library for reconstruction of magnetic field in materials exhibiting magetic circular dichroism (XMCD). The code is optimized for samples with thin form-factor.
 
 ## Overview
 
-Tomocam is a high-performance library developed at Lawrence Berkeley National Laboratory for advanced reconstruction of magnetic field in thin MCD materials. It provides forward and backward projection operators, iterative reconstruction algorithms, and Model-Based Iterative Reconstion.
+Tomocam is a high-performance library developed at Lawrence Berkeley National Laboratory for advanced reconstruction of magnetic field in thin XMCD materials. It provides forward and backward projection operators, iterative reconstruction algorithms, and Model-Based Iterative Reconstion.
 
 The library is optimized for performance using:
 - OpenMP parallelization
 - Intel TBB (Threading Building Blocks)
 - FFTW for fast Fourier transforms
 - FINUFFT for non-uniform FFTs
-- Optional GPU acceleration via CUDA
+- (Optional) GPU acceleration via CUDA
+- (Optional) cuFINUFFT for GPU-accelerated non-uniform FFTs
 
 ## Features
 
@@ -36,36 +37,22 @@ The library is optimized for performance using:
     - cufft
     - thrust
 
-### Supported Platforms
-
-- Linux (tested on Arch Linux)
-- macOS (15.5+)
 
 ## Building
 
 ### Configure and Build
 
 ```bash
-# Linux
-cmake --preset arch
-cmake --build --preset arch
-
-# macOS
-cmake --preset macos
-cmake --build --preset macos
+# Linux (CPU only)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build 
 ```
 
-### Build with Tests
+### Build with CUDA Support
 
 ```bash
-# Linux with tests
-cmake --preset arch -DENABLE_TESTS=ON
-cmake --build --preset arch
-ctest --preset arch
-
-# macOS with tests
-cmake --preset macos -DENABLE_TESTS=ON
-cmake --build --preset macos
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA:BOOL=ON
+cmake --build build
 ```
 
 ## Usage
@@ -109,15 +96,9 @@ method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMR
 
 # Parameters for split_bregman method
 [recon_params.regularizer.split_bregman]
-lambda = 0.1                            # Regularization parameter
+lambda = 0.5                            # Regularization parameter
 mu = 10.0                               # Penalty parameter
 
-# Alternatively, for qGGMRF regularization:
-# [recon_params.regularizer]
-# method = "qGGMRF"
-# [recon_params.regularizer.qGGMRF]
-# sigma = 1000.0
-# p = 1.2
 ```
 
 **Notes:**
