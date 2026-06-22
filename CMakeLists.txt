@@ -30,8 +30,7 @@ set(SRC
     src/conjgrad.cpp
     src/projection.cpp
     src/gradient.cpp
-    src/mbir_sb.cpp
-    src/mbir_cg.cpp
+    src/mbir.cpp
    )
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
