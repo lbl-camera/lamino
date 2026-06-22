@@ -194,24 +194,24 @@ namespace tomocam {
         // read regularizer type
         auto reg = recon["regularizer"].as_table();
         if (!reg) {
-            throw std::runtime_error(
-                "Missing [recon_params.regularizer] section in config file");
-        }
-        auto reg_str = (*reg)["method"].value_or<std::string>("split_bregman");
-        if (reg_str == "split_bregman") {
-            p.regularizer = Regularizer::SPLIT_BREGMAN;
-            auto params = (*reg)["split_bregman"].as_table();
-            if (!params) {
-                throw std::runtime_error(
-                    "Missing [recon_params.regularizer.split_bregman] section "
-                    "in config file");
-            }
-            p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
-            p.lambda = (*params)["lambda"].value_or<float>(0.1f);
-            p.mu = (*params)["mu"].value_or<float>(10.0f);
+            p.regularizer = Regularizer::UNCONSTRAINED;
         } else {
-            throw std::runtime_error("[recon_params] 'regularizer' must be "
-                                     "either 'qGGMRF' or 'split_bregman'");
+            auto reg_str = (*reg)["method"].value_or<std::string>("split_bregman");
+            if (reg_str == "split_bregman") {
+                p.regularizer = Regularizer::SPLIT_BREGMAN;
+                auto params = (*reg)["split_bregman"].as_table();
+                if (!params) {
+                    throw std::runtime_error(
+                        "Missing [recon_params.regularizer.split_bregman] section "
+                        "in config file");
+                }
+                p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
+                p.lambda = (*params)["lambda"].value_or<float>(0.1f);
+                p.mu = (*params)["mu"].value_or<float>(10.0f);
+            } else {
+                throw std::runtime_error("[recon_params] 'regularizer' must be "
+                                         "either 'qGGMRF' or 'split_bregman'");
+            }
         }
         return p;
     }
@@ -241,9 +241,10 @@ namespace tomocam {
                             "[output] 'formats' array must contain strings");
                     }
                     if (*fmt != "tiff" && *fmt != "vti") {
-                        throw std::runtime_error(std::format(
-                            "[output] invalid format '{}'. Must be 'tiff' or 'vti'",
-                            *fmt));
+                        throw std::runtime_error(
+                            std::format("[output] invalid format '{}'. Must be "
+                                        "'tiff' or 'vti'",
+                                        *fmt));
                     }
                     formats.push_back(*fmt);
                 }
