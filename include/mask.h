@@ -40,49 +40,28 @@ namespace tomocam {
      * support.
      *
      * @tparam T Numeric type for coordinates and angles
-     * @param projs Input projection array
      * @param dims Dimensions of the object being reconstructed (n1, n2, n3)
-     * @param theta Vector of tomographic rotation angles (in radians)
-     * @param gamma Laminography tilt angle (in radians)
+     * @param sup Dimensions of the support region (n1, n2, n3)
      * @return Array<T> with values outside the support replaced by 0
      */
     template <typename T>
-    Array<T> mask_support(const Array<T> &projs, const dims_t dims,
-                          const std::vector<T> &theta, const T gamma) {
+    Array<T> mask_support(const dims_t &dims, const dims_t &sup) {
 
-        // precompute sine and cosine of tilt angle
-        const T cos_g = std::cos(gamma);
-        const T sin_g = std::sin(gamma);
+        const T xcen = static_cast<T>(dims.n3) / 2;
+        const T ycen = static_cast<T>(dims.n2) / 2;
+        const T zcen = static_cast<T>(dims.n1) / 2;
 
-        // setup coordinates relative to object center
-        const T xcen = projs.ncols() / 2;
-        const T ycen = projs.nrows() / 2;
+        Array<T> mask = Array<T>::zeros(dims);
+        for (size_t z = 0; z < dims.n1; ++z) {
+            for (size_t y = 0; y < dims.n2; ++y) {
+                for (size_t x = 0; x < dims.n3; ++x) {
+                    T dx = static_cast<T>(x) - xcen;
+                    T dy = static_cast<T>(y) - ycen;
+                    T dz = static_cast<T>(z) - zcen;
 
-        // maximum extent of the object projection in the detector plane at zero tilt
-        const T ylim = dims.n2 / 2;
-        const T xlim = dims.n3 / 2;
-
-        Array<T> mask = projs.clone();
-        for (size_t p = 0; p < theta.size(); ++p) {
-            const T angle = theta[p];
-            const T cos_t = std::cos(angle);
-            if (std::abs(cos_t) < 1e-06) {
-                throw std::runtime_error("Projection angle too close to 90 "
-                                         "degrees, support mask is undefined.");
-            }
-            for (size_t y = 0; y < projs.nrows(); ++y) {
-                for (size_t x = 0; x < projs.ncols(); ++x) {
-                    // coordinates relative to center
-                    const T xrot = x - xcen;
-                    const T yrot = y - ycen;
-
-                    // un-rotate the coordinates
-                    const T xcrd = (xrot * cos_g * cos_t + yrot * sin_g) / cos_t;
-                    const T ycrd = (-xrot * sin_g * cos_t + yrot * cos_g) / cos_t;
-
-                    // check if the projected point is within the support region
-                    if (std::abs(xcrd) > xlim || std::abs(ycrd) > ylim) {
-                        mask[{p, y, x}] = 0;
+                    if (std::abs(dx) <= sup.n3 / 2 && std::abs(dy) <= sup.n2 / 2 &&
+                        std::abs(dz) <= sup.n1 / 2) {
+                        mask[{z, y, x}] = (T)1; // Inside the support region
                     }
                 }
             }
