@@ -33,73 +33,13 @@ namespace tomocam {
     enum class PadType { LEFT, RIGHT, SYMMETRIC };
 
     template <typename T>
-    auto pad1d(const Array<T> &arr, T factor, PadType pad_type) -> Array<T> {
-
-        // if factor is zero, return copy of input array
-        if (factor < 1.e-06) { return arr.clone(); }
-
-        size_t pad_size = 2 * (static_cast<size_t>(arr.ncols() * factor) / 2);
-        size_t n3 = arr.ncols() + pad_size;
-
-        // allocate return array
-        dims_t dims = {arr.nslices(), arr.nrows(), n3};
-        Array<T> arr2(dims);
-
-        // assume symmetric padding by default
-        size_t d = pad_size / 2;
-        if (pad_type == PadType::RIGHT) {
-            d = 0;
-        } else if (pad_type == PadType::LEFT) {
-            d = pad_size;
-        }
-
-        for (size_t i = 0; i < dims.n1; i++) {
-            for (size_t j = 0; j < dims.n2; j++) {
-                std::copy(&arr[{i, j, 0}], &arr[{i, j, 0}] + arr.ncols(),
-                          &arr2[{i, j, d}]);
-            }
-        }
-        arr2.setPads(dims_t{0, 0, d});
-        return arr2;
-    }
-
-    template <typename T>
-    auto crop1d(const Array<T> &arr, size_t crop_size,
-                PadType pad_type) -> Array<T> {
-
-        if (crop_size == 0) { return arr.clone(); }
-        auto dims = arr.dims() - dims_t{0, 0, crop_size};
-        Array<T> arr2(dims);
-
-        // assume symmetric padding by default
-        size_t d = crop_size / 2;
-        if (pad_type == PadType::RIGHT) {
-            d = 0;
-        } else if (pad_type == PadType::LEFT) {
-            d = crop_size;
-        }
-
-        for (size_t i = 0; i < dims.n1; i++) {
-            for (size_t j = 0; j < dims.n2; j++) {
-                std::copy(&arr[{i, j, d}], &arr[{i, j, d}] + dims.n3,
-                          &arr2[{i, j, 0}]);
-            }
-        }
-        auto pads = arr.pads();
-        arr2.setPads(dims_t{0, 0, pads.n3 - d});
-        return arr2;
-    }
-
-    template <typename T>
     Array<T> pad2d(const Array<T> &arr, T factor, PadType pad_type) {
 
         // if factor is zero, return copy of input array
-        if (factor < 1.e-06) { return arr.clone(); }
+        if (factor - 1 < 1.e-06) { return arr.clone(); }
 
-        size_t n2_pad = 2 * (static_cast<size_t>(arr.nrows() * factor) / 2);
-        size_t n2 = arr.nrows() + n2_pad;
-        size_t n3_pad = 2 * (static_cast<size_t>(arr.ncols() * factor) / 2);
-        size_t n3 = arr.ncols() + n3_pad;
+        size_t n2 = static_cast<size_t>(arr.nrows() * factor);
+        size_t n3 = static_cast<size_t>(arr.ncols() * factor);
 
         // create and initialize return array
         dims_t dims{arr.nslices(), n2, n3};
@@ -170,12 +110,9 @@ namespace tomocam {
         if (factor < 1.e-06) { return arr.clone(); }
 
         // calculate new dims
-        size_t n1_pad = 2 * (static_cast<size_t>(arr.nslices() * factor) / 2);
-        auto n1 = arr.nslices() + n1_pad;
-        size_t n2_pad = 2 * (static_cast<size_t>(arr.nrows() * factor) / 2);
-        auto n2 = arr.nrows() + n2_pad;
-        size_t n3_pad = 2 * (static_cast<size_t>(arr.ncols() * factor) / 2);
-        auto n3 = arr.ncols() + n3_pad;
+        auto n1 = static_cast<size_t>(arr.nslices() * factor);
+        auto n2 = static_cast<size_t>(arr.nrows() * factor);
+        auto n3 = static_cast<size_t>(arr.ncols() * factor);
 
         // allocate return array
         dims_t dims{n1, n2, n3};
