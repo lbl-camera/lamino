@@ -30,91 +30,82 @@
 #include "optimize.h"
 #include "padding.h"
 #include "polar_grid.h"
-#include "tomocam.h"
+#include "projection.h"
+#include "recon_params.h"
 
 namespace tomocam {
 
     template <typename T>
-    std::array<Array<T>, 3> MBIR(std::vector<Dataset_t<T>> datasets,
-                                 ReconParams params) {
+    std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
+                                 const ReconParams &params) {
 
         // padding factor
-        T padding = static_cast<T>(parms.PAD_FACTOR);
+        T padfac = static_cast<T>(params.PAD_FACTOR);
 
         // adjust reconstruction dimensions
-        dims_t out_dims = recon_dims;
-        out_dims.n1 = static_cast<size_t>(recon_dims.n1 * padding);
-        if (out_dims.n1 % 2 == 0) {
-            out_dims.n1 -= 1; // make sure n1 is odd
-        }
+        dims_t proj_dims = std::get<0>(datasets[0]).dims();
+        dims_t output_dims = params.recon_dims;
+        dims_t recon_dims = {output_dims.n1,
+                             static_cast<size_t>(proj_dims.n2 * padfac),
+                             static_cast<size_t>(proj_dims.n3 * padfac)};
 
-        out_dims.n2 = static_cast<size_t>(recon_dims.n2 * padding);
-        if (out_dims.n2 % 2 == 0) {
-            out_dims.n2 -= 1; // make sure n2 is odd
-        }
-        out_dims.n3 = static_cast<size_t>(recon_dims.n3 * padding);
-        if (out_dims.n3 % 2 == 0) {
-            out_dims.n3 -= 1; // make sure n3 is odd
-        }
-
-        // find max projection value across all datasets for scaling
-        T proj_max = 0;
-        for (auto &dataset : datasets) {
-            auto &[proj, angles, gamma] = dataset;
-            proj_max = array::max(proj);
-        }
+        // array for accumulated backprojections
+        std::array<Array<T>, 3> yT;
+        for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
 
         size_t n_datasets = datasets.size();
-        std::array<Array<T>, 3> yT;
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
         std::vector<T> gammas(n_datasets);
 
-        for (auto &dataset : datasets) {
-            auto &[proj, angles, gamma_ref] = dataset;
-            auto gamma = gamma_ref;
-            g
+        T proj_max = 0.0;
+        for (const auto &[proj, angles, gamma_ref] : datasets) {
+            proj_max = std::max(proj_max, array::max(proj));
+        }
 
-                // scale projections
-                auto y = proj / proj_max;
+        for (size_t j = 0; j < n_datasets; ++j) {
+            auto &[proj, angles, gamma_ref] = datasets[j];
+            gammas[j] = gamma_ref;
 
-            // pad projections
-            y = pad2d(y, padding, PadType::SYMMETRIC);
+            // scale projections
+            auto y = proj / proj_max;
+            y = pad2d(y, padfac, PadType::SYMMETRIC);
 
             // setup polar grid
             size_t nrows = y.nrows();
             size_t ncols = y.ncols();
-            auto polar_grid = PolarGrid<T>(angles, nrows, ncols, gamma);
-            polar_grids.push_back(std::move(polar_grid));
-            gammas.push_back(gamma);
+            polar_grids[j] =
+                std::move(PolarGrid<T>(angles, nrows, ncols, gammas[j]));
 
             // backproject and accumulate yT
-            auto yTmp = adjoint(y, polar_grid, out_dims, gamma);
-            yT += yTmp;
+            auto yTmp = adjoint(y, polar_grids[j], recon_dims, gammas[j]);
+            for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
+
         // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(out_dims); }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(recon_dims); }
 
         // setup linear operator
-        auto A = [&polar_grids, &gammas](const std::array<Array<T>, 3> &m) {
-            std::array<Array<T>, 3> Ax = sysmat(m, polar_grid[0], gammas[0]);
+        opt::Function<T> A = [&polar_grids,
+                              &gammas](const std::array<Array<T>, 3> &m) {
+            std::array<Array<T>, 3> Ax = sysmat(m, polar_grids[0], gammas[0]);
             for (size_t i = 1; i < polar_grids.size(); ++i) {
-                Ax += sysmat(m, polar_grids[i], gammas[i]);
+                auto tmp = sysmat(m, polar_grids[i], gammas[i]);
+                for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
             }
             return Ax;
         };
+
+        std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
-            case:
-                Regularizer::SPLIT_BREGMAN
-                    : auto recon_m =
-                          split_bregman(A, yT, x0, params.lambda, params.lambda,
-                                        params.mu, params.maxIters,
-                                        params.innerIters, params.tol, params.xtol);
+            case Regularizer::SPLIT_BREGMAN:
+                recon_m = opt::split_bregman<T>(
+                    A, yT, x0, params.lambda, params.mu, params.maxIters,
+                    params.innerIters, params.tol, params.xtol, output_dims);
                 break;
-            case:
-                Regularizer::UNCONSTRAINED
-                    : auto recon_m =
-                          cgsolver(A, yT, x0, params.max_iters, params.tol);
+            case Regularizer::UNCONSTRAINED:
+                recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
+                                           params.xtol, output_dims);
                 // TV regularization
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
@@ -124,15 +115,15 @@ namespace tomocam {
         std::array<Array<T>, 3> recon_magnetisation;
         for (size_t i = 0; i < 3; ++i) {
             recon_magnetisation[i] =
-                crop3d(recon_m[i], recon_dims, PadType::SYMMETRIC);
+                crop3d(recon_m[i], output_dims, PadType::SYMMETRIC);
         }
         return recon_magnetisation;
     }
 
     // Explicit template instantiations
     template std::array<Array<float>, 3>
-    MBIR(const std::vector<Dataset_t<float>> datasets, ReconParams params);
+    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
     template std::array<Array<double>, 3>
-    MBIR(const std::vector<Dataset_t<double>> datasets, ReconParams params);
+    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
 
 } // namespace tomocam
