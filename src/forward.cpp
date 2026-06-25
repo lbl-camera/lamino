@@ -11,6 +11,12 @@
 #include <toml++/toml.hpp>
 
 #include "array_ops.h"
+#include "ovf.h"
+#include "padding.h"
+#include "polar_grid.h"
+#include "projection.h"
+#include "tiff.h"
+#include "timer.h"
 #include "tomocam.h"
 
 constexpr double PADDING = 1.41421356237;
@@ -37,8 +43,6 @@ int main(int argc, char **argv) {
     auto comp1 = paths["component_1"].value<std::string>().value();
     auto comp2 = paths["component_2"].value<std::string>().value();
     auto comp3 = paths["component_3"].value<std::string>().value();
-
-    auto angles_file = table["angles"]["filename"].value<std::string>().value();
 
     auto output_basedir = table["output"]["basedir"].value<std::string>().value();
     std::vector<int> output_dims;
@@ -97,26 +101,60 @@ int main(int argc, char **argv) {
         std::filesystem::create_directories(out_basedir);
     }
 
-    // check if components exist
-    if (!std::filesystem::exists(std::filesystem::path(basedir) / comp1) ||
-        !std::filesystem::exists(std::filesystem::path(basedir) / comp2) ||
-        !std::filesystem::exists(std::filesystem::path(basedir) / comp3)) {
-        std::cerr << "One or more components do not exist in data path: " << basedir
-                  << "\n";
+    // if extension is tiff, check all 3 files exist
+    bool tiff_format = false;
+    if (std::filesystem::path(comp1).extension() == ".tiff" ||
+        std::filesystem::path(comp1).extension() == ".tif") {
+        tiff_format = true;
+        if (!std::filesystem::exists(std::filesystem::path(basedir) / comp1) ||
+            !std::filesystem::exists(std::filesystem::path(basedir) / comp2) ||
+            !std::filesystem::exists(std::filesystem::path(basedir) / comp3)) {
+            std::cerr << "One or more components do not exist in data path: "
+                      << basedir << "\n";
+            return 1;
+        }
+    } else if (std::filesystem::path(comp1).extension() == ".ovf") {
+        // check that the ovf file exists
+        if (!std::filesystem::exists(std::filesystem::path(basedir) / comp1)) {
+            std::cerr << "OVF file does not exist in data path: " << basedir << "\n";
+            return 1;
+        }
+    } else {
+        std::cerr << "Unsupported component file extension: "
+                  << std::filesystem::path(comp1).extension() << "\n";
         return 1;
     }
 
-    // read angles from text file
-    std::ifstream angles_stream(angles_file);
-    if (!angles_stream.is_open()) {
-        std::cerr << "Could not open angles file: " << angles_file << "\n";
-        return 1;
-    }
+    // read angles — either from a file or generated from {start, end, num_projs}
     std::vector<float> angles;
-    float angle;
-    while (angles_stream >> angle) { angles.push_back(angle); }
-    if (angles.empty()) {
-        std::cerr << "No angles found in file: " << angles_file << "\n";
+    auto angles_node = table["angles"];
+    if (auto filename_opt = angles_node["filename"].value<std::string>()) {
+        std::ifstream angles_stream(*filename_opt);
+        if (!angles_stream.is_open()) {
+            std::cerr << "Could not open angles file: " << *filename_opt << "\n";
+            return 1;
+        }
+        float angle;
+        while (angles_stream >> angle) { angles.push_back(angle); }
+        if (angles.empty()) {
+            std::cerr << "No angles found in file: " << *filename_opt << "\n";
+            return 1;
+        }
+    } else if (auto start_opt = angles_node["begin"].value<float>()) {
+        auto end_opt = angles_node["end"].value<float>();
+        auto num_opt = angles_node["num_projs"].value<int>();
+        if (!end_opt || !num_opt || *num_opt < 2) {
+            std::cerr
+                << "angles struct requires 'begin', 'end', and 'num_projs' (>= 2)\n";
+            return 1;
+        }
+        int n = *num_opt;
+        float start = *start_opt, end = *end_opt;
+        angles.resize(n);
+        for (int i = 0; i < n; ++i) angles[i] = start + i * (end - start) / (n - 1);
+    } else {
+        std::cerr
+            << "angles must specify either 'filename' or {start, end, num_projs}\n";
         return 1;
     }
 
@@ -148,9 +186,14 @@ int main(int argc, char **argv) {
     std::array<tomocam::Array<float>, 3> m_data;
     tomocam::Timer t0;
     t0.start();
-    for (int i = 0; i < 3; ++i) {
-        auto filename = (base_path / components[i]).string();
-        m_data[i] = tomocam::tiff::read(filename);
+    if (tiff_format) {
+        for (int i = 0; i < 3; ++i) {
+            auto filename = (base_path / components[i]).string();
+            m_data[i] = tomocam::tiff::read(filename);
+        }
+    } else {
+        auto ovf_filename = (base_path / comp1).string();
+        m_data = tomocam::ovf::read<float>(ovf_filename);
     }
 
     t0.stop();
@@ -161,7 +204,7 @@ int main(int argc, char **argv) {
     // pad the sample
     t0.start();
     for (int i = 0; i < 3; ++i) {
-        m_data[i] = tomocam::pad3d<float>(m_data[i], PADDING - 1,
+        m_data[i] = tomocam::pad3d<float>(m_data[i], PADDING,
                                           tomocam::PadType::SYMMETRIC);
     }
     t0.stop();
@@ -208,6 +251,19 @@ int main(int argc, char **argv) {
         tomocam::tiff::write(output_path, proj);
         std::cerr << "Written: " << output_path << "\n";
     }
+    // save angles to a text file
+    auto angles_path =
+        (std::filesystem::path(output_basedir) / "angles.txt").string();
+    std::ofstream angles_file(angles_path);
+    if (!angles_file.is_open()) {
+        std::cerr << "Could not open angles output file: " << angles_path << "\n";
+        return 1;
+    }
+    for (const auto &angle : angles) {
+        float deg_angle = angle * 180.0f / static_cast<float>(M_PI);
+        angles_file << std::format("{:.6f}\n", deg_angle);
+    }
+    std::cout << std::format("Written angles to: {}\n", angles_path);
 
     return 0;
 }
