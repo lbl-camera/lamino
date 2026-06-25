@@ -88,7 +88,6 @@ namespace tomocam::gpu::opt {
             vec_axpy(p, beta, z);
             rs_old = rs_new;
 
-            // check convergence every 5 iterations
             T res = r.norm2();
             if (res < tol) break;
 
