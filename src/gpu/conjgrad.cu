@@ -36,6 +36,7 @@
 #include "gpu/mem_check.h"
 #include "gpu/utils.h"
 #include "gpu/vec_array.h"
+#include "mask.h"
 
 namespace tomocam::gpu::opt {
 
@@ -46,9 +47,17 @@ namespace tomocam::gpu::opt {
     // -------------------------------------------------------------------------
     template <typename T>
     VecArray<T> cgsolver(const gpuFunction<T> &A, const VecArray<T> &y,
-                         const VecArray<T> &x0, size_t max_iter, T tol, T xtol) {
+                         const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
+                         dims_t support_dims, T lambda) {
 
         auto precond_apply = [](const DeviceArray<T> &r) { return r.clone(); };
+
+        // Build support mask and upload to GPU
+        auto cpu_mask = mask_support<T>(x0[0].dims(), support_dims);
+        DeviceArray<T> gpu_mask(cpu_mask);
+        auto apply_support = [&gpu_mask](VecArray<T> &v) {
+            for (size_t i = 0; i < 3; ++i) { v[i] *= gpu_mask; }
+        };
 
         // Initialize solution and residual arrays
         VecArray<T> x = x0.clone();
@@ -76,6 +85,7 @@ namespace tomocam::gpu::opt {
 
             T alpha = rs_old / pAp;
             vec_xpay(x, p, alpha);   // x += alpha * p
+            apply_support(x);
             vec_xpay(r, Ap, -alpha); // r -= alpha * Ap
 
             // Apply preconditioner and compute new residual norm
@@ -113,10 +123,12 @@ namespace tomocam::gpu::opt {
     template VecArray<float> cgsolver(const gpuFunction<float> &A,
                                       const VecArray<float> &y,
                                       const VecArray<float> &x0, size_t max_iter,
-                                      float tol, float xtol);
+                                      float tol, float xtol, dims_t support_dims,
+                                      float lambda);
     template VecArray<double> cgsolver(const gpuFunction<double> &A,
                                        const VecArray<double> &y,
                                        const VecArray<double> &x0, size_t max_iter,
-                                       double tol, double xtol);
+                                       double tol, double xtol, dims_t support_dims,
+                                       double lambda);
 
 } // namespace tomocam::gpu::opt

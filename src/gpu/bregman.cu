@@ -91,7 +91,8 @@ namespace tomocam::gpu::opt {
     template <typename T>
     VecArray<T> split_bregman(const gpuFunction<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
-                              size_t outer_max, size_t inner_max, T tol, T xtol) {
+                              size_t outer_max, size_t inner_max, T tol, T xtol,
+                              dims_t support_dims) {
 
         // initialize variables
         VecArray<T> x = x0.clone();
@@ -134,7 +135,7 @@ namespace tomocam::gpu::opt {
             }
 
             // use conjugate gradient to solve the linear system
-            x = cgsolver(Ap, rhs, x, inner_max, tol, xtol);
+            x = cgsolver(Ap, rhs, x, inner_max, tol, xtol, support_dims);
 
             // isotropic TV shrinkage
             std::array<VecArray<T>, 3> dx;
@@ -172,11 +173,13 @@ namespace tomocam::gpu::opt {
                                            const VecArray<float> &yT,
                                            const VecArray<float> &x0, float lambda,
                                            float mu, size_t outer_max,
-                                           size_t inner_max, float tol, float xtol);
+                                           size_t inner_max, float tol, float xtol,
+                                           dims_t support_dims);
     template VecArray<double>
     split_bregman(const gpuFunction<double> &A, const VecArray<double> &yT,
                   const VecArray<double> &x0, double lambda, double mu,
-                  size_t outer_max, size_t inner_max, double tol, double xtol);
+                  size_t outer_max, size_t inner_max, double tol, double xtol,
+                  dims_t support_dims);
 #ifdef DEBUG
     // compute_sk test
     template DeviceArray<float>

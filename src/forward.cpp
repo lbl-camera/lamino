@@ -148,10 +148,11 @@ int main(int argc, char **argv) {
                 << "angles struct requires 'begin', 'end', and 'num_projs' (>= 2)\n";
             return 1;
         }
+        // generate angles linearly spaced between start and end [begin, end)
         int n = *num_opt;
         float start = *start_opt, end = *end_opt;
         angles.resize(n);
-        for (int i = 0; i < n; ++i) angles[i] = start + i * (end - start) / (n - 1);
+        for (int i = 0; i < n; ++i) angles[i] = start + i * (end - start) / n;
     } else {
         std::cerr
             << "angles must specify either 'filename' or {start, end, num_projs}\n";
@@ -204,8 +205,8 @@ int main(int argc, char **argv) {
     // pad the sample
     t0.start();
     for (int i = 0; i < 3; ++i) {
-        m_data[i] = tomocam::pad3d<float>(m_data[i], PADDING,
-                                          tomocam::PadType::SYMMETRIC);
+        m_data[i] =
+            tomocam::pad3d<float>(m_data[i], PADDING, tomocam::PadType::SYMMETRIC);
     }
     t0.stop();
     std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";

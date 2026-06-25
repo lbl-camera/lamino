@@ -112,14 +112,14 @@ namespace tomocam::gpu {
                 std::cout
                     << "Starting unconstrained reconstruction with CG on GPU ...\n";
                 recon = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                         params.xtol);
+                                         params.xtol, out_dims);
                 break;
             }
             case Regularizer::SPLIT_BREGMAN: {
                 std::cout << "Starting MBIR with Split-Bregman method on GPU ...\n";
                 recon = opt::split_bregman<T>(A, yT, x0, params.lambda, params.mu,
                                               params.maxIters, params.innerIters,
-                                              params.tol, params.xtol);
+                                              params.tol, params.xtol, out_dims);
 
                 break;
             }
