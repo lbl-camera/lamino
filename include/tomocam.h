@@ -25,10 +25,6 @@
 #include <vector>
 
 #include "array.h"
-#include "dtypes.h"
-#include "padding.h"
-#include "polar_grid.h"
-#include "projection.h"
 #include "recon_params.h"
 
 namespace tomocam {
