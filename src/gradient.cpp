@@ -35,7 +35,6 @@ namespace tomocam {
                                    const PolarGrid<T> &grid, T gamma) {
         using complex_t = std::complex<T>;
 
-
         // narmalization factor
         T scale = static_cast<T>(grid.size() / grid.nprojs());
 
@@ -88,49 +87,11 @@ namespace tomocam {
         return output;
     }
     // Explicit instantiations
-    template std::array<Array<float>, 3> sysmat(const std::array<Array<float>, 3> &,
-                                                const PolarGrid<float> &, float);
+    template std::array<Array<float>, 3> sysmat(const std::array<Array<float>, 3> &x,
+                                                const PolarGrid<float> &grid,
+                                                float gamma);
     template std::array<Array<double>, 3>
-    sysmat(const std::array<Array<double>, 3> &, const PolarGrid<double> &, double);
+    sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid,
+           double gamma);
 
-    // Compute gradient of ||R^T R f - yT||^2
-    template <typename T>
-    std::array<Array<T>, 3> gradient(const std::array<Array<T>, 3> &f,
-                                     const std::array<Array<T>, 3> &yT,
-                                     const PolarGrid<T> &grid, T gamma) {
-        auto AAx = sysmat<T>(f, grid, gamma);
-        std::array<Array<T>, 3> result;
-        for (size_t i = 0; i < 3; ++i) { result[i] = AAx[i] - yT[i]; }
-        return result;
-    }
-    // Explicit instantiations
-    template std::array<Array<float>, 3>
-    gradient(const std::array<Array<float>, 3> &,
-             const std::array<Array<float>, 3> &, const PolarGrid<float> &, float);
-    template std::array<Array<double>, 3>
-    gradient(const std::array<Array<double>, 3> &,
-             const std::array<Array<double>, 3> &, const PolarGrid<double> &,
-             double);
-
-    // Compute residual ||R^T R f - yT||^2
-    template <typename T>
-    T residual(const std::array<Array<T>, 3> &f, const std::array<Array<T>, 3> &yT,
-               const PolarGrid<T> &grid, T yTy, T gamma) {
-        auto AAx = sysmat<T>(f, grid, gamma);
-        T err = T(0);
-        for (size_t i = 0; i < 3; ++i) {
-            auto xAAx = array::dot(f[i], AAx[i]);
-            auto yTx = array::dot(f[i], yT[i]);
-            err += std::sqrt(xAAx - 2.0 * yTx + yTy);
-        }
-        return err;
-    }
-
-    // Explicit instantiations
-    template float residual(const std::array<Array<float>, 3> &,
-                            const std::array<Array<float>, 3> &,
-                            const PolarGrid<float> &, float, float);
-    template double residual(const std::array<Array<double>, 3> &,
-                             const std::array<Array<double>, 3> &,
-                             const PolarGrid<double> &, double, double);
 } // namespace tomocam
