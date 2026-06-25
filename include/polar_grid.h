@@ -20,12 +20,17 @@
 #ifndef POLAR_GRID_H
 #define POLAR_GRID_H
 
-#include "array.h"
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <execution>
 #include <iostream>
+#include <ranges>
 #include <vector>
+
+#include "array.h"
+#include "array_ops.h"
 
 namespace tomocam {
 
@@ -55,16 +60,18 @@ namespace tomocam {
             T sin_gamma = std::sin(gamma);
 
             // compute grid points
-            T dX = (2 * M_PI) / static_cast<T>(ncols);
-            T dY = (2 * M_PI) / static_cast<T>(nrows);
+            T L = 2 * M_PI;
+            T dX = L / static_cast<T>(ncols);
+            T dY = L / static_cast<T>(nrows);
+            T L_half = L / 2;
 
 #pragma omp parallel for collapse(3)
             for (size_t i = 0; i < dims.n1; ++i) {
                 for (size_t j = 0; j < dims.n2; ++j) {
                     for (size_t k = 0; k < dims.n3; ++k) {
 
-                        T qX = (k + 0.5) * dX - M_PI;
-                        T qY = (j + 0.5) * dY - M_PI;
+                        T qX = (k + 0.5) * dX - L_half;
+                        T qY = (j + 0.5) * dY - L_half;
 
                         // apply rotations
                         x[{i, j, k}] = qX * std::cos(gamma) -
@@ -104,6 +111,12 @@ namespace tomocam {
             out.y = this->y.clone();
             out.z = this->z.clone();
             return out;
+        }
+        void print_limits() const {
+            std::cout << "PolarGrid limits:\n";
+            std::cout << std::format("qx: [{}, {}]\n", array::min(x), array::max(x));
+            std::cout << std::format("qy: [{}, {}]\n", array::min(y), array::max(y));
+            std::cout << std::format("qz: [{}, {}]\n", array::min(z), array::max(z));
         }
 
         // array dimensions for non-uniform points
