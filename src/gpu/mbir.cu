@@ -26,6 +26,8 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "gpu/cufft_plan_cache.h"
+#include "gpu/cufinufft_plan_cache.h"
 #include "gpu/device_array.h"
 #include "gpu/device_array_ops.h"
 #include "gpu/gpu_opt.h"
@@ -42,9 +44,9 @@ namespace tomocam::gpu {
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
                                  const ReconParams &params) {
 
-        T scale = (T)0;
+        T proj_max = (T)0;
         for (auto &[projs, angles, gamma] : datasets) {
-            scale = std::max(scale, tomocam::array::max(projs));
+            proj_max = std::max(proj_max, tomocam::array::max(projs));
         }
 
         // get recon dimensions from the params
@@ -62,7 +64,7 @@ namespace tomocam::gpu {
 
         // setup the linear system for all datasets
         size_t n_datasets = datasets.size();
-        std::vector<PolarGrid<T>> polar_grids;
+        std::vector<PolarGrid<T>> polar_grids(n_datasets);
         std::vector<T> gammas(n_datasets, (T)0);
         VecArray<T> yT{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
                        DeviceArray<T>(out_dims)};
@@ -74,7 +76,7 @@ namespace tomocam::gpu {
 
             // move data to device and normalize
             DeviceArray<T> y(projs);
-            y /= scale;
+            y /= proj_max;
 
             // zero-pad projections by sqrt(2) to avoid aliasing
             float padding = static_cast<T>(params.PAD_FACTOR);
@@ -132,8 +134,12 @@ namespace tomocam::gpu {
         std::array<Array<T>, 3> recon_host;
         for (size_t i = 0; i < 3; ++i) { recon_host[i] = recon[i].to_host(); }
 
-        return recon_host;
+        // cleanup nufft plans cache
+        tomocam::gpu::nufft::plans::cache<float>.clear();
+        tomocam::gpu::fft::plans::cache<float>.clear();
+        cudaDeviceReset();
 
+        return recon_host;
     }
 
     // explicit template instantiation
