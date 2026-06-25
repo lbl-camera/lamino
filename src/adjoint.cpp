@@ -11,8 +11,11 @@
 
 #include "array_ops.h"
 #include "config.h"
+#include "padding.h"
+#include "polar_grid.h"
 #include "projection.h"
-#include "tomocam.h"
+#include "tiff.h"
+#include "timer.h"
 
 constexpr double PADDING =
     1.41421356237; // sqrt(2) to avoid cropping corners of the sample
