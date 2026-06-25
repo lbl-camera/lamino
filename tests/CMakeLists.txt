@@ -15,9 +15,6 @@ target_link_libraries(test_transpose PUBLIC tomocam)
 add_executable(test_demag test_demag.cpp)
 target_link_libraries(test_demag PUBLIC tomocam)
 
-add_executable(test_resetPads test_resetPads.cpp)
-target_link_libraries(test_resetPads PUBLIC tomocam)
-
 add_executable(test_fftshift test_fftshift.cpp)
 target_link_libraries(test_fftshift PUBLIC tomocam)
 
