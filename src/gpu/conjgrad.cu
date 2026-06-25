@@ -23,6 +23,8 @@
 #include <iostream>
 #include <limits>
 
+#include <cuda_profiler_api.h>
+
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
 #include <thrust/functional.h>
@@ -53,22 +55,20 @@ namespace tomocam::gpu::opt {
 
         // r = y - A(x)
         auto r = y - A(x);
-
         // z = M^{-1} r,  p = z,  rs_old = z^T r
         VecArray<T> z{precond_apply(r[0]), precond_apply(r[1]), precond_apply(r[2])};
         auto p = z.clone();
 
         T rs_old = z.dot(r);
-
+#ifdef DEBUG
+        cudaProfilerStart();
+#endif
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             // Ap = A(p),  pAp = p^T Ap
             auto Ap = A(p);
-
             T pAp = Ap.dot(p);
-            T pAp_thresh =
-                T(100) * std::numeric_limits<T>::epsilon() * p.dot(p) * Ap.dot(Ap);
-            if (std::abs(pAp) < std::sqrt(pAp_thresh)) {
+            if (std::abs(pAp) < 1.e-10) {
                 std::cerr << std::format(
                     "CG: p^T A p is too small ({:.5e}), stopping\n", pAp);
                 break;
@@ -77,10 +77,6 @@ namespace tomocam::gpu::opt {
             T alpha = rs_old / pAp;
             vec_xpay(x, p, alpha);   // x += alpha * p
             vec_xpay(r, Ap, -alpha); // r -= alpha * Ap
-
-            // dx: relative step size (computed before p is updated)
-            T dx = std::abs(alpha) * std::sqrt(p.dot(p)) /
-                   (std::sqrt(x.dot(x)) + T(1e-8));
 
             // Apply preconditioner and compute new residual norm
             T rs_new = 0;
@@ -92,16 +88,25 @@ namespace tomocam::gpu::opt {
             vec_axpy(p, beta, z);
             rs_old = rs_new;
 
+            // check convergence every 5 iterations
             T res = r.norm2();
-            std::cout << std::format(
-                "\t CG iter {:3d}: residual = {:.6e}, dx = {:.6e}\n", iter + 1, res,
-                dx);
             if (res < tol) break;
+
+            // dx: relative step size (computed before p is updated)
+            T dx = std::abs(alpha) * std::sqrt(p.dot(p)) /
+                   (std::sqrt(x.dot(x)) + (T)1e-10);
+
             if (dx < xtol) {
                 std::cout << "CG converged based on solution change\n";
                 break;
             }
+            std::cout << std::format(
+                "\t CG iter {:3d}: residual = {:.6e}, dx = {:.6e}\n", iter + 1, res,
+                dx);
         }
+#ifdef DEBUG
+        cudaProfilerStop();
+#endif
         return x;
     }
 
