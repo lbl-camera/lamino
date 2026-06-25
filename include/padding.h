@@ -66,7 +66,6 @@ namespace tomocam {
                           out.begin() + (j + d1) * arr2.ncols() + d2);
             }
         }
-        arr2.setPads(dims_t{0, d1, d2});
         return arr2;
     }
 
@@ -99,15 +98,13 @@ namespace tomocam {
                           out.begin() + j * arr2.ncols());
             }
         }
-        auto pads = arr.pads();
-        arr2.setPads(dims_t{0, pads.n2 - d1, pads.n3 - d2});
         return arr2;
     }
 
     template <typename T>
     auto pad3d(const Array<T> &arr, T factor, PadType pad_type) -> Array<T> {
 
-        if (factor < 1.e-06) { return arr.clone(); }
+        if (factor - 1 < 1.e-06) { return arr.clone(); }
 
         // calculate new dims
         auto n1 = static_cast<size_t>(arr.nslices() * factor);
@@ -136,7 +133,6 @@ namespace tomocam {
                           out.begin() + (j + d.n2) * arr2.ncols() + d.n3);
             }
         }
-        arr2.setPads(d);
         return arr2;
     }
 
@@ -163,8 +159,6 @@ namespace tomocam {
                           out.begin() + j * arr2.ncols());
             }
         }
-        auto pads = arr.pads();
-        arr2.setPads(pads - d);
         return arr2;
     }
 } // namespace tomocam
