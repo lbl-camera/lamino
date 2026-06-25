@@ -2,12 +2,6 @@
 add_executable(test_fft test_fft.cpp)
 target_link_libraries(test_fft PUBLIC tomocam)
 
-add_executable(test_loss test_loss.cpp)
-target_link_libraries(test_loss PUBLIC tomocam)
-
-add_executable(test_gradient test_grad.cpp)
-target_link_libraries(test_gradient PRIVATE tomocam)
-
 add_executable(test_cg test_cg.cpp)
 target_link_libraries(test_cg PUBLIC tomocam)
 target_link_libraries(test_cg PUBLIC TIFF::TIFF)
@@ -27,6 +21,14 @@ target_link_libraries(test_resetPads PUBLIC tomocam)
 add_executable(test_fftshift test_fftshift.cpp)
 target_link_libraries(test_fftshift PUBLIC tomocam)
 
-add_executable(test_masking test_masking.cpp)
-target_link_libraries(test_masking PUBLIC tomocam)
+#add_executable(test_masking test_masking.cpp)
+#target_link_libraries(test_masking PUBLIC tomocam)
+
+if(CMAKE_CUDA_COMPILER)
+    add_executable(test_gpu_conjgrad test_gpu_conjgrad.cu)
+    target_link_libraries(test_gpu_conjgrad PUBLIC tomocam)
+
+    add_executable(test_gpu_gradient test_gpu_gradient.cu)
+    target_link_libraries(test_gpu_gradient PUBLIC tomocam)
+endif()
 
