@@ -26,7 +26,12 @@
 #include <vector>
 
 #include "array_ops.h"
+#include "config.h"
+#include "tiff.h"
+#include "timer.h"
 #include "tomocam.h"
+#include "write_vti.h"
+
 #ifdef USE_CUDA
 #include "gpu/tomocam.h"
 #endif
@@ -47,25 +52,18 @@ int main(int argc, char **argv) {
     auto params = tomocam::parse_recon_params(config);
     auto output = tomocam::OutputParams(config);
 
-    size_t max_iter = params.maxIters;
-    float tol = params.tol;
-    float xtol = params.xtol;
-    auto recon_dims = params.recon_dims;
-
     // print parameters
     params.print(std::cout);
 
     tomocam::Timer t0;
     t0.start();
 #ifdef USE_CUDA
-    std::cout << "Using CUDA for reconstruction.\n";
     auto recon = tomocam::gpu::MBIR<float>(datasets, params);
 #else
-    auto recon = tomocam::MBIR<float>(datasets, recon_dims, params);
+    auto recon = tomocam::MBIR<float>(datasets, params);
 #endif
     t0.stop();
     double elapsed = t0.seconds();
-
     if (elapsed > 3600) {
         int hours = static_cast<int>(elapsed / 3600);
         int minutes = static_cast<int>((elapsed - hours * 3600) / 60);
