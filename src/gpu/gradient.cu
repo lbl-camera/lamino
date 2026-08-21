@@ -37,6 +37,7 @@ namespace tomocam::gpu {
                        T gamma) {
 
         VecArray<T> Ax;
+        T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
 
         // Uniform -> Polar (nufft3d2 output is complex)
         VecArray<Complex<T>> tmp;
@@ -53,7 +54,7 @@ namespace tomocam::gpu {
         for (size_t i = 0; i < 3; ++i) {
             auto xcmplx = DeviceArray<Complex<T>>(x[i].dims());
             gpu::nufft::nufft3d1(tmp[i], xcmplx, grid);
-            Ax[i] = gpu::array::to_real(xcmplx);
+            Ax[i] = gpu::array::to_real(xcmplx) / scale;
         }
         return Ax;
     }
