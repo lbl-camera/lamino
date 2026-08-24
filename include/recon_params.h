@@ -32,9 +32,14 @@
 
 namespace tomocam {
 
-    // define Dataset_t (projections, angles, gamma)
     template <typename T>
-    using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
+    struct Dataset_t {
+        Array<T> projs;
+        std::vector<T> angles;
+        T gamma;
+        T beta = T(0);
+        std::vector<std::array<T, 2>> shifts;
+    };
 
     enum class Regularizer { SPLIT_BREGMAN, UNCONSTRAINED };
 

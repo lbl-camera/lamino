@@ -18,10 +18,13 @@
  *---------------------------------------------------------------------------------
  */
 
+#include <array>
 #include <complex>
+#include <cmath>
 #include <fftw3.h>
 #include <new>
 #include <type_traits>
+#include <vector>
 
 #include "array.h"
 #include "dtypes.h"
@@ -30,6 +33,28 @@
 #define FFTDEFS__H
 
 namespace tomocam::fft {
+
+    // Apply per-projection COR phase shift: C[i,j,k] *= exp(-i*(qx*dx + qy*dy))
+    template <typename T>
+    void phase_shift2d(Array<std::complex<T>> &input,
+                       const std::vector<std::array<T, 2>> &d) {
+        using complex_t = std::complex<T>;
+        dims_t dims = input.dims();
+        T dqx = T(2) * T(M_PI) / static_cast<T>(dims.n3);
+        T dqy = T(2) * T(M_PI) / static_cast<T>(dims.n2);
+        for (size_t i = 0; i < dims.n1; ++i) {
+            T dx = d[i][0];
+            T dy = d[i][1];
+            for (size_t j = 0; j < dims.n2; ++j) {
+                for (size_t k = 0; k < dims.n3; ++k) {
+                    T qx = (k + T(0.5)) * dqx - T(M_PI);
+                    T qy = (j + T(0.5)) * dqy - T(M_PI);
+                    complex_t shift = std::exp(-complex_t(0, qx * dx + qy * dy));
+                    input[{i, j, k}] *= shift;
+                }
+            }
+        }
+    }
 
     template <typename T>
     Array<std::complex<T>> fft2(const Array<std::complex<T>> &input) {

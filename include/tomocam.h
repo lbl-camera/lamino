@@ -47,13 +47,11 @@ namespace tomocam {
      */
     template <typename T>
     std::array<Array<T>, 3>
-    MBIR(const std::vector<std::tuple<Array<T>, std::vector<T>, T>> &datasets,
-         const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<T>> &datasets, const ReconParams &params);
 
     template <typename T>
     std::array<Array<T>, 3>
-    MBIR2(const std::vector<std::tuple<Array<T>, std::vector<T>, T>> &datasets,
-          const ReconParams &params);
+    MBIR2(const std::vector<Dataset_t<T>> &datasets, const ReconParams &params);
 
 } // namespace tomocam
 

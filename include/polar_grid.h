@@ -31,6 +31,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "rotation.h"
 
 namespace tomocam {
 
@@ -39,6 +40,7 @@ namespace tomocam {
         size_t npts;
         std::vector<T> theta;
         std::vector<T> gammas;
+        std::vector<T> betas;
         Array<T> x;
         Array<T> y;
         Array<T> z;
@@ -46,22 +48,19 @@ namespace tomocam {
         // default constructor
         PolarGrid() : npts(0) {}
 
-        // constructor — single gamma for all angles
+        // constructor — single gamma and beta for all angles
         PolarGrid(const std::vector<T> &angles, size_t nrows, size_t ncols,
-                  T gamma) {
+                  T gamma, T beta = T(0)) {
 
             theta = angles;
             gammas = std::vector<T>(angles.size(), gamma);
+            betas  = std::vector<T>(angles.size(), beta);
             dims_t dims = dims_t{theta.size(), nrows, ncols};
             npts = dims.n1 * dims.n2 * dims.n3;
             x = Array<T>(dims);
             y = Array<T>(dims);
             z = Array<T>(dims);
-            // rotation matrix
-            T cos_gamma = std::cos(gamma);
-            T sin_gamma = std::sin(gamma);
 
-            // compute grid points
             T L = 2 * M_PI;
             T dX = L / static_cast<T>(ncols);
             T dY = L / static_cast<T>(nrows);
@@ -81,24 +80,25 @@ namespace tomocam {
                         T qX = (k + 0.5) * dX - L_half;
                         T qY = (j + 0.5) * dY - L_half;
 
-                        // apply rotations
-                        x[{i, j, k}] =
-                            qX * cos_gamma - qY * sin_gamma * std::cos(theta[i]);
-                        y[{i, j, k}] =
-                            qX * sin_gamma + qY * cos_gamma * std::cos(theta[i]);
-                        z[{i, j, k}] = qY * std::sin(theta[i]);
+                        auto R = RotationTranspose(theta[i], gamma, beta);
+                        auto q = matvec(R, {qX, qY, T(0)});
+                        x[{i, j, k}] = q[0];
+                        y[{i, j, k}] = q[1];
+                        z[{i, j, k}] = q[2];
                     }
                 }
             }
         }
 
-        // constructor — one gamma per dataset, concatenates all non-uniform points
-        PolarGrid(const std::vector<std::pair<std::vector<T>, T>> &angle_gamma_pairs,
-                  size_t nrows, size_t ncols) {
+        // constructor — one (gamma, beta) per dataset, concatenates all non-uniform points
+        PolarGrid(
+            const std::vector<std::tuple<std::vector<T>, T, T>> &angle_gamma_beta,
+            size_t nrows, size_t ncols) {
 
-            for (auto &[angles, gamma] : angle_gamma_pairs) {
+            for (auto &[angles, gamma, beta] : angle_gamma_beta) {
                 theta.insert(theta.end(), angles.begin(), angles.end());
                 gammas.insert(gammas.end(), angles.size(), gamma);
+                betas.insert(betas.end(), angles.size(), beta);
             }
 
             dims_t dims = dims_t{theta.size(), nrows, ncols};
@@ -118,11 +118,11 @@ namespace tomocam {
                     for (size_t k = 0; k < dims.n3; ++k) {
                         T qX = (k + 0.5) * dX - L_half;
                         T qY = (j + 0.5) * dY - L_half;
-                        T cg = std::cos(gammas[i]);
-                        T sg = std::sin(gammas[i]);
-                        x[{i, j, k}] = qX * cg - qY * sg * std::cos(theta[i]);
-                        y[{i, j, k}] = qX * sg + qY * cg * std::cos(theta[i]);
-                        z[{i, j, k}] = qY * std::sin(theta[i]);
+                        auto R = RotationTranspose(theta[i], gammas[i], betas[i]);
+                        auto q = matvec(R, {qX, qY, T(0)});
+                        x[{i, j, k}] = q[0];
+                        y[{i, j, k}] = q[1];
+                        z[{i, j, k}] = q[2];
                     }
                 }
             }
@@ -135,14 +135,15 @@ namespace tomocam {
         // move constructor and assignment
         PolarGrid(PolarGrid<T> &&other) noexcept
             : npts(other.npts), theta(std::move(other.theta)),
-              gammas(std::move(other.gammas)), x(std::move(other.x)),
-              y(std::move(other.y)), z(std::move(other.z)) {}
+              gammas(std::move(other.gammas)), betas(std::move(other.betas)),
+              x(std::move(other.x)), y(std::move(other.y)), z(std::move(other.z)) {}
 
         PolarGrid<T> &operator=(PolarGrid<T> &&other) noexcept {
             if (this != &other) {
                 npts = other.npts;
                 theta = std::move(other.theta);
                 gammas = std::move(other.gammas);
+                betas = std::move(other.betas);
                 x = std::move(other.x);
                 y = std::move(other.y);
                 z = std::move(other.z);
@@ -155,6 +156,7 @@ namespace tomocam {
             out.npts = this->npts;
             out.theta = this->theta;
             out.gammas = this->gammas;
+            out.betas = this->betas;
             out.x = this->x.clone();
             out.y = this->y.clone();
             out.z = this->z.clone();
@@ -181,6 +183,9 @@ namespace tomocam {
 
         // get gamma value for a given projection index
         [[nodiscard]] T gamma(size_t i) const { return gammas[i]; }
+
+        // get beta value for a given projection index
+        [[nodiscard]] T beta(size_t i) const { return betas[i]; }
 
         // number of angles
         [[nodiscard]] size_t nprojs() const { return theta.size(); }

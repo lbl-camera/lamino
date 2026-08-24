@@ -54,10 +54,6 @@ namespace tomocam {
         }
     }
 
-    // Dataset type: (projections, angles, gamma)
-    template <typename T>
-    using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
-
     // Function to read angles from a text file
     template <typename T>
     inline std::vector<T> read_angles_file(const std::string &filepath) {
@@ -83,6 +79,25 @@ namespace tomocam {
         return angles;
     }
 
+    // Read per-projection COR shifts from a two-column text file (dx dy per line).
+    template <typename T>
+    inline std::vector<std::array<T, 2>>
+    read_shifts_file(const std::string &filepath) {
+        std::ifstream fp(filepath);
+        if (!fp.is_open()) {
+            throw std::runtime_error(
+                std::format("Could not open shifts file: {}", filepath));
+        }
+        std::vector<std::array<T, 2>> shifts;
+        T dx, dy;
+        while (fp >> dx >> dy) { shifts.push_back({dx, dy}); }
+        if (shifts.empty()) {
+            throw std::runtime_error(
+                std::format("No shifts found in file: {}", filepath));
+        }
+        return shifts;
+    }
+
     // Function to parse input datasets from TOML config
     template <typename T>
     [[nodiscard]] std::vector<Dataset_t<T>>
@@ -101,7 +116,6 @@ namespace tomocam {
                 throw std::runtime_error("Invalid [[input]] entry");
             }
 
-            //  check for required fields: filename, angles, gamma
             if (!input_table->contains("filename") ||
                 !input_table->contains("angles") ||
                 !input_table->contains("gamma")) {
@@ -112,7 +126,6 @@ namespace tomocam {
             if (!filename.has_value()) {
                 throw std::runtime_error("[[input]] 'filename' must be a string");
             }
-            // check if file exists
             if (!std::filesystem::exists(*filename)) {
                 throw std::runtime_error(
                     std::format("Projection file does not exist: {}", *filename));
@@ -121,7 +134,6 @@ namespace tomocam {
             if (!angles_file.has_value()) {
                 throw std::runtime_error("[[input]] 'angles' must be a string");
             }
-            // check if file exists
             if (!std::filesystem::exists(*angles_file)) {
                 throw std::runtime_error(
                     std::format("Angles file does not exist: {}", *angles_file));
@@ -131,12 +143,100 @@ namespace tomocam {
                 throw std::runtime_error("[[input]] 'gamma' field must be a number");
             }
 
+            // gamma: stored as positive radians (rotation of beam azimuth)
+            T gamma_rad = *gamma * T(M_PI) / T(180);
+            // beta: out-of-plane tilt, defaults to 0
+            T beta_rad = (*input_table)["beta"].value_or<T>(0) * T(M_PI) / T(180);
+
+            // COR shifts: 'shifts' file takes priority over 'cor-offset' scalar.
+            std::vector<std::array<T, 2>> per_proj_shifts;
+            if (input_table->contains("shifts")) {
+                auto shifts_path = (*input_table)["shifts"].value<std::string>();
+                if (!shifts_path.has_value())
+                    throw std::runtime_error(
+                        "[[input]] 'shifts' must be a string path");
+                if (!std::filesystem::exists(*shifts_path))
+                    throw std::runtime_error(std::format(
+                        "Shifts file does not exist: {}", *shifts_path));
+                per_proj_shifts = read_shifts_file<T>(*shifts_path);
+            } else if (input_table->contains("cor-offset")) {
+                auto offsets_array = (*input_table)["cor-offset"].as_array();
+                if (!offsets_array || offsets_array->size() != 2) {
+                    throw std::runtime_error(
+                        "[[input]] 'cor-offset' must be in form [dx, dy]");
+                }
+                std::array<T, 2> buf;
+                for (size_t i = 0; i < 2; ++i) {
+                    auto val = (*offsets_array)[i].value<T>();
+                    if (!val.has_value())
+                        throw std::runtime_error(
+                            "[[input]] 'cor-offset' must be an array of numbers");
+                    buf[i] = *val;
+                }
+                per_proj_shifts = {buf}; // sentinel: one element = broadcast
+            }
+
             auto projs = tomocam::tiff::read(*filename);
             projs = tomocam::mask_infs_nans(projs);
             auto angles = read_angles_file<T>(*angles_file);
-            auto gamma_rad = *gamma * M_PI / (T)180.0; // convert to radians
-            datasets.push_back(
-                std::make_tuple(std::move(projs), std::move(angles), gamma_rad));
+
+            // Broadcast scalar cor-offset to all projections now that N is known.
+            if (per_proj_shifts.size() == 1) {
+                per_proj_shifts.assign(angles.size(), per_proj_shifts[0]);
+            } else if (per_proj_shifts.empty()) {
+                per_proj_shifts.assign(angles.size(), std::array<T, 2>{T(0), T(0)});
+            } else if (per_proj_shifts.size() != angles.size()) {
+                throw std::runtime_error(std::format(
+                    "shifts file has {} entries but {} projections were loaded",
+                    per_proj_shifts.size(), angles.size()));
+            }
+
+            // Override angles, gamma, beta, and shifts from external alignment TOML.
+            if (input_table->contains("alignment")) {
+                auto align_path = (*input_table)["alignment"].value<std::string>();
+                if (!align_path.has_value())
+                    throw std::runtime_error(
+                        "[[input]] 'alignment' must be a string path");
+                if (!std::filesystem::exists(*align_path))
+                    throw std::runtime_error(std::format(
+                        "Alignment file does not exist: {}", *align_path));
+                auto align_tbl = read_toml_file(*align_path);
+
+                if (auto gv = align_tbl["gamma_deg"].value<T>())
+                    gamma_rad = *gv * T(M_PI) / T(180);
+                if (auto bv = align_tbl["beta_deg"].value<T>())
+                    beta_rad = *bv * T(M_PI) / T(180);
+
+                auto *ang_arr = align_tbl["corrected_angles_deg"].as_array();
+                if (!ang_arr)
+                    throw std::runtime_error(
+                        "Alignment TOML missing 'corrected_angles_deg'");
+                angles.clear();
+                for (auto &a : *ang_arr)
+                    angles.push_back(a.value<T>().value() * T(M_PI) / T(180));
+
+                auto *spx = align_tbl["shifts_px"].as_array();
+                if (spx) {
+                    per_proj_shifts.clear();
+                    for (auto &e : *spx) {
+                        auto *pair = e.as_array();
+                        if (!pair || pair->size() < 2)
+                            throw std::runtime_error(
+                                "Alignment TOML 'shifts_px' entries must be [dx, dy]");
+                        T dx = (*pair)[0].value<T>().value();
+                        T dy = (*pair)[1].value<T>().value();
+                        per_proj_shifts.push_back({dx, dy});
+                    }
+                    if (per_proj_shifts.size() != angles.size())
+                        throw std::runtime_error(std::format(
+                            "Alignment TOML: shifts_px has {} entries but "
+                            "corrected_angles_deg has {}",
+                            per_proj_shifts.size(), angles.size()));
+                }
+            }
+
+            datasets.push_back({std::move(projs), std::move(angles), gamma_rad,
+                                 beta_rad, std::move(per_proj_shifts)});
         }
         return datasets;
     }
@@ -281,11 +381,16 @@ namespace tomocam {
         outfile << "filename = \"/path/to/gamma0_stack.tiff\"\n";
         outfile << "angles = \"/path/to/gamma0_angles.txt\"\n";
         outfile << "gamma = 0\n";
+        outfile << "beta = 0        # optional: out-of-plane tilt in degrees\n";
+        outfile << "# cor-offset = [0.0, 0.0]  # optional: [dx, dy] COR shift in pixels\n";
+        outfile << "# shifts = \"/path/to/gamma0_shifts.txt\"  # optional: per-projection shifts\n";
+        outfile << "# alignment = \"/path/to/alignment.toml\"  # optional: override angles/shifts\n";
         outfile << "\n";
         outfile << "[[input]]\n";
         outfile << "filename = \"/path/to/gamma45_stack.tiff\"\n";
         outfile << "angles = \"/path/to/gamma45_angles.txt\"\n";
         outfile << "gamma = 45\n";
+        outfile << "beta = 0\n";
         outfile << "\n";
         outfile << "[output]\n";
         outfile << "filename = \"output.tiff\"\n";

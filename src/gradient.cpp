@@ -32,13 +32,11 @@
 namespace tomocam {
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
-                                   const PolarGrid<T> &grid, T gamma) {
+                                   const PolarGrid<T> &grid, T beta) {
         using complex_t = std::complex<T>;
 
-        // narmalization factor
         T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
 
-        // Step 1: Apply nufft3d2 to each component
         std::array<Array<complex_t>, 3> c_components;
         for (size_t i = 0; i < 3; ++i) {
             auto x_cmplx = array::to_complex(x[i]);
@@ -46,19 +44,13 @@ namespace tomocam {
             nufft::nufft3d2(c_components[i], x_cmplx, grid);
         }
 
-        // Step 2: Matrix multiplication with coeff.T * coeff
-        // For each projection angle, compute: result = coeff.T * coeff *
-        // c_components
         std::array<Array<complex_t>, 3> result_components;
         for (size_t i = 0; i < 3; ++i) {
             result_components[i] = Array<complex_t>::zeros(grid.dims());
         }
 
         for (size_t j = 0; j < grid.nprojs(); ++j) {
-            T alpha = grid.angle(j);
-
-            // Build coefficient vector for this projection angle
-            auto coeff = beam_dir_vector(gamma, alpha);
+            auto coeff = beam_dir_vector(grid.angle(j), beta);
 
             // Matrix multiplication: result = coeff.T * coeff * c_components
             // This is outer product of coeff with itself, applied to c_components
@@ -86,15 +78,14 @@ namespace tomocam {
         }
         return output;
     }
-    // Explicit instantiations
     template std::array<Array<float>, 3> sysmat(const std::array<Array<float>, 3> &x,
                                                 const PolarGrid<float> &grid,
-                                                float gamma);
+                                                float beta);
     template std::array<Array<double>, 3>
     sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid,
-           double gamma);
+           double beta);
 
-    // Overload: gamma read per-angle from grid.gamma(j)
+    // Overload: beta read per-angle from grid.beta(j)
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
                                    const PolarGrid<T> &grid) {
@@ -115,7 +106,7 @@ namespace tomocam {
         }
 
         for (size_t j = 0; j < grid.nprojs(); ++j) {
-            auto coeff = beam_dir_vector(grid.gamma(j), grid.angle(j));
+            auto coeff = beam_dir_vector(grid.angle(j), grid.beta(j));
 
             for (size_t i = 0; i < 3; ++i) {
                 auto result_slice = result_components[i].slice(j, j + 1);

@@ -44,61 +44,53 @@ namespace tomocam {
         // padding factor
         T padfac = static_cast<T>(params.PAD_FACTOR);
 
-        // adjust reconstruction dimensions
-        dims_t proj_dims = std::get<0>(datasets[0]).dims();
+        dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
         dims_t recon_dims = {output_dims.n1,
                              static_cast<size_t>(proj_dims.n2 * padfac),
                              static_cast<size_t>(proj_dims.n3 * padfac)};
 
-        // array for accumulated backprojections
         std::array<Array<T>, 3> yT;
         for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
 
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
-        std::vector<T> gammas(n_datasets);
+        std::vector<T> betas(n_datasets);
 
         T proj_max = 0.0;
-        for (const auto &[proj, angles, gamma_ref] : datasets) {
-            proj_max = std::max(proj_max, array::max(proj));
+        for (const auto &ds : datasets) {
+            proj_max = std::max(proj_max, array::max(ds.projs));
         }
 
         for (size_t j = 0; j < n_datasets; ++j) {
-            auto &[proj, angles, gamma_ref] = datasets[j];
-            gammas[j] = gamma_ref;
+            const auto &ds = datasets[j];
+            betas[j] = ds.beta;
 
-            // scale projections
-            auto y = proj / proj_max;
+            auto y = ds.projs / proj_max;
             y = pad2d(y, padfac, PadType::SYMMETRIC);
 
-            // setup polar grid
             size_t nrows = y.nrows();
             size_t ncols = y.ncols();
             polar_grids[j] =
-                std::move(PolarGrid<T>(angles, nrows, ncols, gammas[j]));
+                std::move(PolarGrid<T>(ds.angles, nrows, ncols, ds.gamma, ds.beta));
 
-            // backproject and accumulate yT
-            auto yTmp = adjoint(y, polar_grids[j], recon_dims, gammas[j]);
+            auto yTmp = adjoint(y, polar_grids[j], recon_dims, ds.beta, ds.shifts);
             for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
 
-        // HACK: zero yT outside the original (non-padded) support region
         {
             auto supp_mask = mask_support<T>(recon_dims, output_dims);
             for (size_t i = 0; i < 3; ++i) { yT[i] *= supp_mask; }
         }
 
-        // initial guess
         std::array<Array<T>, 3> x0;
         for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
 
-        // setup linear operator
         opt::Function<T> A = [&polar_grids,
-                              &gammas](const std::array<Array<T>, 3> &m) {
-            std::array<Array<T>, 3> Ax = sysmat(m, polar_grids[0], gammas[0]);
+                              &betas](const std::array<Array<T>, 3> &m) {
+            std::array<Array<T>, 3> Ax = sysmat(m, polar_grids[0], betas[0]);
             for (size_t i = 1; i < polar_grids.size(); ++i) {
-                auto tmp = sysmat(m, polar_grids[i], gammas[i]);
+                auto tmp = sysmat(m, polar_grids[i], betas[i]);
                 for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
             }
             return Ax;
@@ -140,30 +132,29 @@ namespace tomocam {
 
         T padfac = static_cast<T>(params.PAD_FACTOR);
 
-        dims_t proj_dims = std::get<0>(datasets[0]).dims();
+        dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
         dims_t recon_dims = {output_dims.n1,
                              static_cast<size_t>(proj_dims.n2 * padfac),
                              static_cast<size_t>(proj_dims.n3 * padfac)};
 
         T proj_max = 0.0;
-        for (const auto &[proj, angles, gamma] : datasets) {
-            proj_max = std::max(proj_max, array::max(proj));
+        for (const auto &ds : datasets) {
+            proj_max = std::max(proj_max, array::max(ds.projs));
         }
 
-        // Pad all projections and stack along the angle axis
-        std::vector<std::pair<std::vector<T>, T>> angle_gamma_pairs;
+        std::vector<std::tuple<std::vector<T>, T, T>> angle_gamma_beta;
         size_t total_nangles = 0;
         size_t nrows = 0, ncols = 0;
 
         std::vector<Array<T>> padded;
-        for (const auto &[proj, angles, gamma] : datasets) {
-            auto y = pad2d(proj / proj_max, padfac, PadType::SYMMETRIC);
+        for (const auto &ds : datasets) {
+            auto y = pad2d(ds.projs / proj_max, padfac, PadType::SYMMETRIC);
             assert(nrows == 0 || (y.nrows() == nrows && y.ncols() == ncols));
             nrows = y.nrows();
             ncols = y.ncols();
-            angle_gamma_pairs.push_back({angles, gamma});
-            total_nangles += angles.size();
+            angle_gamma_beta.push_back({ds.angles, ds.gamma, ds.beta});
+            total_nangles += ds.angles.size();
             padded.push_back(std::move(y));
         }
 
@@ -177,8 +168,7 @@ namespace tomocam {
             offset += n;
         }
 
-        // Unified PolarGrid over all datasets
-        PolarGrid<T> pg(angle_gamma_pairs, nrows, ncols);
+        PolarGrid<T> pg(angle_gamma_beta, nrows, ncols);
 
         // Backproject once with the unified grid
         auto yT = adjoint(y_stacked, pg, recon_dims);

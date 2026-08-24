@@ -37,8 +37,11 @@ int main(int argc, char **argv) {
     // print input parameters
     params.print(std::cerr);
 
-    auto &[proj, angles, gamma_ref] = datasets[0];
-    float gamma = gamma_ref;
+    auto &ds = datasets[0];
+    auto &proj = ds.projs;
+    auto &angles = ds.angles;
+    float gamma = ds.gamma;
+    float beta  = ds.beta;
 
     // record start time
     // record unpadded projection spatial dimensions
@@ -66,7 +69,7 @@ int main(int argc, char **argv) {
     t0.start();
     size_t nrows = padded(proj_nrows);
     size_t ncols = padded(proj_ncols);
-    tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma);
+    tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma, beta);
     t0.stop();
     std::cerr << "Time to build polar grid: " << t0.seconds() << "(s)\n";
     std::cerr << "Polar grid dimensions: [" << grid.dims().n1 << ", "
@@ -76,7 +79,7 @@ int main(int argc, char **argv) {
 
     // run adjoint projection
     t0.start();
-    auto m_data = tomocam::adjoint(proj, grid, recon_dims, gamma);
+    auto m_data = tomocam::adjoint(proj, grid, recon_dims, beta, ds.shifts);
     t0.stop();
     std::cerr << "Time to run adjoint: " << t0.seconds() << "(s)\n";
 

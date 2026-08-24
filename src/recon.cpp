@@ -60,13 +60,7 @@ int main(int argc, char **argv) {
 #ifdef USE_CUDA
     auto recon = tomocam::gpu::MBIR<float>(float_datasets, params);
 #else
-    std::vector<tomocam::Dataset_t<float>> datasets;
-    for (auto &[projs, angles, gamma] : float_datasets) {
-        std::vector<float> angles_d(angles.begin(), angles.end());
-        datasets.emplace_back(std::move(projs), std::move(angles),
-                              static_cast<float>(gamma));
-    }
-    auto recon = tomocam::MBIR<float>(datasets, params);
+    auto recon = tomocam::MBIR<float>(float_datasets, params);
 #endif
     t0.stop();
     double elapsed = t0.seconds();
