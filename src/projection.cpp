@@ -58,7 +58,7 @@ namespace tomocam {
 
             for (size_t j = 0; j < pg.nprojs(); ++j) {
                 auto slice = c_cmplx.slice(j, j + 1);
-                T coeff = beam_dir_vector(pg.angle(j), beta)[i];
+                T coeff = beam_dir_vector(pg.angle(j), pg.gamma(j), beta)[i];
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
@@ -99,7 +99,7 @@ namespace tomocam {
             auto c_cmplx_copy = c_cmplx.clone();
 
             for (size_t j = 0; j < pg.nprojs(); ++j) {
-                T coeff = beam_dir_vector(pg.angle(j), beta)[i];
+                T coeff = beam_dir_vector(pg.angle(j), pg.gamma(j), beta)[i];
                 auto slice = c_cmplx_copy.slice(j, j + 1);
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
@@ -140,7 +140,7 @@ namespace tomocam {
             auto c_cmplx_copy = c_cmplx.clone();
 
             for (size_t j = 0; j < pg.nprojs(); ++j) {
-                T coeff = beam_dir_vector(pg.angle(j), pg.beta(j))[i];
+                T coeff = beam_dir_vector(pg.angle(j), pg.gamma(j), pg.beta(j))[i];
                 auto slice = c_cmplx_copy.slice(j, j + 1);
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });

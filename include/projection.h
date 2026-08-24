@@ -32,13 +32,17 @@
 
 namespace tomocam {
 
-    // Third row of RotationTranspose(theta, gamma, beta) = R^T[2].
-    // R = Rx(theta)*Ry(beta)*Rz(gamma); gamma does not appear in this row.
+    // Third column of RotationTranspose(theta, gamma, beta) = R^T * (0,0,1).
+    // R = Rx(theta)*Ry(beta)*Rz(gamma).
     template <typename T>
-    inline std::array<T, 3> beam_dir_vector(T theta, T beta) {
-        return {std::sin(beta),
-                -std::sin(theta) * std::cos(beta),
-                 std::cos(theta) * std::cos(beta)};
+    inline std::array<T, 3> beam_dir_vector(T theta, T gamma, T beta) {
+        using std::sin; using std::cos;
+        const T st = sin(theta), ct = cos(theta);
+        const T sb = sin(beta),  cb = cos(beta);
+        const T sg = sin(gamma), cg = cos(gamma);
+        return {st * sg - ct * sb * cg,
+                st * cg + ct * sb * sg,
+                ct * cb};
     }
 
     /**

@@ -50,7 +50,7 @@ namespace tomocam {
         }
 
         for (size_t j = 0; j < grid.nprojs(); ++j) {
-            auto coeff = beam_dir_vector(grid.angle(j), beta);
+            auto coeff = beam_dir_vector(grid.angle(j), grid.gamma(j), beta);
 
             // Matrix multiplication: result = coeff.T * coeff * c_components
             // This is outer product of coeff with itself, applied to c_components
@@ -106,7 +106,7 @@ namespace tomocam {
         }
 
         for (size_t j = 0; j < grid.nprojs(); ++j) {
-            auto coeff = beam_dir_vector(grid.angle(j), grid.beta(j));
+            auto coeff = beam_dir_vector(grid.angle(j), grid.gamma(j), grid.beta(j));
 
             for (size_t i = 0; i < 3; ++i) {
                 auto result_slice = result_components[i].slice(j, j + 1);
