@@ -40,7 +40,10 @@ namespace tomocam::gpu {
         T dX = 2 * PI / (T)dims.n3;
         T dY = 2 * PI / (T)dims.n2;
         if (idx < dims) {
-            // qX, qY frequency coordinates in the plane of the detector
+            // Offset 0.5 gives qX[N-1-k] = -qX[k] for ODD N, ensuring
+            // Hermitian-symmetric NUFFT output for real inputs.
+            // Even N is not supported: FINUFFT's asymmetric mode range
+            // [-N/2, N/2-1] breaks Hermitian symmetry at the Nyquist.
             T qX = (idx.z + 0.5) * dX - PI;
             T qY = (idx.y + 0.5) * dY - PI;
             // qZ frequency coordinate along the beam direction

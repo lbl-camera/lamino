@@ -19,8 +19,10 @@
  */
 
 #include <array>
+#include <chrono>
 #include <execution>
 #include <format>
+#include <fstream>
 #include <functional>
 #include <iostream>
 
@@ -49,6 +51,18 @@ namespace tomocam::opt {
             for (size_t i = 0; i < 3; i++) { v[i] *= sup_mask; }
         };
 
+        // project x0 onto support subspace once so every iterate stays in it
+        apply_support(x);
+
+        T y_norm = std::sqrt(dot(y, y)) + (T)1e-10;
+
+        // log filename with timestamp
+        std::string ts =
+            std::format("{:%Y%m%d_%H%M%S}", std::chrono::system_clock::now());
+        std::string log_filename = "cg_convergence_" + ts + ".log";
+        std::ofstream logfile(log_filename);
+        if (logfile.is_open()) logfile << "iter,residual,dx\n";
+
         // compute initial residual
         VecArray<T> r = y - A(x);
         VecArray<T> z = precond_apply(r);
@@ -57,11 +71,9 @@ namespace tomocam::opt {
 
         for (size_t iter = 0; iter < max_iter; iter++) {
 
-            // compute Ap
             VecArray<T> Ap = A(p);
-            T pAp = 0;
-            for (size_t i = 0; i < 3; i++) { pAp += array::dot(p[i], Ap[i]); }
-            if (std::abs(pAp) < 1.e-10) {
+            T pAp = dot(p, Ap);
+            if (std::abs(pAp) < 2.e-10) {
                 std::cerr << "pAp is close to zero\n";
                 break;
             }
@@ -76,24 +88,28 @@ namespace tomocam::opt {
                 x[i] += p[i] * alpha;
                 r[i] -= Ap[i] * alpha;
             }
-            // apply support mask to x
-            apply_support(x);
+            // apply_support(x);
 
             // apply preconditioner
             z = precond_apply(r);
             T rs_new = dot(z, r);
 
             // update p
-            for (size_t i = 0; i < 3; i++) {
-                p[i] = z[i] + p[i] * (rs_new / rs_old);
+            if (std::abs(rs_old) < 2.e-10) {
+                std::cerr << "rs_old near zero, CG stagnated\n";
+                break;
             }
+            T beta = rs_new / rs_old;
+            for (size_t i = 0; i < 3; i++) { p[i] = z[i] + p[i] * beta; }
             rs_old = rs_new;
 
-            T res = dot(r, r);
+            T res = std::sqrt(dot(r, r)) / y_norm;
             std::cout << std::format(
-                "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter,
-                std::sqrt(res), dx);
-            if (std::sqrt(res) < tol || dx < xtol) { break; }
+                "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter + 1, res,
+                dx);
+            if (logfile.is_open())
+                logfile << std::format("{},{:.6e},{:.6e}\n", iter + 1, res, dx);
+            if (res < tol || dx < xtol) { break; }
         }
         return x;
     }

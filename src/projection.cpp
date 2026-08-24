@@ -94,7 +94,7 @@ namespace tomocam {
 
         // cast to complex
         auto c_cmplx = array::to_complex(proj);
-        // T scale = static_cast<T>(proj.nrows() * proj.ncols());
+        T scale = static_cast<T>(proj.nrows() * proj.ncols());
 
         // 2-D Fourier transforms
         c_cmplx = fft::fftshift2(c_cmplx);
@@ -119,7 +119,7 @@ namespace tomocam {
             // apply NUFFT for this component
             Array<complex_t> m_cmplx(recon_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = std::move(array::to_real<T>(m_cmplx));
+            m_components[i] = array::to_real<T>(m_cmplx) / scale;
         }
 
         return m_components;
@@ -132,5 +132,44 @@ namespace tomocam {
     template std::array<Array<double>, 3>
     adjoint<double>(const Array<double> &proj, const PolarGrid<double> &pg,
                     const dims_t &recon_dims, double gamma);
+
+    // Overload: gamma read per-angle from pg.gamma(j)
+    template <typename T>
+    std::array<Array<T>, 3> adjoint(const Array<T> &proj, const PolarGrid<T> &pg,
+                                    const dims_t &recon_dims) {
+
+        auto c_cmplx = array::to_complex(proj);
+        T scale = static_cast<T>(proj.nrows() * proj.ncols());
+
+        c_cmplx = fft::fftshift2(c_cmplx);
+        c_cmplx = fft::fft2(c_cmplx);
+        c_cmplx = fft::ifftshift2(c_cmplx);
+
+        std::array<Array<T>, 3> m_components;
+        using complex_t = std::complex<T>;
+
+        for (size_t i = 0; i < 3; ++i) {
+            auto c_cmplx_copy = c_cmplx.clone();
+
+            for (size_t j = 0; j < pg.nprojs(); ++j) {
+                T coeff = beam_dir_vector(pg.gamma(j), pg.angle(j))[i];
+                auto slice = c_cmplx_copy.slice(j, j + 1);
+                std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
+                              [coeff](complex_t &val) { val *= coeff; });
+            }
+
+            Array<complex_t> m_cmplx(recon_dims);
+            nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
+            m_components[i] = array::to_real<T>(m_cmplx) / scale;
+        }
+
+        return m_components;
+    }
+    template std::array<Array<float>, 3> adjoint<float>(const Array<float> &proj,
+                                                        const PolarGrid<float> &pg,
+                                                        const dims_t &recon_dims);
+    template std::array<Array<double>, 3>
+    adjoint<double>(const Array<double> &proj, const PolarGrid<double> &pg,
+                    const dims_t &recon_dims);
 
 } // namespace tomocam

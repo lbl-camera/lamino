@@ -81,7 +81,7 @@ namespace tomocam::gpu {
 
         // declare output array
         VecArray<T> m;
-        //T scale = static_cast<T>(proj.nrows() * proj.ncols());
+        T scale = static_cast<T>(proj.nrows() * proj.ncols());
 
         // cast to complex
         auto C = array::to_complex(proj);
@@ -96,8 +96,7 @@ namespace tomocam::gpu {
             gpu::project_component(ccmplx, pg, gamma, i);
             DeviceArray<complex<T>> fcmplx(recon_dims);
             nufft::nufft3d1(ccmplx, fcmplx, pg);
-            // scale store in m
-            m[i] = array::to_real(fcmplx);
+            m[i] = array::to_real(fcmplx) / scale;
         }
         return m;
     }

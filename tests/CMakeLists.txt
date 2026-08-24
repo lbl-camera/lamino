@@ -12,14 +12,17 @@ target_link_libraries(test_fft_r2c PUBLIC tomocam)
 add_executable(test_transpose test_transpose.cpp)
 target_link_libraries(test_transpose PUBLIC tomocam)
 
-add_executable(test_demag test_demag.cpp)
-target_link_libraries(test_demag PUBLIC tomocam)
-
 add_executable(test_fftshift test_fftshift.cpp)
 target_link_libraries(test_fftshift PUBLIC tomocam)
 
 #add_executable(test_masking test_masking.cpp)
 #target_link_libraries(test_masking PUBLIC tomocam)
+
+add_executable(test_grad test_grad.cpp)
+target_link_libraries(test_grad PUBLIC tomocam)
+
+add_executable(test_adjoint test_adjoint.cpp)
+target_link_libraries(test_adjoint PUBLIC tomocam)
 
 if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_conjgrad test_gpu_conjgrad.cu)

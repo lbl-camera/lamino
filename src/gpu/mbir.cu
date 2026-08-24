@@ -35,6 +35,7 @@
 #include "gpu/polar_grid.h"
 #include "gpu/projection.h"
 #include "gpu/vec_array.h"
+#include "mask.h"
 
 namespace tomocam::gpu {
     template <typename T>
@@ -49,94 +50,97 @@ namespace tomocam::gpu {
             proj_max = std::max(proj_max, tomocam::array::max(projs));
         }
 
+        T padfac = static_cast<T>(params.PAD_FACTOR);
+
         // get recon dimensions from the params
         dims_t recon_dims = params.recon_dims;
 
-        // extend recon dimenstion by PAD_FACTOR
-        T padding = static_cast<T>(params.PAD_FACTOR) - (T)1.0;
-        dims_t out_dims = params.recon_dims;
-        size_t n1_pad = 2 * (static_cast<size_t>(recon_dims.n1 * padding) / 2);
-        out_dims.n1 += n1_pad;
-        size_t n2_pad = 2 * (static_cast<size_t>(recon_dims.n2 * padding) / 2);
-        out_dims.n2 += n2_pad;
-        size_t n3_pad = 2 * (static_cast<size_t>(recon_dims.n3 * padding) / 2);
-        out_dims.n3 += n3_pad;
+        // extend recon dimensions to match padded projection size
+        dims_t proj_dims = std::get<0>(datasets[0]).dims();
+        dims_t out_dims = {recon_dims.n1, static_cast<size_t>(proj_dims.n2 * padfac),
+                           static_cast<size_t>(proj_dims.n3 * padfac)};
 
-        // setup the linear system for all datasets
-        size_t n_datasets = datasets.size();
-        std::vector<PolarGrid<T>> polar_grids(n_datasets);
-        std::vector<T> gammas(n_datasets, (T)0);
-        VecArray<T> yT{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
-                       DeviceArray<T>(out_dims)};
-
-        for (size_t i = 0; i < n_datasets; ++i) {
-            auto &[projs, angles, gamma_ref] = datasets[i];
-            auto gamma = gamma_ref;
-            gammas[i] = gamma;
-
-            // move data to device and normalize
-            DeviceArray<T> y(projs);
-            y /= proj_max;
-
-            // zero-pad projections by sqrt(2) to avoid aliasing
-            float padding = static_cast<T>(params.PAD_FACTOR);
-            y = pad2d(y, padding, PadType::SYMMETRIC);
-
-            // setup polar grid
-            size_t nrows = y.nrows();
-            size_t ncols = y.ncols();
-            polar_grids[i] = std::move(PolarGrid<T>(angles, gamma, nrows, ncols));
-
-            // backproject y to get A^T y for optimization
-            auto yTmp = adjoint(y, polar_grids[i], out_dims, gamma);
-            for (size_t j = 0; j < 3; ++j) { yT[j] += yTmp[j]; }
-        }
-
-        // setup the linear operator for all datasets
-        opt::gpuFunction<T> A = [&polar_grids, &gammas](const gpu::VecArray<T> &x) {
-            auto Ax = sysmat<T>(x, polar_grids[0], gammas[0]);
-            for (size_t i = 1; i < gammas.size(); ++i) {
-                auto tmp = sysmat<T>(x, polar_grids[i], gammas[i]);
-                for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
-            }
-            return Ax;
-        };
-
-        // initialize solution with zeros
-        VecArray<T> x0{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
-                       DeviceArray<T>(out_dims)};
-
-        VecArray<T> recon;
-        switch (params.regularizer) {
-            case Regularizer::UNCONSTRAINED: {
-                std::cout
-                    << "Starting unconstrained reconstruction with CG on GPU ...\n";
-                recon = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                         params.xtol, out_dims);
-                break;
-            }
-            case Regularizer::SPLIT_BREGMAN: {
-                std::cout << "Starting MBIR with Split-Bregman method on GPU ...\n";
-                recon = opt::split_bregman<T>(A, yT, x0, params.lambda, params.mu,
-                                              params.maxIters, params.innerIters,
-                                              params.tol, params.xtol, out_dims);
-
-                break;
-            }
-            default: throw std::invalid_argument("Unsupported optimizer type");
-        }
-        // crop to original dimensions
-        for (size_t i = 0; i < 3; ++i) {
-            recon[i] = crop3d(recon[i], recon_dims, PadType::SYMMETRIC);
-        }
-
-        // move data back to host
+        // move data back to host after all GPU work is done; declared outside the
+        // device scope so it survives past cudaDeviceReset()
         std::array<Array<T>, 3> recon_host;
-        for (size_t i = 0; i < 3; ++i) { recon_host[i] = recon[i].to_host(); }
+        {
+            // setup the linear system for all datasets
+            size_t n_datasets = datasets.size();
+            std::vector<PolarGrid<T>> polar_grids(n_datasets);
+            std::vector<T> gammas(n_datasets, (T)0);
+            VecArray<T> yT{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
+                           DeviceArray<T>(out_dims)};
 
-        // cleanup nufft plans cache
-        tomocam::gpu::nufft::plans::cache<float>.clear();
-        tomocam::gpu::fft::plans::cache<float>.clear();
+            for (size_t i = 0; i < n_datasets; ++i) {
+                auto &[projs, angles, gamma_ref] = datasets[i];
+                auto gamma = gamma_ref;
+                gammas[i] = gamma;
+
+                // move data to device and normalize
+                DeviceArray<T> y(projs);
+                y /= proj_max;
+
+                // zero-pad projections by sqrt(2) to avoid aliasing
+                y = pad2d(y, padfac, PadType::SYMMETRIC);
+
+                // setup polar grid
+                size_t nrows = y.nrows();
+                size_t ncols = y.ncols();
+                polar_grids[i] =
+                    std::move(PolarGrid<T>(angles, gamma, nrows, ncols));
+
+                // backproject y to get A^T y for optimization
+                auto yTmp = adjoint(y, polar_grids[i], out_dims, gamma);
+                for (size_t j = 0; j < 3; ++j) { yT[j] += yTmp[j]; }
+            }
+
+            // setup the linear operator for all datasets
+            opt::gpuFunction<T> A = [&polar_grids,
+                                     &gammas](const gpu::VecArray<T> &x) {
+                auto Ax = sysmat<T>(x, polar_grids[0], gammas[0]);
+                for (size_t i = 1; i < gammas.size(); ++i) {
+                    auto tmp = sysmat<T>(x, polar_grids[i], gammas[i]);
+                    for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
+                }
+                return Ax;
+            };
+
+            // initialize solution with backprojection of yT
+            VecArray<T> x0{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
+                           DeviceArray<T>(out_dims)};
+
+            VecArray<T> recon;
+            switch (params.regularizer) {
+                case Regularizer::UNCONSTRAINED: {
+                    std::cout << "Starting unconstrained reconstruction with CG on "
+                                 "GPU ...\n";
+                    recon = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
+                                             params.xtol, out_dims);
+                    break;
+                }
+                case Regularizer::SPLIT_BREGMAN: {
+                    std::cout
+                        << "Starting MBIR with Split-Bregman method on GPU ...\n";
+                    recon = opt::split_bregman<T>(
+                        A, yT, x0, params.lambda, params.mu, params.maxIters,
+                        params.innerIters, params.tol, params.xtol, out_dims);
+
+                    break;
+                }
+                default: throw std::invalid_argument("Unsupported optimizer type");
+            }
+            // crop to original dimensions
+            for (size_t i = 0; i < 3; ++i) {
+                recon[i] = crop3d(recon[i], recon_dims, PadType::SYMMETRIC);
+            }
+
+            for (size_t i = 0; i < 3; ++i) { recon_host[i] = recon[i].to_host(); }
+
+            // cleanup plan caches; all device objects destroyed at end of this block
+            // before cudaDeviceReset() is called below
+            tomocam::gpu::nufft::plans::cache<float>.clear();
+            tomocam::gpu::fft::plans::cache<float>.clear();
+        }
         cudaDeviceReset();
 
         return recon_host;

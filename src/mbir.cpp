@@ -19,6 +19,7 @@
  */
 #include <array>
 #include <cassert>
+#include <execution>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -27,6 +28,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "mask.h"
 #include "optimize.h"
 #include "padding.h"
 #include "polar_grid.h"
@@ -81,9 +83,15 @@ namespace tomocam {
             for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
 
+        // HACK: zero yT outside the original (non-padded) support region
+        {
+            auto supp_mask = mask_support<T>(recon_dims, output_dims);
+            for (size_t i = 0; i < 3; ++i) { yT[i] *= supp_mask; }
+        }
+
         // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = Array<T>::zeros(recon_dims); }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
 
         // setup linear operator
         opt::Function<T> A = [&polar_grids,
@@ -125,5 +133,96 @@ namespace tomocam {
     MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
     template std::array<Array<double>, 3>
     MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
+
+    template <typename T>
+    std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
+                                   const ReconParams &params) {
+
+        T padfac = static_cast<T>(params.PAD_FACTOR);
+
+        dims_t proj_dims = std::get<0>(datasets[0]).dims();
+        dims_t output_dims = params.recon_dims;
+        dims_t recon_dims = {output_dims.n1,
+                             static_cast<size_t>(proj_dims.n2 * padfac),
+                             static_cast<size_t>(proj_dims.n3 * padfac)};
+
+        T proj_max = 0.0;
+        for (const auto &[proj, angles, gamma] : datasets) {
+            proj_max = std::max(proj_max, array::max(proj));
+        }
+
+        // Pad all projections and stack along the angle axis
+        std::vector<std::pair<std::vector<T>, T>> angle_gamma_pairs;
+        size_t total_nangles = 0;
+        size_t nrows = 0, ncols = 0;
+
+        std::vector<Array<T>> padded;
+        for (const auto &[proj, angles, gamma] : datasets) {
+            auto y = pad2d(proj / proj_max, padfac, PadType::SYMMETRIC);
+            assert(nrows == 0 || (y.nrows() == nrows && y.ncols() == ncols));
+            nrows = y.nrows();
+            ncols = y.ncols();
+            angle_gamma_pairs.push_back({angles, gamma});
+            total_nangles += angles.size();
+            padded.push_back(std::move(y));
+        }
+
+        Array<T> y_stacked(dims_t{total_nangles, nrows, ncols});
+        size_t offset = 0;
+        for (size_t j = 0; j < padded.size(); ++j) {
+            size_t n = padded[j].nslices();
+            auto src = padded[j].slice(0, n);
+            auto dst = y_stacked.slice(offset, offset + n);
+            std::copy(std::execution::par_unseq, src.begin(), src.end(), dst.begin());
+            offset += n;
+        }
+
+        // Unified PolarGrid over all datasets
+        PolarGrid<T> pg(angle_gamma_pairs, nrows, ncols);
+
+        // Backproject once with the unified grid
+        auto yT = adjoint(y_stacked, pg, recon_dims);
+
+        // Zero yT outside the original (non-padded) support region
+        {
+            auto supp_mask = mask_support<T>(recon_dims, output_dims);
+            for (size_t i = 0; i < 3; ++i) { yT[i] *= supp_mask; }
+        }
+
+        // Initial guess
+        std::array<Array<T>, 3> x0;
+        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
+
+        // System matrix: one call to the per-angle-gamma overload
+        opt::Function<T> A = [&pg](const std::array<Array<T>, 3> &m) {
+            return sysmat(m, pg);
+        };
+
+        std::array<Array<T>, 3> recon_m;
+        switch (params.regularizer) {
+            case Regularizer::SPLIT_BREGMAN:
+                recon_m = opt::split_bregman<T>(
+                    A, yT, x0, params.lambda, params.mu, params.maxIters,
+                    params.innerIters, params.tol, params.xtol, output_dims);
+                break;
+            case Regularizer::UNCONSTRAINED:
+                recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
+                                           params.xtol, output_dims);
+                break;
+            default: throw std::invalid_argument("Unsupported regularizer");
+        }
+
+        std::array<Array<T>, 3> recon_magnetisation;
+        for (size_t i = 0; i < 3; ++i) {
+            recon_magnetisation[i] =
+                crop3d(recon_m[i], output_dims, PadType::SYMMETRIC);
+        }
+        return recon_magnetisation;
+    }
+
+    template std::array<Array<float>, 3>
+    MBIR2(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
+    template std::array<Array<double>, 3>
+    MBIR2(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
 
 } // namespace tomocam

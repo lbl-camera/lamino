@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 
     // read parameters from toml file
     auto config = tomocam::read_toml_file(argv[1]);
-    auto datasets = tomocam::parse_input_datasets<float>(config);
+    auto float_datasets = tomocam::parse_input_datasets<float>(config);
     auto params = tomocam::parse_recon_params(config);
     auto output = tomocam::OutputParams(config);
 
@@ -58,8 +58,14 @@ int main(int argc, char **argv) {
     tomocam::Timer t0;
     t0.start();
 #ifdef USE_CUDA
-    auto recon = tomocam::gpu::MBIR<float>(datasets, params);
+    auto recon = tomocam::gpu::MBIR<float>(float_datasets, params);
 #else
+    std::vector<tomocam::Dataset_t<float>> datasets;
+    for (auto &[projs, angles, gamma] : float_datasets) {
+        std::vector<float> angles_d(angles.begin(), angles.end());
+        datasets.emplace_back(std::move(projs), std::move(angles),
+                              static_cast<float>(gamma));
+    }
     auto recon = tomocam::MBIR<float>(datasets, params);
 #endif
     t0.stop();

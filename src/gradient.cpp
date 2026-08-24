@@ -36,7 +36,7 @@ namespace tomocam {
         using complex_t = std::complex<T>;
 
         // narmalization factor
-        T scale = static_cast<T>(grid.size() / grid.nprojs());
+        T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
 
         // Step 1: Apply nufft3d2 to each component
         std::array<Array<complex_t>, 3> c_components;
@@ -93,5 +93,56 @@ namespace tomocam {
     template std::array<Array<double>, 3>
     sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid,
            double gamma);
+
+    // Overload: gamma read per-angle from grid.gamma(j)
+    template <typename T>
+    std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
+                                   const PolarGrid<T> &grid) {
+        using complex_t = std::complex<T>;
+
+        T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
+
+        std::array<Array<complex_t>, 3> c_components;
+        for (size_t i = 0; i < 3; ++i) {
+            auto x_cmplx = array::to_complex(x[i]);
+            c_components[i] = Array<complex_t>::zeros(grid.dims());
+            nufft::nufft3d2(c_components[i], x_cmplx, grid);
+        }
+
+        std::array<Array<complex_t>, 3> result_components;
+        for (size_t i = 0; i < 3; ++i) {
+            result_components[i] = Array<complex_t>::zeros(grid.dims());
+        }
+
+        for (size_t j = 0; j < grid.nprojs(); ++j) {
+            auto coeff = beam_dir_vector(grid.gamma(j), grid.angle(j));
+
+            for (size_t i = 0; i < 3; ++i) {
+                auto result_slice = result_components[i].slice(j, j + 1);
+                for (size_t k = 0; k < 3; ++k) {
+                    T weight = coeff[i] * coeff[k];
+                    auto c_slice = c_components[k].slice(j, j + 1);
+                    std::transform(
+                        std::execution::par_unseq, c_slice.begin(), c_slice.end(),
+                        result_slice.begin(), result_slice.begin(),
+                        [weight](const complex_t &c_val, complex_t &r_val) {
+                            return r_val + weight * c_val;
+                        });
+                }
+            }
+        }
+
+        std::array<Array<T>, 3> output;
+        for (size_t i = 0; i < 3; ++i) {
+            auto out_cmplx = Array<complex_t>(x[i].dims());
+            nufft::nufft3d1(result_components[i], out_cmplx, grid);
+            output[i] = array::to_real(out_cmplx) / scale;
+        }
+        return output;
+    }
+    template std::array<Array<float>, 3>
+    sysmat(const std::array<Array<float>, 3> &x, const PolarGrid<float> &grid);
+    template std::array<Array<double>, 3>
+    sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid);
 
 } // namespace tomocam

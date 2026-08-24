@@ -78,7 +78,27 @@ namespace tomocam::ovf {
             throw std::runtime_error("Unsupported OVF data format: " + data_format);
         }
 
-        return {std::move(mx), std::move(my), std::move(mz)};
+        // if dims are even, drop the values at the last index to make them odd
+        dims_t odd_dims = dims;
+        if (odd_dims.n1 % 2 == 0) odd_dims.n1 -= 1;
+        if (odd_dims.n2 % 2 == 0) odd_dims.n2 -= 1;
+        if (odd_dims.n3 % 2 == 0) odd_dims.n3 -= 1;
+
+        Array<T> mx_odd(odd_dims);
+        Array<T> my_odd(odd_dims);
+        Array<T> mz_odd(odd_dims);
+        for (size_t i = 0; i < odd_dims.n1; ++i) {
+            for (size_t j = 0; j < odd_dims.n2; ++j) {
+                for (size_t k = 0; k < odd_dims.n3; ++k) {
+                    size_t src = dims.flat_idx(i, j, k);
+                    size_t dst = odd_dims.flat_idx(i, j, k);
+                    mx_odd[dst] = mx[src];
+                    my_odd[dst] = my[src];
+                    mz_odd[dst] = mz[src];
+                }
+            }
+        }
+        return {std::move(mx_odd), std::move(my_odd), std::move(mz_odd)};
     }
 
 } // namespace tomocam::ovf

@@ -18,10 +18,13 @@
  *---------------------------------------------------------------------------------
  */
 
+#include <chrono>
 #include <cstdio>
 #include <format>
+#include <fstream>
 #include <iostream>
 #include <limits>
+#include <string>
 
 #include <cuda_profiler_api.h>
 
@@ -40,17 +43,14 @@
 
 namespace tomocam::gpu::opt {
 
-    // -------------------------------------------------------------------------
-    // GPU Conjugate Gradient Solver
-    // Same preconditioned CG algorithm as src/conjgrad.cpp, with GPU-native
-    // DeviceArray types and Thrust/cuFFT inner operations.
-    // -------------------------------------------------------------------------
     template <typename T>
     VecArray<T> cgsolver(const gpuFunction<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
                          dims_t support_dims, T lambda) {
 
-        auto precond_apply = [](const DeviceArray<T> &r) { return r.clone(); };
+        auto precond_apply = [](const VecArray<T> &r) {
+            return r.clone(); // placeholder
+        };
 
         // Build support mask and upload to GPU
         auto cpu_mask = mask_support<T>(x0[0].dims(), support_dims);
@@ -59,16 +59,24 @@ namespace tomocam::gpu::opt {
             for (size_t i = 0; i < 3; ++i) { v[i] *= gpu_mask; }
         };
 
+        std::string ts =
+            std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::system_clock::now());
+        std::string log_filename = "cg_convergence_gpu_" + ts + ".log";
+        std::ofstream logfile(log_filename, std::ios::out);
+        if (logfile.is_open()) logfile << "iter,residual,dx\n";
+
         // Initialize solution and residual arrays
         VecArray<T> x = x0.clone();
+        apply_support(x);
 
         // r = y - A(x)
         auto r = y - A(x);
         // z = M^{-1} r,  p = z,  rs_old = z^T r
-        VecArray<T> z{precond_apply(r[0]), precond_apply(r[1]), precond_apply(r[2])};
+        VecArray<T> z = precond_apply(r);
         auto p = z.clone();
 
         T rs_old = z.dot(r);
+        T y_norm = y.norm2() + (T)1e-10; // normalizer: ||y||_2
 #ifdef DEBUG
         cudaProfilerStart();
 #endif
@@ -84,34 +92,37 @@ namespace tomocam::gpu::opt {
             }
 
             T alpha = rs_old / pAp;
-            vec_xpay(x, p, alpha);   // x += alpha * p
+
+            // step norm: ||delta_x|| = |alpha| * ||p|| (computed before updates)
+            T dx = std::abs(alpha) * std::sqrt(p.dot(p)) /
+                   (std::sqrt(x.dot(x)) + (T)1e-10);
+
+            vec_xpay(x, p, alpha); // x += alpha * p
             apply_support(x);
             vec_xpay(r, Ap, -alpha); // r -= alpha * Ap
 
             // Apply preconditioner and compute new residual norm
             T rs_new = 0;
-            for (size_t i = 0; i < 3; ++i) { z[i] = precond_apply(r[i]); }
+            z = precond_apply(r);
             rs_new = z.dot(r);
+
+            if (std::abs(rs_old) < 2e-10) {
+                std::cerr << "rs_old near zero, CG stagnated\n";
+                break;
+            }
 
             // Update search direction: p = z + beta * p
             T beta = rs_new / rs_old;
             vec_axpy(p, beta, z);
             rs_old = rs_new;
 
-            T res = r.norm2();
-            if (res < tol) break;
-
-            // dx: relative step size (computed before p is updated)
-            T dx = std::abs(alpha) * std::sqrt(p.dot(p)) /
-                   (std::sqrt(x.dot(x)) + (T)1e-10);
-
-            if (dx < xtol) {
-                std::cout << "CG converged based on solution change\n";
-                break;
-            }
+            T res = r.norm2() / y_norm;
             std::cout << std::format(
-                "\t CG iter {:3d}: residual = {:.6e}, dx = {:.6e}\n", iter + 1, res,
+                "\tCG iter {:5d}: residual = {:.5e}, dx = {:.5e}\n", iter + 1, res,
                 dx);
+            if (logfile.is_open())
+                logfile << std::format("{},{:.6e},{:.6e}\n", iter + 1, res, dx);
+            if (res < tol || dx < xtol) break;
         }
 #ifdef DEBUG
         cudaProfilerStop();
