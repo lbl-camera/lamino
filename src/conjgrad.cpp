@@ -88,7 +88,7 @@ namespace tomocam::opt {
                 x[i] += p[i] * alpha;
                 r[i] -= Ap[i] * alpha;
             }
-            // apply_support(x);
+            apply_support(x);
 
             // apply preconditioner
             z = precond_apply(r);

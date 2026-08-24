@@ -28,12 +28,12 @@ int main() {
     // Test 1: adjoint dot-product test  <Af, y> == <f, A^T y>
     // Verifies that adjoint() is the true mathematical adjoint of forward().
     {
-        auto Af = forward(f, pg, gamma);
+        auto Af = forward(f, pg, gamma, 0.0);
         auto y = Array<double>::random(Af.dims());
 
         double lhs = array::dot<double>(Af, y);
 
-        auto ATy = adjoint(y, pg, dims, gamma);
+        auto ATy = adjoint(y, pg, dims, 0.0);
         double rhs = 0.0;
         for (size_t i = 0; i < 3; ++i) { rhs += array::dot<double>(f[i], ATy[i]); }
 
@@ -54,13 +54,13 @@ int main() {
     // Both express the gradient of 0.5*||Rm-y||^2 in two equivalent ways.
     // Requires odd n2, n3 so that sysmat(m) == adjoint(forward(m)).
     {
-        auto Rm  = forward(f, pg, gamma);
+        auto Rm  = forward(f, pg, gamma, 0.0);
         auto y   = Array<double>::random(Rm.dims());
         auto res = Rm - y;
-        auto grad_direct = adjoint(res, pg, dims, gamma);
+        auto grad_direct = adjoint(res, pg, dims, 0.0);
 
-        auto Am  = sysmat(f, pg, gamma);
-        auto RTy = adjoint(y, pg, dims, gamma);
+        auto Am  = sysmat(f, pg, 0.0);
+        auto RTy = adjoint(y, pg, dims, 0.0);
         std::array<Array<double>, 3> grad_expanded;
         for (size_t i = 0; i < 3; ++i) grad_expanded[i] = Am[i] - RTy[i];
 

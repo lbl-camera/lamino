@@ -44,6 +44,7 @@ namespace tomocam {
         Array<T> x;
         Array<T> y;
         Array<T> z;
+        Array<T> w;  // 1 inside [-π,π]^3, 0 outside (masks aliased q-points)
 
         // default constructor
         PolarGrid() : npts(0) {}
@@ -60,6 +61,7 @@ namespace tomocam {
             x = Array<T>(dims);
             y = Array<T>(dims);
             z = Array<T>(dims);
+            w = Array<T>(dims);
 
             T L = 2 * M_PI;
             T dX = L / static_cast<T>(ncols);
@@ -85,6 +87,9 @@ namespace tomocam {
                         x[{i, j, k}] = q[0];
                         y[{i, j, k}] = q[1];
                         z[{i, j, k}] = q[2];
+                        w[{i, j, k}] = (std::abs(q[0]) <= L_half &&
+                                        std::abs(q[1]) <= L_half &&
+                                        std::abs(q[2]) <= L_half) ? T(1) : T(0);
                     }
                 }
             }
@@ -106,6 +111,7 @@ namespace tomocam {
             x = Array<T>(dims);
             y = Array<T>(dims);
             z = Array<T>(dims);
+            w = Array<T>(dims);
 
             T L = 2 * M_PI;
             T dX = L / static_cast<T>(ncols);
@@ -123,6 +129,9 @@ namespace tomocam {
                         x[{i, j, k}] = q[0];
                         y[{i, j, k}] = q[1];
                         z[{i, j, k}] = q[2];
+                        w[{i, j, k}] = (std::abs(q[0]) <= L_half &&
+                                        std::abs(q[1]) <= L_half &&
+                                        std::abs(q[2]) <= L_half) ? T(1) : T(0);
                     }
                 }
             }
@@ -136,7 +145,8 @@ namespace tomocam {
         PolarGrid(PolarGrid<T> &&other) noexcept
             : npts(other.npts), theta(std::move(other.theta)),
               gammas(std::move(other.gammas)), betas(std::move(other.betas)),
-              x(std::move(other.x)), y(std::move(other.y)), z(std::move(other.z)) {}
+              x(std::move(other.x)), y(std::move(other.y)), z(std::move(other.z)),
+              w(std::move(other.w)) {}
 
         PolarGrid<T> &operator=(PolarGrid<T> &&other) noexcept {
             if (this != &other) {
@@ -147,6 +157,7 @@ namespace tomocam {
                 x = std::move(other.x);
                 y = std::move(other.y);
                 z = std::move(other.z);
+                w = std::move(other.w);
             }
             return *this;
         }
@@ -160,6 +171,7 @@ namespace tomocam {
             out.x = this->x.clone();
             out.y = this->y.clone();
             out.z = this->z.clone();
+            out.w = this->w.clone();
             return out;
         }
         void print_limits() const {

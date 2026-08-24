@@ -32,17 +32,25 @@
 
 namespace tomocam {
 
-    // Third column of RotationTranspose(theta, gamma, beta) = R^T * (0,0,1).
-    // R = Rx(theta)*Ry(beta)*Rz(gamma).
+    /**
+     * @brief Computes the beam direction vector for a given set of rotation angles,
+     * which is the third column of RotationTranspose(theta, gamma, beta) = R^T *
+     * (0,0,1). R = Rx(theta)*Ry(beta)*Rz(gamma).
+     *
+     * @tparam T The data type (e.g., float, double).
+     * @param theta The rotation angle around the x-axis.
+     * @param gamma The rotation angle around the z-axis.
+     * @param beta The rotation angle around the y-axis.
+     * @return A std::array of size 3 representing the beam direction vector.
+     */
     template <typename T>
     inline std::array<T, 3> beam_dir_vector(T theta, T gamma, T beta) {
-        using std::sin; using std::cos;
+        using std::cos;
+        using std::sin;
         const T st = sin(theta), ct = cos(theta);
-        const T sb = sin(beta),  cb = cos(beta);
+        const T sb = sin(beta), cb = cos(beta);
         const T sg = sin(gamma), cg = cos(gamma);
-        return {st * sg - ct * sb * cg,
-                st * cg + ct * sb * sg,
-                ct * cb};
+        return {st * sg - ct * sb * cg, st * cg + ct * sb * sg, ct * cb};
     }
 
     /**
@@ -56,7 +64,7 @@ namespace tomocam {
      */
     template <typename T>
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
-                     const PolarGrid<T> &pg, T beta);
+                     const PolarGrid<T> &pg, T gamma, T beta);
 
     // adjoint with explicit beta; optional per-projection COR shifts
     template <typename T>
@@ -72,8 +80,8 @@ namespace tomocam {
     // Overloads for unified PolarGrid — beta read per-angle from pg.beta(j)
 
     template <typename T>
-    std::array<Array<T>, 3>
-    adjoint(const Array<T> &proj, const PolarGrid<T> &pg, const dims_t &recon_dims);
+    std::array<Array<T>, 3> adjoint(const Array<T> &proj, const PolarGrid<T> &pg,
+                                    const dims_t &recon_dims);
 
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,

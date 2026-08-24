@@ -42,7 +42,7 @@ namespace tomocam {
 
     template <typename T>
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
-                     const PolarGrid<T> &pg, T beta) {
+                     const PolarGrid<T> &pg, T gamma, T beta) {
 
         auto dims = pg.dims();
         T scale = static_cast<T>(dims.n2 * dims.n3);
@@ -56,9 +56,15 @@ namespace tomocam {
 
             nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
 
+            // zero out q-points that rotated outside [-pi, pi]^3
+            std::transform(std::execution::par_unseq,
+                           c_cmplx.begin(), c_cmplx.end(), pg.w.begin(),
+                           c_cmplx.begin(),
+                           [](complex_t c, T wi) { return c * wi; });
+
             for (size_t j = 0; j < pg.nprojs(); ++j) {
                 auto slice = c_cmplx.slice(j, j + 1);
-                T coeff = beam_dir_vector(pg.angle(j), pg.gamma(j), beta)[i];
+                T coeff = beam_dir_vector(pg.angle(j), gamma, beta)[i];
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
@@ -72,10 +78,10 @@ namespace tomocam {
     }
     template Array<float>
     forward<float>(const std::array<Array<float>, 3> &magnetization,
-                   const PolarGrid<float> &pg, float beta);
+                   const PolarGrid<float> &pg, float gamma, float beta);
     template Array<double>
     forward<double>(const std::array<Array<double>, 3> &magnetization,
-                    const PolarGrid<double> &pg, double beta);
+                    const PolarGrid<double> &pg, double gamma, double beta);
 
     template <typename T>
     std::array<Array<T>, 3>
@@ -104,6 +110,12 @@ namespace tomocam {
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
+
+            // zero out q-points that rotated outside [-pi, pi]^3
+            std::transform(std::execution::par_unseq,
+                           c_cmplx_copy.begin(), c_cmplx_copy.end(), pg.w.begin(),
+                           c_cmplx_copy.begin(),
+                           [](complex_t c, T wi) { return c * wi; });
 
             Array<complex_t> m_cmplx(recon_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
@@ -145,6 +157,12 @@ namespace tomocam {
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
+
+            // zero out q-points that rotated outside [-pi, pi]^3
+            std::transform(std::execution::par_unseq,
+                           c_cmplx_copy.begin(), c_cmplx_copy.end(), pg.w.begin(),
+                           c_cmplx_copy.begin(),
+                           [](complex_t c, T wi) { return c * wi; });
 
             Array<complex_t> m_cmplx(recon_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);

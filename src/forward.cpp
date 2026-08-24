@@ -238,7 +238,7 @@ int main(int argc, char **argv) {
 
         // do the forward projection
         t0.start();
-        auto proj = tomocam::forward(m_data, grid, gamma_rad);
+        auto proj = tomocam::forward(m_data, grid, gamma_rad, 0.0f);
         t0.stop();
         std::cerr << "Time to do forward projection: " << t0.seconds() << "(s)\n";
 
