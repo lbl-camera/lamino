@@ -59,8 +59,9 @@ namespace tomocam {
                     T dy = static_cast<T>(y) - ycen;
                     T dz = static_cast<T>(z) - zcen;
 
-                    if (std::abs(dx) <= sup.n3 / 2 && std::abs(dy) <= sup.n2 / 2 &&
-                        std::abs(dz) <= sup.n1 / 2) {
+                    if (std::abs(dx) <= static_cast<T>(sup.n3) / 2 &&
+                        std::abs(dy) <= static_cast<T>(sup.n2) / 2 &&
+                        std::abs(dz) <= static_cast<T>(sup.n1) / 2) {
                         mask[{z, y, x}] = (T)1; // Inside the support region
                     }
                 }
