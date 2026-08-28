@@ -86,6 +86,7 @@ find_package(TIFF REQUIRED)
 
 # finufft: to override the search, point finufft_DIR at the cmake config directory, e.g.
 #   cmake -Dfinufft_DIR=~/finufft/lib/cmake/finufft ..
+enable_language(C)
 find_package(finufft REQUIRED)
 
 if (CMAKE_CUDA_COMPILER AND NOT TARGET finufft::cufinufft)
@@ -96,7 +97,7 @@ add_library(tomocam SHARED ${SRC})
 target_link_libraries(tomocam PUBLIC FFTW::double)
 target_link_libraries(tomocam PUBLIC FFTW::float)
 target_link_libraries(tomocam PUBLIC finufft::finufft)
-if (TARGET finufft::cufinufft)
+if (USE_CUDA AND TARGET finufft::cufinufft)
     target_link_libraries(tomocam PUBLIC finufft::cufinufft)
 endif()
 target_link_libraries(tomocam PUBLIC TBB::tbb)
