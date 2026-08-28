@@ -39,7 +39,7 @@ namespace tomocam::nufft {
 
         static int makeplan(int type, int dim, int64_t *n_modes, int iflag,
                             int ntrans, plan_type *plan, finufft_opts *opts) {
-            constexpr double TOL = 1e-14;
+            constexpr double TOL = 1e-12;
             return finufft_makeplan(type, dim, n_modes, iflag, ntrans, TOL, plan,
                                     opts);
         }
@@ -99,7 +99,7 @@ namespace tomocam::nufft {
             }
             finufft_opts opts;
             finufft_default_opts(&opts);
-            opts.upsampfac = 1.25;
+            opts.upsampfac = 2.0;
             int ierr =
                 Traits::makeplan(type, dim, n_modes.data(), iflag, 1, &plan, &opts);
             if (ierr != 0) { throw std::runtime_error("Error in finufft_makeplan"); }

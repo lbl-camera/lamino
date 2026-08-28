@@ -23,20 +23,19 @@
 #define FINUFFT_PLAN_CACHE_H
 
 #include <array>
-#include <mutex>
 #include <stdexcept>
 
 #include "finufft_plan.h"
 
 namespace tomocam::nufft {
 
+    // get_plan is always called sequentially (FINUFFT threads only spawn inside
+    // execute, never during plan init), so a plain validity check is sufficient.
     template <typename T>
     class FinufftPlanCache {
       private:
         FinufftPlanWrapper<T> type1_plan_;
         FinufftPlanWrapper<T> type2_plan_;
-        std::once_flag type1_init_flag_;
-        std::once_flag type2_init_flag_;
 
       public:
         FinufftPlanCache() = default;
@@ -50,14 +49,12 @@ namespace tomocam::nufft {
         FinufftPlanWrapper<T> &get_plan(int type, int dim,
                                         std::array<int64_t, 3> n_modes, int iflag) {
             if (type == 1) {
-                std::call_once(type1_init_flag_, [&]() {
+                if (!type1_plan_.valid())
                     type1_plan_.make_plan(1, dim, n_modes, iflag);
-                });
                 return type1_plan_;
             } else if (type == 2) {
-                std::call_once(type2_init_flag_, [&]() {
+                if (!type2_plan_.valid())
                     type2_plan_.make_plan(2, dim, n_modes, iflag);
-                });
                 return type2_plan_;
             } else {
                 throw std::invalid_argument(
