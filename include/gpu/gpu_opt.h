@@ -48,7 +48,7 @@ namespace tomocam::gpu::opt {
     template <typename T>
     VecArray<T> cgsolver(const gpuFunction<T> &A, const VecArray<T> &yT,
                          const VecArray<T> &x0T, size_t max_iter, T tol, T xtol,
-                         dims_t support_dims, T lambda = 0);
+                         dims_t support_dims, T lambda = 0, bool use_logfile = false);
 
     /**
      * @brief GPU Split Bregman solver for the sparse angle laminography problem:
@@ -70,7 +70,7 @@ namespace tomocam::gpu::opt {
     VecArray<T> split_bregman(const gpuFunction<T> &A, const VecArray<T> &y,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t support_dims);
+                              dims_t support_dims, bool use_logfile = false);
 
 } // namespace tomocam::gpu::opt
 
