@@ -33,6 +33,12 @@ namespace tomocam {
     enum class PadType { LEFT, RIGHT, SYMMETRIC };
 
     template <typename T>
+    size_t n_pad(size_t n, T factor) {
+        auto n2 = static_cast<size_t>(n * factor);
+        return 2 * ((n2 - n) / 2);
+    }
+
+    template <typename T>
     Array<T> pad2d(const Array<T> &arr, T factor, PadType pad_type) {
 
         // if factor is zero, return copy of input array
@@ -145,9 +151,9 @@ namespace tomocam {
         Array<T> arr2(new_dims);
 
         dims_t d = crop_size / 2;
-        if (pad_type == PadType::LEFT)
+        if (pad_type == PadType::RIGHT)
             d = dims_t(0, 0, 0);
-        else if (pad_type == PadType::RIGHT)
+        else if (pad_type == PadType::LEFT)
             d = crop_size;
 
         for (size_t i = 0; i < new_dims.n1; i++) {
