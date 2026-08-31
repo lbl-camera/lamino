@@ -50,15 +50,17 @@ namespace tomocam::gpu {
             proj_max = std::max(proj_max, tomocam::array::max(projs));
         }
 
+        // pad solution and projection data
         T padfac = static_cast<T>(params.PAD_FACTOR);
-
-        // get recon dimensions from the params
+        dims_t proj_dims = std::get<0>(datasets[0]).dims();
         dims_t recon_dims = params.recon_dims;
 
-        // extend recon dimensions to match padded projection size
+        // extend recon dimensions: n1 padded by PAD_FACTOR (prevents NUFFT
+        // z-aliasing), n2/n3 derived from padded projection dimensions
         dims_t proj_dims = std::get<0>(datasets[0]).dims();
-        dims_t out_dims = {recon_dims.n1, static_cast<size_t>(proj_dims.n2 * padfac),
-                           static_cast<size_t>(proj_dims.n3 * padfac)};
+        dims_t out_dims = {recon_dims.n1 + n_pad<T>(proj_dims.n1, padfac),
+                           proj_dims.n2 + n_pad<T>(proj_dims.n2, padfac),
+                           proj_dims.n3 + n_pad<T>(proj_dims.n3, padfac)};
 
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()

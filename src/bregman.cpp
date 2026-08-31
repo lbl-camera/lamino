@@ -39,7 +39,7 @@ namespace tomocam::opt {
     VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t support) {
+                              dims_t support, bool use_logfile) {
 
         // sanity check x0.dims must be the same as yT.dims
         if (x0[0].dims() != yT[0].dims()) {
@@ -139,12 +139,11 @@ namespace tomocam::opt {
                                            const VecArray<float> &x0, float lambda,
                                            float mu, size_t outer_max,
                                            size_t inner_max, float tol, float xtol,
-                                           dims_t dims);
-    template VecArray<double> split_bregman(const Function<double> &A,
-                                            const VecArray<double> &yT,
-                                            const VecArray<double> &x0,
-                                            double lambda, double mu,
-                                            size_t outer_max, size_t inner_max,
-                                            double tol, double xtol, dims_t dims);
+                                           dims_t dims, bool use_logfile);
+    template VecArray<double>
+    split_bregman(const Function<double> &A, const VecArray<double> &yT,
+                  const VecArray<double> &x0, double lambda, double mu,
+                  size_t outer_max, size_t inner_max, double tol, double xtol,
+                  dims_t dims, bool use_logfile);
 
 } // namespace tomocam::opt

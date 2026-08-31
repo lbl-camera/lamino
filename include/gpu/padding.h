@@ -26,6 +26,13 @@
 namespace tomocam::gpu {
 
     enum class PadType { LEFT, RIGHT, SYMMETRIC };
+
+    template <typename T>
+    size_t n_pad(size_t n, T factor) {
+        size_t n2 = static_cast<size_t>(n * factor);
+        return 2 * ((n2 - n) / 2);
+    }
+
     /**
      * @tparam T
      * @param input

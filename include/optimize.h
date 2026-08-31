@@ -111,7 +111,7 @@ namespace tomocam::opt {
     VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t dims);
+                              dims_t dims, bool use_logfile = false);
 
     /**
      * @brief Conjugate Gradient method for solving the
@@ -131,7 +131,7 @@ namespace tomocam::opt {
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &b,
                          const VecArray<T> &x0, size_t max_iters, T tol, T xtol,
-                         dims_t dims, T lambda = 0);
+                         dims_t dims, T lambda = 0, bool use_logfile = false);
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
      * version)

@@ -46,9 +46,9 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        dims_t recon_dims = {output_dims.n1,
-                             static_cast<size_t>(proj_dims.n2 * padfac),
-                             static_cast<size_t>(proj_dims.n3 * padfac)};
+        dims_t recon_dims = {output_dims.n1 + n_pad(output_dims.n1, padfac),
+                             proj_dims.n2 + n_pad(proj_dims.n2, padfac),
+                             proj_dims.n3 + n_pad(proj_dims.n3, padfac)};
 
         std::array<Array<T>, 3> yT;
         for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
@@ -128,15 +128,15 @@ namespace tomocam {
 
     template <typename T>
     std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
-                                   const ReconParams &params) {
+                                  const ReconParams &params) {
 
         T padfac = static_cast<T>(params.PAD_FACTOR);
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        dims_t recon_dims = {output_dims.n1,
-                             static_cast<size_t>(proj_dims.n2 * padfac),
-                             static_cast<size_t>(proj_dims.n3 * padfac)};
+        dims_t recon_dims = {output_dims.n1 + n_pad(output_dims.n1, padfac),
+                             proj_dims.n2 + n_pad(proj_dims.n2, padfac),
+                             proj_dims.n3 + n_pad(proj_dims.n3, padfac)};
 
         T proj_max = 0.0;
         for (const auto &ds : datasets) {
@@ -164,7 +164,8 @@ namespace tomocam {
             size_t n = padded[j].nslices();
             auto src = padded[j].slice(0, n);
             auto dst = y_stacked.slice(offset, offset + n);
-            std::copy(std::execution::par_unseq, src.begin(), src.end(), dst.begin());
+            std::copy(std::execution::par_unseq, src.begin(), src.end(),
+                      dst.begin());
             offset += n;
         }
 

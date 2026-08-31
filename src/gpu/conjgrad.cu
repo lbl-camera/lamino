@@ -46,7 +46,7 @@ namespace tomocam::gpu::opt {
     template <typename T>
     VecArray<T> cgsolver(const gpuFunction<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
-                         dims_t support_dims, T lambda) {
+                         dims_t support_dims, T lambda, bool use_logfile) {
 
         auto precond_apply = [](const VecArray<T> &r) {
             return r.clone(); // placeholder
@@ -59,15 +59,23 @@ namespace tomocam::gpu::opt {
             for (size_t i = 0; i < 3; ++i) { v[i] *= gpu_mask; }
         };
 
-        std::string ts =
-            std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::system_clock::now());
-        std::string log_filename = "cg_convergence_gpu_" + ts + ".log";
-        std::ofstream logfile(log_filename, std::ios::out);
-        if (logfile.is_open()) logfile << "iter,residual,dx\n";
+        std::ofstream logfile;
+        if (use_logfile) {
+            std::string ts = std::format("{:%Y-%m-%d_%H-%M-%S}",
+                                         std::chrono::system_clock::now());
+            std::string log_filename = "cg_convergence_gpu_" + ts + ".log";
+            logfile.open(log_filename);
+            if (logfile.fail()) {
+                std::cerr << std::format("Failed to open log file {}\n",
+                                         log_filename);
+                exit(1);
+            }
+        }
+        std::ostream &logstream =
+            use_logfile ? static_cast<std::ostream &>(logfile) : std::cout;
 
         // Initialize solution and residual arrays
         VecArray<T> x = x0.clone();
-        apply_support(x);
 
         // r = y - A(x)
         auto r = y - A(x);
@@ -97,9 +105,9 @@ namespace tomocam::gpu::opt {
             T dx = std::abs(alpha) * std::sqrt(p.dot(p)) /
                    (std::sqrt(x.dot(x)) + (T)1e-10);
 
-            vec_xpay(x, p, alpha); // x += alpha * p
-            apply_support(x);
+            vec_xpay(x, p, alpha);   // x += alpha * p
             vec_xpay(r, Ap, -alpha); // r -= alpha * Ap
+            apply_support(x);
 
             // Apply preconditioner and compute new residual norm
             T rs_new = 0;
@@ -117,11 +125,9 @@ namespace tomocam::gpu::opt {
             rs_old = rs_new;
 
             T res = r.norm2() / y_norm;
-            std::cout << std::format(
+            logstream << std::format(
                 "\tCG iter {:5d}: residual = {:.5e}, dx = {:.5e}\n", iter + 1, res,
                 dx);
-            if (logfile.is_open())
-                logfile << std::format("{},{:.6e},{:.6e}\n", iter + 1, res, dx);
             if (res < tol || dx < xtol) break;
         }
 #ifdef DEBUG
@@ -135,11 +141,11 @@ namespace tomocam::gpu::opt {
                                       const VecArray<float> &y,
                                       const VecArray<float> &x0, size_t max_iter,
                                       float tol, float xtol, dims_t support_dims,
-                                      float lambda);
+                                      float lambda, bool use_logfile);
     template VecArray<double> cgsolver(const gpuFunction<double> &A,
                                        const VecArray<double> &y,
                                        const VecArray<double> &x0, size_t max_iter,
                                        double tol, double xtol, dims_t support_dims,
-                                       double lambda);
+                                       double lambda, bool use_logfile);
 
 } // namespace tomocam::gpu::opt
