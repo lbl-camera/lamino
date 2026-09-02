@@ -28,6 +28,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "logger.h"
 #include "mask.h"
 #include "optimize.h"
 #include "padding.h"
@@ -40,6 +41,8 @@ namespace tomocam {
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
                                  const ReconParams &params) {
+
+        Logger logger(params.logMode, params.logfile);
 
         // padding factor
         T padfac = static_cast<T>(params.PAD_FACTOR);
@@ -55,6 +58,7 @@ namespace tomocam {
 
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
+        std::vector<T> gammas(n_datasets);
         std::vector<T> betas(n_datasets);
 
         T proj_max = 0.0;
@@ -64,6 +68,7 @@ namespace tomocam {
 
         for (size_t j = 0; j < n_datasets; ++j) {
             const auto &ds = datasets[j];
+            gammas[j] = ds.gamma;
             betas[j] = ds.beta;
 
             auto y = ds.projs / proj_max;
@@ -74,23 +79,21 @@ namespace tomocam {
             polar_grids[j] =
                 std::move(PolarGrid<T>(ds.angles, nrows, ncols, ds.gamma, ds.beta));
 
-            auto yTmp = adjoint(y, polar_grids[j], recon_dims, ds.beta, ds.shifts);
+            auto yTmp =
+                adjoint(y, polar_grids[j], recon_dims, ds.gamma, ds.beta, ds.shifts);
             for (size_t i = 0; i < 3; ++i) { yT[i] += yTmp[i]; }
         }
 
-        {
-            auto supp_mask = mask_support<T>(recon_dims, output_dims);
-            for (size_t i = 0; i < 3; ++i) { yT[i] *= supp_mask; }
-        }
-
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
+        auto supp_mask = mask_support<T>(recon_dims, output_dims);
+        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
 
-        opt::Function<T> A = [&polar_grids,
+        opt::Function<T> A = [&polar_grids, &gammas,
                               &betas](const std::array<Array<T>, 3> &m) {
-            std::array<Array<T>, 3> Ax = sysmat(m, polar_grids[0], betas[0]);
+            std::array<Array<T>, 3> Ax =
+                sysmat(m, polar_grids[0], gammas[0], betas[0]);
             for (size_t i = 1; i < polar_grids.size(); ++i) {
-                auto tmp = sysmat(m, polar_grids[i], betas[i]);
+                auto tmp = sysmat(m, polar_grids[i], gammas[i], betas[i]);
                 for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
             }
             return Ax;
@@ -99,14 +102,14 @@ namespace tomocam {
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
-                recon_m = opt::split_bregman<T>(
-                    A, yT, x0, params.lambda, params.mu, params.maxIters,
-                    params.innerIters, params.tol, params.xtol, output_dims);
+                recon_m = opt::split_bregman<T>(A, yT, x0, params.lambda, params.mu,
+                                                params.maxIters, params.innerIters,
+                                                params.tol, params.xtol, supp_mask,
+                                                &logger);
                 break;
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                           params.xtol, output_dims);
-                // TV regularization
+                                           params.xtol, supp_mask, T(0), &logger);
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
         }
@@ -126,9 +129,14 @@ namespace tomocam {
     template std::array<Array<double>, 3>
     MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
 
+    /*--------------------------------------------------------------------------------
+     * MBIR2
+     * --------------------------------------------------------------------------------*/
     template <typename T>
     std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
                                   const ReconParams &params) {
+
+        Logger logger(params.logMode, params.logfile);
 
         T padfac = static_cast<T>(params.PAD_FACTOR);
 
@@ -174,15 +182,10 @@ namespace tomocam {
         // Backproject once with the unified grid
         auto yT = adjoint(y_stacked, pg, recon_dims);
 
-        // Zero yT outside the original (non-padded) support region
-        {
-            auto supp_mask = mask_support<T>(recon_dims, output_dims);
-            for (size_t i = 0; i < 3; ++i) { yT[i] *= supp_mask; }
-        }
-
-        // Initial guess
+        // initial guess
         std::array<Array<T>, 3> x0;
-        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
+        auto supp_mask = mask_support<T>(recon_dims, output_dims);
+        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
 
         // System matrix: one call to the per-angle-gamma overload
         opt::Function<T> A = [&pg](const std::array<Array<T>, 3> &m) {
@@ -192,13 +195,14 @@ namespace tomocam {
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
-                recon_m = opt::split_bregman<T>(
-                    A, yT, x0, params.lambda, params.mu, params.maxIters,
-                    params.innerIters, params.tol, params.xtol, output_dims);
+                recon_m = opt::split_bregman<T>(A, yT, x0, params.lambda, params.mu,
+                                                params.maxIters, params.innerIters,
+                                                params.tol, params.xtol, supp_mask,
+                                                &logger);
                 break;
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                           params.xtol, output_dims);
+                                           params.xtol, supp_mask, T(0), &logger);
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
         }

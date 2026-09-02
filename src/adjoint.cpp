@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     auto &proj = ds.projs;
     auto &angles = ds.angles;
     float gamma = ds.gamma;
-    float beta  = ds.beta;
+    float beta = ds.beta;
 
     // record start time
     // record unpadded projection spatial dimensions
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 
     // run adjoint projection
     t0.start();
-    auto m_data = tomocam::adjoint(proj, grid, recon_dims, beta, ds.shifts);
+    auto m_data = tomocam::adjoint(proj, grid, recon_dims, gamma, beta, ds.shifts);
     t0.stop();
     std::cerr << "Time to run adjoint: " << t0.seconds() << "(s)\n";
 

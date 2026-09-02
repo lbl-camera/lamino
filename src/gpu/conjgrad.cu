@@ -18,13 +18,9 @@
  *---------------------------------------------------------------------------------
  */
 
-#include <chrono>
 #include <cstdio>
 #include <format>
-#include <fstream>
-#include <iostream>
 #include <limits>
-#include <string>
 
 #include <cuda_profiler_api.h>
 
@@ -46,7 +42,7 @@ namespace tomocam::gpu::opt {
     template <typename T>
     VecArray<T> cgsolver(const gpuFunction<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
-                         dims_t support_dims, T lambda, bool use_logfile) {
+                         dims_t support_dims, T lambda, Logger *logger) {
 
         auto precond_apply = [](const VecArray<T> &r) {
             return r.clone(); // placeholder
@@ -58,21 +54,6 @@ namespace tomocam::gpu::opt {
         auto apply_support = [&gpu_mask](VecArray<T> &v) {
             for (size_t i = 0; i < 3; ++i) { v[i] *= gpu_mask; }
         };
-
-        std::ofstream logfile;
-        if (use_logfile) {
-            std::string ts = std::format("{:%Y-%m-%d_%H-%M-%S}",
-                                         std::chrono::system_clock::now());
-            std::string log_filename = "cg_convergence_gpu_" + ts + ".log";
-            logfile.open(log_filename);
-            if (logfile.fail()) {
-                std::cerr << std::format("Failed to open log file {}\n",
-                                         log_filename);
-                exit(1);
-            }
-        }
-        std::ostream &logstream =
-            use_logfile ? static_cast<std::ostream &>(logfile) : std::cout;
 
         // Initialize solution and residual arrays
         VecArray<T> x = x0.clone();
@@ -125,9 +106,10 @@ namespace tomocam::gpu::opt {
             rs_old = rs_new;
 
             T res = r.norm2() / y_norm;
-            logstream << std::format(
-                "\tCG iter {:5d}: residual = {:.5e}, dx = {:.5e}\n", iter + 1, res,
-                dx);
+            if (logger)
+                logger->log(std::format(
+                    "\tCG iter {:5d}: residual = {:.5e}, dx = {:.5e}\n", iter + 1,
+                    res, dx));
             if (res < tol || dx < xtol) break;
         }
 #ifdef DEBUG
@@ -141,11 +123,11 @@ namespace tomocam::gpu::opt {
                                       const VecArray<float> &y,
                                       const VecArray<float> &x0, size_t max_iter,
                                       float tol, float xtol, dims_t support_dims,
-                                      float lambda, bool use_logfile);
+                                      float lambda, Logger *logger);
     template VecArray<double> cgsolver(const gpuFunction<double> &A,
                                        const VecArray<double> &y,
                                        const VecArray<double> &x0, size_t max_iter,
                                        double tol, double xtol, dims_t support_dims,
-                                       double lambda, bool use_logfile);
+                                       double lambda, Logger *logger);
 
 } // namespace tomocam::gpu::opt

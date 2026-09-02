@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "array.h"
+#include "logger.h"
 
 namespace tomocam {
 
@@ -53,6 +54,8 @@ namespace tomocam {
         float tol = 1e-5f;
         float xtol = 1e-5f;
         float PAD_FACTOR = 1.4142f;
+        LogMode logMode = LogMode::STDOUT;
+        std::string logfile = "";
 
         void print(std::ostream &os) const {
             std::string reg_str = (regularizer == Regularizer::SPLIT_BREGMAN)

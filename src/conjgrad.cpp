@@ -19,12 +19,9 @@
  */
 
 #include <array>
-#include <chrono>
 #include <execution>
 #include <format>
-#include <fstream>
 #include <functional>
-#include <iostream>
 
 #include "array.h"
 #include "array_ops.h"
@@ -37,7 +34,7 @@ namespace tomocam::opt {
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
-                         dims_t support_dims, T lambda, bool use_logfile) {
+                         const Array<T> &sup_mask, T lambda, Logger *logger) {
 
         // initialize
         VecArray<T> x = clone(x0);
@@ -46,7 +43,6 @@ namespace tomocam::opt {
         auto precond_apply = [](const VecArray<T> &r) { return clone(r); };
 
         // support constraint
-        auto sup_mask = mask_support<T>(x0[0].dims(), support_dims);
         auto apply_support = [&sup_mask](VecArray<T> &v) {
             for (size_t i = 0; i < 3; i++) { v[i] *= sup_mask; }
         };
@@ -55,22 +51,6 @@ namespace tomocam::opt {
         apply_support(x);
 
         T y_norm = std::sqrt(dot(y, y)) + (T)1e-10;
-
-        // log filename with timestamp
-        std::ofstream logfile;
-        if (use_logfile) {
-            std::string ts =
-                std::format("{:%Y%m%d_%H%M%S}", std::chrono::system_clock::now());
-            std::string log_filename = "cg_convergence_" + ts + ".log";
-            logfile.open(log_filename);
-            if (logfile.fail()) {
-                std::cerr << std::format("Failed to open log file {}\n",
-                                         log_filename);
-                exit(1);
-            }
-        }
-        std::ostream &logstream =
-            use_logfile ? static_cast<std::ostream &>(logfile) : std::cout;
 
         // compute initial residual
         VecArray<T> r = y - A(x);
@@ -113,22 +93,26 @@ namespace tomocam::opt {
             rs_old = rs_new;
 
             T res = std::sqrt(dot(r, r)) / y_norm;
-            logstream << std::format(
-                "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter + 1, res,
-                dx);
+            if (logger)
+                logger->log(std::format(
+                    "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter + 1,
+                    res, dx));
             if (res < tol || dx < xtol) { break; }
         }
         return x;
     }
 
     // template instantiations
-    template VecArray<float>
-    cgsolver<float>(const Function<float> &A, const VecArray<float> &y,
-                    const VecArray<float> &x0, size_t max_iter, float tol,
-                    float xtol, dims_t dims, float lambda, bool use_logfile);
+    template VecArray<float> cgsolver<float>(const Function<float> &A,
+                                             const VecArray<float> &y,
+                                             const VecArray<float> &x0,
+                                             size_t max_iter, float tol, float xtol,
+                                             const Array<float> &sup_mask,
+                                             float lambda, Logger *logger);
     template VecArray<double>
     cgsolver<double>(const Function<double> &A, const VecArray<double> &y,
                      const VecArray<double> &x0, size_t max_iter, double tol,
-                     double xtol, dims_t dims, double lambda, bool use_logfile);
+                     double xtol, const Array<double> &sup_mask, double lambda,
+                     Logger *logger);
 
 } // namespace tomocam::opt

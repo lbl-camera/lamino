@@ -39,7 +39,7 @@ namespace tomocam::opt {
     VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t support, bool use_logfile) {
+                              const Array<T> &support, Logger *logger) {
 
         // sanity check x0.dims must be the same as yT.dims
         if (x0[0].dims() != yT[0].dims()) {
@@ -126,24 +126,25 @@ namespace tomocam::opt {
                 norm_diff += array::norm2(x[i] - x_old[i]) /
                              (array::norm2(x_old[i]) + static_cast<T>(EPSILON));
             }
-            std::cout << std::format(
-                "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
+            if (logger)
+                logger->log(std::format(
+                    "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter,
+                    norm_diff));
             for (size_t i = 0; i < 3; ++i) { x_old[i] = x[i].clone(); }
             if (norm_diff < xtol) { break; }
         }
         return x;
     }
     // Explicit template instantiation for float and double
-    template VecArray<float> split_bregman(const Function<float> &A,
-                                           const VecArray<float> &yT,
-                                           const VecArray<float> &x0, float lambda,
-                                           float mu, size_t outer_max,
-                                           size_t inner_max, float tol, float xtol,
-                                           dims_t dims, bool use_logfile);
+    template VecArray<float>
+    split_bregman(const Function<float> &A, const VecArray<float> &yT,
+                  const VecArray<float> &x0, float lambda, float mu,
+                  size_t outer_max, size_t inner_max, float tol, float xtol,
+                  const Array<float> &support, Logger *logger);
     template VecArray<double>
     split_bregman(const Function<double> &A, const VecArray<double> &yT,
                   const VecArray<double> &x0, double lambda, double mu,
                   size_t outer_max, size_t inner_max, double tol, double xtol,
-                  dims_t dims, bool use_logfile);
+                  const Array<double> &support, Logger *logger);
 
 } // namespace tomocam::opt

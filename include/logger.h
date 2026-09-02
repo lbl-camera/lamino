@@ -21,6 +21,7 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -28,42 +29,48 @@
 
 namespace tomocam {
 
-    enum class LogMode { SILENT, STDOUT, FILE };
+    enum class LogMode { SILENT, STDOUT, LOGFILE, BOTH };
 
     class Logger {
       private:
-        LogMode mode_;
-        std::unique_ptr<std::ofstream> file_stream_;
+        uint8_t mode_ = 0x0;
+        std::unique_ptr<std::ofstream> file_stream_ = nullptr;
 
       public:
-        Logger(LogMode mode = LogMode::STDOUT, const std::string &filename = "")
-            : mode_(mode) {
-            if (mode_ == LogMode::FILE) {
-                file_stream_ = std::make_unique<std::ofstream>(filename);
+        Logger(LogMode mode = LogMode::STDOUT, const std::string &filename = "") {
+
+            if (mode == LogMode::SILENT) return;
+            if (mode == LogMode::STDOUT || mode == LogMode::BOTH) { mode_ |= 0x1; }
+            if (mode == LogMode::LOGFILE || mode == LogMode::BOTH) { mode_ |= 0x2; }
+
+            if (mode_ & 0x2) {
+                if (filename.empty()) {
+                    auto now = std::chrono::floor<std::chrono::seconds>(
+                        std::chrono::system_clock::now());
+                    std::string ts = std::format("{:%Y%m%d_%H%M%S}", now);
+                    std::string fname = "log_" + ts + ".log";
+                    file_stream_ = std::make_unique<std::ofstream>(fname);
+                } else {
+                    file_stream_ = std::make_unique<std::ofstream>(filename);
+                }
                 if (!file_stream_->is_open()) {
-                    std::cerr << "Warning: Unable to open log file '" << filename
-                              << "'. Falling back to STDOUT.\n";
-                    mode_ = LogMode::STDOUT;
+                    std::cerr
+                        << "Warning: Unable to open log file. Falling back to STDOUT.\n";
+                    mode_ = 0x1;
+                    file_stream_.reset();
                 }
             }
         }
 
-        template <typename... Args>
         void log(const std::string &message) {
-            if (mode_ == LogMode::SILENT) return;
+            if (!mode_ || message.empty()) return;
 
-            if (mode_ == LogMode::STDOUT) {
-                std::cout << message;
-            } else if (mode_ == LogMode::FILE && file_stream_) {
-                *file_stream_ << message;
-                file_stream_->flush();
+            bool has_newline = message.back() == '\n';
+            if (mode_ & 0x1) {
+                std::cout << message << (has_newline ? "" : "\n");
             }
-        }
-
-        LogMode get_mode() const { return mode_; }
-
-        ~Logger() {
-            if (file_stream_ && file_stream_->is_open()) { file_stream_->close(); }
+            if (mode_ & 0x2)
+                *file_stream_ << message << (has_newline ? "" : "\n");
         }
     };
 

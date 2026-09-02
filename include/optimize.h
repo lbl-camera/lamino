@@ -105,13 +105,15 @@ namespace tomocam::opt {
      * @param inner_max Maximum number of inner iterations
      * @param tol Tolerance for convergence based on residual norm
      * @param xtol Tolerance for convergence based on solution change
+     * @param mask Mask for the support region
+     * @param use_logfile Flag to enable logging
      * @return Reconstructed solution vector
      */
     template <typename T>
     VecArray<T> split_bregman(const Function<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t dims, bool use_logfile = false);
+                              const Array<T> &mask, Logger *logger = nullptr);
 
     /**
      * @brief Conjugate Gradient method for solving the
@@ -124,14 +126,15 @@ namespace tomocam::opt {
      * @param max_iters Maximum number of iterations
      * @param tol Tolerance for convergence based on residual norm
      * @param xtol Tolerance for convergence based on solution change (step norm)
-     * @param dims support
+     * @param mask Mask that defines support region
      * @param lambda Demagnetization constraint weight
      * @return Approximate solution vector
      */
     template <typename T>
     VecArray<T> cgsolver(const Function<T> &A, const VecArray<T> &b,
                          const VecArray<T> &x0, size_t max_iters, T tol, T xtol,
-                         dims_t dims, T lambda = 0, bool use_logfile = false);
+                         const Array<T> &mask, T lambda = 0,
+                         Logger *logger = nullptr);
     /**
      * @brief Nesterov's Optimal Gradient Method with Boyd's momentum term (vector
      * version)

@@ -18,10 +18,8 @@
  *---------------------------------------------------------------------------------
  */
 
-#include <chrono>
 #include <concepts>
 #include <format>
-#include <fstream>
 
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/transform.h>
@@ -94,21 +92,7 @@ namespace tomocam::gpu::opt {
     VecArray<T> split_bregman(const gpuFunction<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t support_dims, bool use_logfile) {
-
-        std::ofstream logfile;
-        if (use_logfile) {
-            std::string ts =
-                std::format("{:%Y%m%d_%H%M%S}", std::chrono::system_clock::now());
-            std::string log_filename = "bregman_convergence_" + ts + ".log";
-            logfile.open(log_filename);
-            if (logfile.fail()) {
-                std::cerr << std::format("Failed to open log file {}\n", log_filename);
-                exit(1);
-            }
-        }
-        std::ostream &logstream =
-            use_logfile ? static_cast<std::ostream &>(logfile) : std::cout;
+                              dims_t support_dims, Logger *logger) {
 
         // initialize variables
         VecArray<T> x = x0.clone();
@@ -152,7 +136,7 @@ namespace tomocam::gpu::opt {
 
             // use conjugate gradient to solve the linear system
             x = cgsolver(Ap, rhs, x, inner_max, tol, xtol, support_dims, (T)0,
-                         use_logfile);
+                         nullptr);
 
             // isotropic TV shrinkage
             std::array<VecArray<T>, 3> dx;
@@ -177,8 +161,10 @@ namespace tomocam::gpu::opt {
             // Check convergence
             // norm_diff = ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂
             T norm_diff = (x - x_old).norm2() / (x_old.norm2() + (T)EPSILON);
-            logstream << std::format(
-                "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter, norm_diff);
+            if (logger)
+                logger->log(std::format(
+                    "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter,
+                    norm_diff));
             x_old = x.clone();
             if (norm_diff < xtol) { break; }
         }
@@ -191,12 +177,12 @@ namespace tomocam::gpu::opt {
                                            const VecArray<float> &x0, float lambda,
                                            float mu, size_t outer_max,
                                            size_t inner_max, float tol, float xtol,
-                                           dims_t support_dims, bool use_logfile);
+                                           dims_t support_dims, Logger *logger);
     template VecArray<double>
     split_bregman(const gpuFunction<double> &A, const VecArray<double> &yT,
                   const VecArray<double> &x0, double lambda, double mu,
                   size_t outer_max, size_t inner_max, double tol, double xtol,
-                  dims_t support_dims, bool use_logfile);
+                  dims_t support_dims, Logger *logger);
 #ifdef DEBUG
     // compute_sk test
     template DeviceArray<float>
