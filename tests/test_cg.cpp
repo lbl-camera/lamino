@@ -22,6 +22,7 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < N; i++) { diagMat[i] = static_cast<float>(i + 1); }
 
     auto x_true = tomocam::Array<float>::random(dims);
+    auto support = tomocam::Array<float>::ones(dims);
 
     // create b = A*x_true
     tomocam::Array<float> b(dims);
@@ -51,7 +52,8 @@ int main(int argc, char **argv) {
             b_vec[j][{0, 0, i}] = diagMat[i] * x_true[{0, 0, i}];
         }
     }
-    auto x_sol = tomocam::opt::cgsolver(A, b_vec, x, 1000, 1e-6f, 1e-6f, dims, 0.0f);
+    auto x_sol =
+        tomocam::opt::cgsolver(A, b_vec, x, 1000, 1e-6f, 1e-6f, support, 0.0f);
 
     return 0;
 }
