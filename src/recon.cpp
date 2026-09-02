@@ -60,7 +60,26 @@ int main(int argc, char **argv) {
 #ifdef USE_CUDA
     auto recon = tomocam::gpu::MBIR<float>(float_datasets, params);
 #else
-    auto recon = tomocam::MBIR<float>(float_datasets, params);
+    // convert inputs to double
+    std::vector<tomocam::Dataset_t<double>> double_datasets;
+    double_datasets.reserve(float_datasets.size());
+    for (const auto &d : float_datasets) {
+        tomocam::Dataset_t<double> dd;
+        dd.projs = tomocam::array::cast<float, double>(d.projs);
+        dd.angles = std::vector<double>(d.angles.begin(), d.angles.end());
+        dd.gamma = static_cast<double>(d.gamma);
+        dd.beta = static_cast<double>(d.beta);
+        for (const auto &s : d.shifts)
+            dd.shifts.push_back(
+                {static_cast<double>(s[0]), static_cast<double>(s[1])});
+        double_datasets.push_back(std::move(dd));
+    }
+    auto recon_d = tomocam::MBIR<double>(double_datasets, params);
+    // convert outputs back to float
+    std::array<tomocam::Array<float>, 3> recon = {
+        tomocam::array::cast<double, float>(recon_d[0]),
+        tomocam::array::cast<double, float>(recon_d[1]),
+        tomocam::array::cast<double, float>(recon_d[2])};
 #endif
     t0.stop();
     double elapsed = t0.seconds();
