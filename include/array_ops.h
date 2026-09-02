@@ -36,6 +36,14 @@ namespace tomocam::array {
     template <typename T>
     concept Real_t = std::is_same_v<T, float> | std::is_same_v<T, double>;
 
+    template <typename T1, typename T2>
+    Array<T2> cast(const Array<T1> &a) {
+        Array<T2> b(a.dims());
+        std::transform(std::execution::par_unseq, a.begin(), a.end(), b.begin(),
+                       [](T1 x) { return static_cast<T2>(x); });
+        return b;
+    }
+
     template <typename Real_t>
     Array<std::complex<Real_t>> to_complex(const Array<Real_t> &a) {
         Array<std::complex<Real_t>> b(a.dims());
