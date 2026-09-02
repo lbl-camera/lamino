@@ -32,21 +32,19 @@
 namespace tomocam {
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
-                                   const PolarGrid<T> &grid, T beta) {
-        using complex_t = std::complex<T>;
+                                   const PolarGrid<T> &grid, T gamma, T beta) {
 
-        T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
+        using complex_t = std::complex<T>;
+        // sysmat = R^T R; forward/adjoint each divide by n1*n2*n3 (volume), but
+        // the FFT2(IFFT2) round-trip in forward/adjoint is unnormalized and adds a
+        // factor of n2*n3, so sysmat must divide by (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3.
+        T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
 
         std::array<Array<complex_t>, 3> c_components;
         for (size_t i = 0; i < 3; ++i) {
             auto x_cmplx = array::to_complex(x[i]);
             c_components[i] = Array<complex_t>::zeros(grid.dims());
             nufft::nufft3d2(c_components[i], x_cmplx, grid);
-            // zero out q-points that rotated outside [-pi, pi]^3
-            std::transform(std::execution::par_unseq,
-                           c_components[i].begin(), c_components[i].end(),
-                           grid.w.begin(), c_components[i].begin(),
-                           [](complex_t c, T wi) { return c * wi; });
         }
 
         std::array<Array<complex_t>, 3> result_components;
@@ -55,7 +53,7 @@ namespace tomocam {
         }
 
         for (size_t j = 0; j < grid.nprojs(); ++j) {
-            auto coeff = beam_dir_vector(grid.angle(j), grid.gamma(j), beta);
+            auto coeff = beam_dir_vector(grid.angle(j), gamma, beta);
 
             // Matrix multiplication: result = coeff.T * coeff * c_components
             // This is outer product of coeff with itself, applied to c_components
@@ -85,10 +83,10 @@ namespace tomocam {
     }
     template std::array<Array<float>, 3> sysmat(const std::array<Array<float>, 3> &x,
                                                 const PolarGrid<float> &grid,
-                                                float beta);
+                                                float gamma, float beta);
     template std::array<Array<double>, 3>
     sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid,
-           double beta);
+           double gamma, double beta);
 
     // Overload: beta read per-angle from grid.beta(j)
     template <typename T>
@@ -96,18 +94,13 @@ namespace tomocam {
                                    const PolarGrid<T> &grid) {
         using complex_t = std::complex<T>;
 
-        T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
+        T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
 
         std::array<Array<complex_t>, 3> c_components;
         for (size_t i = 0; i < 3; ++i) {
             auto x_cmplx = array::to_complex(x[i]);
             c_components[i] = Array<complex_t>::zeros(grid.dims());
             nufft::nufft3d2(c_components[i], x_cmplx, grid);
-            // zero out q-points that rotated outside [-pi, pi]^3
-            std::transform(std::execution::par_unseq,
-                           c_components[i].begin(), c_components[i].end(),
-                           grid.w.begin(), c_components[i].begin(),
-                           [](complex_t c, T wi) { return c * wi; });
         }
 
         std::array<Array<complex_t>, 3> result_components;
@@ -141,8 +134,8 @@ namespace tomocam {
         }
         return output;
     }
-    template std::array<Array<float>, 3>
-    sysmat(const std::array<Array<float>, 3> &x, const PolarGrid<float> &grid);
+    template std::array<Array<float>, 3> sysmat(const std::array<Array<float>, 3> &x,
+                                                const PolarGrid<float> &grid);
     template std::array<Array<double>, 3>
     sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid);
 
