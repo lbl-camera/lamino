@@ -21,7 +21,7 @@ int main() {
     double gamma = M_PI / 4.0;
     std::vector<double> theta(ntheta);
     for (size_t i = 0; i < ntheta; i++) { theta[i] = (i - 70.0) * M_PI / 180.0; }
-    auto pg = PolarGrid(theta, dims.n2, dims.n3, gamma);
+    auto pg = PolarGrid(theta, dims.n2, dims.n3, gamma, 0.0);
 
     bool pass = true;
 
@@ -33,7 +33,7 @@ int main() {
 
         double lhs = array::dot<double>(Af, y);
 
-        auto ATy = adjoint(y, pg, dims, 0.0);
+        auto ATy = adjoint(y, pg, dims, gamma, 0.0);
         double rhs = 0.0;
         for (size_t i = 0; i < 3; ++i) { rhs += array::dot<double>(f[i], ATy[i]); }
 
@@ -54,13 +54,13 @@ int main() {
     // Both express the gradient of 0.5*||Rm-y||^2 in two equivalent ways.
     // Requires odd n2, n3 so that sysmat(m) == adjoint(forward(m)).
     {
-        auto Rm  = forward(f, pg, gamma, 0.0);
-        auto y   = Array<double>::random(Rm.dims());
+        auto Rm = forward(f, pg, gamma, 0.0);
+        auto y = Array<double>::random(Rm.dims());
         auto res = Rm - y;
-        auto grad_direct = adjoint(res, pg, dims, 0.0);
+        auto grad_direct = adjoint(res, pg, dims, gamma, 0.0);
 
-        auto Am  = sysmat(f, pg, 0.0);
-        auto RTy = adjoint(y, pg, dims, 0.0);
+        auto Am = sysmat(f, pg, gamma, 0.0);
+        auto RTy = adjoint(y, pg, dims, gamma, 0.0);
         std::array<Array<double>, 3> grad_expanded;
         for (size_t i = 0; i < 3; ++i) grad_expanded[i] = Am[i] - RTy[i];
 
@@ -71,8 +71,8 @@ int main() {
             auto diff = g1 - g2 * scale;
             double rel_diff = array::norm2<double>(diff) / array::norm2<double>(g1);
             std::cout << std::format(
-                "Gradient component {}: scale = {:.6f}  rel_diff = {:.2e}\n",
-                i, scale, rel_diff);
+                "Gradient component {}: scale = {:.6f}  rel_diff = {:.2e}\n", i,
+                scale, rel_diff);
 
             if (rel_diff < 1e-9) {
                 std::cout << "  PASS\n";
