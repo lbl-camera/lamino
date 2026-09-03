@@ -31,6 +31,10 @@ add_executable(test_adjoint test_adjoint.cpp)
 target_link_libraries(test_adjoint PUBLIC tomocam)
 add_test(NAME test_adjoint COMMAND test_adjoint)
 
+add_executable(test_toeplitz test_toeplitz.cpp)
+target_link_libraries(test_toeplitz PUBLIC tomocam)
+add_test(NAME test_toeplitz COMMAND test_toeplitz)
+
 if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_conjgrad test_gpu_conjgrad.cu)
     target_link_libraries(test_gpu_conjgrad PUBLIC tomocam)
