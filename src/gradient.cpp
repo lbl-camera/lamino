@@ -37,7 +37,8 @@ namespace tomocam {
         using complex_t = std::complex<T>;
         // sysmat = R^T R; forward/adjoint each divide by n1*n2*n3 (volume), but
         // the FFT2(IFFT2) round-trip in forward/adjoint is unnormalized and adds a
-        // factor of n2*n3, so sysmat must divide by (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3.
+        // factor of n2*n3, so sysmat must divide by (n1*n2*n3)^2/(n2*n3) =
+        // n1^2*n2*n3.
         T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
 
         std::array<Array<complex_t>, 3> c_components;
@@ -138,5 +139,4 @@ namespace tomocam {
                                                 const PolarGrid<float> &grid);
     template std::array<Array<double>, 3>
     sysmat(const std::array<Array<double>, 3> &x, const PolarGrid<double> &grid);
-
 } // namespace tomocam
