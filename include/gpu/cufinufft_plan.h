@@ -107,7 +107,7 @@ namespace tomocam::gpu::nufft {
             }
             cufinufft_opts opts;
             cufinufft_default_opts(&opts);
-            opts.upsampfac = 1.25;
+            opts.upsampfac = 2;
             opts.gpu_device_id = gpu_id;
             int ierr = Traits::makeplan(type, dim, n_modes.data(), iflag, ntrans,
                                         &plan, &opts);
