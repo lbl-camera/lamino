@@ -55,6 +55,11 @@ namespace tomocam {
             auto c_cmplx = Array<complex_t>::zeros(pg.dims());
             nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
 
+            // discard aliased points (outside [-pi,pi]) before ifft2
+            std::transform(std::execution::par_unseq, c_cmplx.begin(),
+                           c_cmplx.end(), pg.w.begin(), c_cmplx.begin(),
+                           [](complex_t c, T m) { return c * m; });
+
             for (size_t j = 0; j < pg.nprojs(); ++j) {
                 auto slice = c_cmplx.slice(j, j + 1);
                 T coeff = beam_dir_vector(pg.angle(j), gamma, beta)[i];
@@ -89,6 +94,11 @@ namespace tomocam {
         c_cmplx = fft::ifftshift2(c_cmplx);
 
         if (!shifts.empty()) fft::phase_shift2d(c_cmplx, shifts);
+
+        // discard aliased points (outside [-pi,pi]) before backprojecting
+        std::transform(std::execution::par_unseq, c_cmplx.begin(), c_cmplx.end(),
+                       pg.w.begin(), c_cmplx.begin(),
+                       [](std::complex<T> c, T m) { return c * m; });
 
         std::array<Array<T>, 3> m_components;
         using complex_t = std::complex<T>;
@@ -130,6 +140,11 @@ namespace tomocam {
         c_cmplx = fft::fftshift2(c_cmplx);
         c_cmplx = fft::fft2(c_cmplx);
         c_cmplx = fft::ifftshift2(c_cmplx);
+
+        // discard aliased points (outside [-pi,pi]) before backprojecting
+        std::transform(std::execution::par_unseq, c_cmplx.begin(), c_cmplx.end(),
+                       pg.w.begin(), c_cmplx.begin(),
+                       [](std::complex<T> c, T m) { return c * m; });
 
         std::array<Array<T>, 3> m_components;
         using complex_t = std::complex<T>;

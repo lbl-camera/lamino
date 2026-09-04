@@ -17,6 +17,7 @@
  * perform publicly and display publicly, and to permit other to do so.
  *---------------------------------------------------------------------------------
  */
+#include <algorithm>
 #include <complex>
 #include <execution>
 #include <format>
@@ -46,6 +47,12 @@ namespace tomocam {
             auto x_cmplx = array::to_complex(x[i]);
             c_components[i] = Array<complex_t>::zeros(grid.dims());
             nufft::nufft3d2(c_components[i], x_cmplx, grid);
+
+            // discard aliased points (outside [-pi,pi]) before backprojecting
+            std::transform(std::execution::par_unseq, c_components[i].begin(),
+                           c_components[i].end(), grid.w.begin(),
+                           c_components[i].begin(),
+                           [](complex_t c, T m) { return c * m; });
         }
 
         std::array<Array<complex_t>, 3> result_components;
@@ -102,6 +109,12 @@ namespace tomocam {
             auto x_cmplx = array::to_complex(x[i]);
             c_components[i] = Array<complex_t>::zeros(grid.dims());
             nufft::nufft3d2(c_components[i], x_cmplx, grid);
+
+            // discard aliased points (outside [-pi,pi]) before backprojecting
+            std::transform(std::execution::par_unseq, c_components[i].begin(),
+                           c_components[i].end(), grid.w.begin(),
+                           c_components[i].begin(),
+                           [](complex_t c, T m) { return c * m; });
         }
 
         std::array<Array<complex_t>, 3> result_components;

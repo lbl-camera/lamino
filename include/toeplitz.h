@@ -73,13 +73,19 @@ namespace tomocam::cpu {
             : dims_(dims) {
 
             // unit strength at every non-uniform grid point, scaled per-point
-            // by the supplied weight (e.g. n_hat[i]*n_hat[j])
+            // by the supplied weight (e.g. n_hat[i]*n_hat[j]) and masked by
+            // grid.w so points outside [-pi,pi] don't contribute to the PSF.
+            // Applied once here (at PSF-construction time) rather than on
+            // every sysmat() call, since sysmat() only ever convolves
+            // against the resulting kernel_hat_.
             auto ones = Array<complex_t>::ones(grid.dims());
-            for (size_t i = 0; i < grid.dims().n1; ++i) {
-                auto slc = ones.slice(i, i + 1);
-                auto w = weights[i];
+            for (size_t i = 0; i < grid.rows.nrows(); ++i) {
+                auto slc = grid.rows.slice(ones.begin(), i);
+                auto mask = grid.rows.slice(grid.w.begin(), i);
+                T weight = weights[i];
                 std::transform(std::execution::par_unseq, slc.begin(), slc.end(),
-                               slc.begin(), [w](complex_t v) { return w * v; });
+                               mask.begin(), slc.begin(),
+                               [weight](complex_t v, T m) { return weight * m * v; });
             }
 
             // NUFFT type-1: non-uniform points -> uniform grid (backprojection
@@ -159,8 +165,8 @@ namespace tomocam::cpu {
 
                 for (size_t i = 0; i < 3; ++i) {
                     for (size_t j = i; j < 3; ++j) {
-                        std::vector<T> weights(grid.dims().n1);
-                        for (size_t k = 0; k < grid.dims().n1; ++k) {
+                        std::vector<T> weights(grid.rows.nrows());
+                        for (size_t k = 0; k < grid.rows.nrows(); ++k) {
                             auto n_hat = beam_dir_vector(
                                 grid.angle(k), grid.gamma(k), grid.beta(k));
                             weights[k] = n_hat[i] * n_hat[j];

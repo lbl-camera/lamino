@@ -47,11 +47,15 @@ namespace tomocam::gpu {
         auto dims = pg.dims();
         T scale = static_cast<T>(dims.n2 * dims.n3);
         auto proj = DeviceArray<complex<T>>(dims);
+        auto w_cmplx = array::to_complex(pg.w);
 
         for (size_t i = 0; i < 3; ++i) {
             auto mcmplx = array::to_complex(m[i]);
             DeviceArray<complex<T>> C(dims);
             gpu::nufft::nufft3d2(C, mcmplx, pg);
+
+            // discard aliased points (outside [-pi,pi]) before ifft2
+            C *= w_cmplx;
 
             gpu::project_component(C, pg, gamma, i);
             // accumulate projections
@@ -91,8 +95,14 @@ namespace tomocam::gpu {
         C = gpu::fft::fft2d(C);
         C = gpu::ifftshift2(C);
 
+        auto w_cmplx = array::to_complex(pg.w);
+
         for (size_t i = 0; i < 3; ++i) {
             auto ccmplx = C.clone();
+
+            // discard aliased points (outside [-pi,pi]) before backprojecting
+            ccmplx *= w_cmplx;
+
             gpu::project_component(ccmplx, pg, gamma, i);
             DeviceArray<complex<T>> fcmplx(recon_dims);
             nufft::nufft3d1(ccmplx, fcmplx, pg);

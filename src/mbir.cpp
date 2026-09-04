@@ -35,6 +35,7 @@
 #include "polar_grid.h"
 #include "projection.h"
 #include "recon_params.h"
+#include "toeplitz.h"
 
 namespace tomocam {
 
@@ -42,6 +43,7 @@ namespace tomocam {
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
                                  const ReconParams &params) {
 
+        // create logger (defaults to stdout)
         Logger logger(params.logMode, params.logfile);
 
         // padding factor
@@ -58,8 +60,6 @@ namespace tomocam {
 
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
-        std::vector<T> gammas(n_datasets);
-        std::vector<T> betas(n_datasets);
 
         T proj_max = 0.0;
         for (const auto &ds : datasets) {
@@ -68,8 +68,6 @@ namespace tomocam {
 
         for (size_t j = 0; j < n_datasets; ++j) {
             const auto &ds = datasets[j];
-            gammas[j] = ds.gamma;
-            betas[j] = ds.beta;
 
             auto y = ds.projs / proj_max;
             y = pad2d(y, padfac, PadType::SYMMETRIC);
@@ -88,12 +86,19 @@ namespace tomocam {
         auto supp_mask = mask_support<T>(recon_dims, output_dims);
         for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
 
-        opt::Function<T> A = [&polar_grids, &gammas,
-                              &betas](const std::array<Array<T>, 3> &m) {
-            std::array<Array<T>, 3> Ax =
-                sysmat(m, polar_grids[0], gammas[0], betas[0]);
-            for (size_t i = 1; i < polar_grids.size(); ++i) {
-                auto tmp = sysmat(m, polar_grids[i], gammas[i], betas[i]);
+        // Precompute the Toeplitz PSF kernels once per dataset grid, so A^T A
+        // becomes a set of FFT convolutions instead of a NUFFT
+        // forward+adjoint pair per solver iteration.
+        std::vector<cpu::ToeplitzVectorOp<T>> toeplitz_ops;
+        toeplitz_ops.reserve(n_datasets);
+        for (size_t j = 0; j < n_datasets; ++j) {
+            toeplitz_ops.emplace_back(polar_grids[j], recon_dims);
+        }
+
+        opt::Function<T> A = [&toeplitz_ops](const std::array<Array<T>, 3> &m) {
+            std::array<Array<T>, 3> Ax = cpu::sysmat(m, toeplitz_ops[0]);
+            for (size_t i = 1; i < toeplitz_ops.size(); ++i) {
+                auto tmp = cpu::sysmat(m, toeplitz_ops[i]);
                 for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
             }
             return Ax;
@@ -102,10 +107,9 @@ namespace tomocam {
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
-                recon_m = opt::split_bregman<T>(A, yT, x0, params.lambda, params.mu,
-                                                params.maxIters, params.innerIters,
-                                                params.tol, params.xtol, supp_mask,
-                                                &logger);
+                recon_m = opt::split_bregman<T>(
+                    A, yT, x0, params.lambda, params.mu, params.maxIters,
+                    params.innerIters, params.tol, params.xtol, supp_mask, &logger);
                 break;
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
@@ -187,18 +191,21 @@ namespace tomocam {
         auto supp_mask = mask_support<T>(recon_dims, output_dims);
         for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
 
-        // System matrix: one call to the per-angle-gamma overload
-        opt::Function<T> A = [&pg](const std::array<Array<T>, 3> &m) {
-            return sysmat(m, pg);
+        // Precompute the Toeplitz PSF kernels once for the unified grid, so
+        // A^T A becomes a set of FFT convolutions instead of a NUFFT
+        // forward+adjoint pair per solver iteration.
+        cpu::ToeplitzVectorOp<T> toeplitz_op(pg, recon_dims);
+
+        opt::Function<T> A = [&toeplitz_op](const std::array<Array<T>, 3> &m) {
+            return cpu::sysmat(m, toeplitz_op);
         };
 
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
-                recon_m = opt::split_bregman<T>(A, yT, x0, params.lambda, params.mu,
-                                                params.maxIters, params.innerIters,
-                                                params.tol, params.xtol, supp_mask,
-                                                &logger);
+                recon_m = opt::split_bregman<T>(
+                    A, yT, x0, params.lambda, params.mu, params.maxIters,
+                    params.innerIters, params.tol, params.xtol, supp_mask, &logger);
                 break;
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,

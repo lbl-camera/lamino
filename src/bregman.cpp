@@ -85,7 +85,8 @@ namespace tomocam::opt {
             }
 
             // use conjugate gradient to solve the linear system
-            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol, tol, support, T(0));
+            x = cgsolver<T>(Ap, rhs, x_old, inner_max, tol, tol, support, T(0),
+                            logger);
 
             /* Isotropic TV shrinkage */
             // compute gradient of solution
@@ -127,9 +128,9 @@ namespace tomocam::opt {
                              (array::norm2(x_old[i]) + static_cast<T>(EPSILON));
             }
             if (logger)
-                logger->log(std::format(
-                    "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter,
-                    norm_diff));
+                logger->log(
+                    std::format("Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n",
+                                iter, norm_diff));
             for (size_t i = 0; i < 3; ++i) { x_old[i] = x[i].clone(); }
             if (norm_diff < xtol) { break; }
         }

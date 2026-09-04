@@ -35,6 +35,55 @@
 
 namespace tomocam {
 
+    // A non-owning view into one row of a ragged (variable-length-per-row)
+    // flat buffer. Mirrors Slice<T>'s role for Array<T>.
+    template <typename T>
+    class RaggedSlice {
+        T *data_;
+        size_t n_;
+
+      public:
+        RaggedSlice(T *data, size_t n) : data_(data), n_(n) {}
+
+        [[nodiscard]] size_t size() const { return n_; }
+        T *begin() { return data_; }
+        T *end() { return data_ + n_; }
+        const T *begin() const { return data_; }
+        const T *end() const { return data_ + n_; }
+    };
+
+    // Describes how a flat, per-nonuniform-point buffer is partitioned into
+    // rows (one row per projection). Every row currently has the same
+    // length (nrows*ncols) — out-of-[-pi,pi] points are masked via
+    // PolarGrid::w rather than dropped — but this is kept generic (rather
+    // than a plain dims_t) so any co-sized flat buffer (PolarGrid::x/y/z/w,
+    // or an unrelated buffer like ToeplitzVectorOp's per-angle weights) can
+    // be sliced against it uniformly.
+    struct RaggedShape {
+        std::vector<size_t> offsets; // size nrows()+1; row i is [offsets[i], offsets[i+1])
+
+        [[nodiscard]] size_t nrows() const {
+            return offsets.empty() ? 0 : offsets.size() - 1;
+        }
+        [[nodiscard]] size_t size() const {
+            return offsets.empty() ? 0 : offsets.back();
+        }
+        [[nodiscard]] size_t row_begin(size_t i) const { return offsets[i]; }
+        [[nodiscard]] size_t row_size(size_t i) const {
+            return offsets[i + 1] - offsets[i];
+        }
+
+        // view into row i of any flat buffer sharing this row structure
+        template <typename U>
+        [[nodiscard]] RaggedSlice<U> slice(U *data, size_t i) const {
+            return RaggedSlice<U>(data + offsets[i], row_size(i));
+        }
+        template <typename U>
+        [[nodiscard]] RaggedSlice<const U> slice(const U *data, size_t i) const {
+            return RaggedSlice<const U>(data + offsets[i], row_size(i));
+        }
+    };
+
     template <typename T>
     struct PolarGrid {
         size_t npts;
@@ -44,7 +93,8 @@ namespace tomocam {
         Array<T> x;
         Array<T> y;
         Array<T> z;
-        Array<T> w;  // 1 inside [-π,π]^3, 0 outside (masks aliased q-points)
+        Array<T> w; // 1 inside [-π,π]^3, 0 outside (masks aliased q-points)
+        RaggedShape rows; // per-projection row structure of x/y/z/w
 
         // default constructor
         PolarGrid() : npts(0) {}
@@ -62,6 +112,11 @@ namespace tomocam {
             y = Array<T>(dims);
             z = Array<T>(dims);
             w = Array<T>(dims);
+
+            rows.offsets.resize(dims.n1 + 1);
+            for (size_t i = 0; i <= dims.n1; ++i) {
+                rows.offsets[i] = i * dims.n2 * dims.n3;
+            }
 
             T L = 2 * M_PI;
             T dX = L / static_cast<T>(ncols);
@@ -113,6 +168,11 @@ namespace tomocam {
             z = Array<T>(dims);
             w = Array<T>(dims);
 
+            rows.offsets.resize(dims.n1 + 1);
+            for (size_t i = 0; i <= dims.n1; ++i) {
+                rows.offsets[i] = i * dims.n2 * dims.n3;
+            }
+
             T L = 2 * M_PI;
             T dX = L / static_cast<T>(ncols);
             T dY = L / static_cast<T>(nrows);
@@ -146,7 +206,7 @@ namespace tomocam {
             : npts(other.npts), theta(std::move(other.theta)),
               gammas(std::move(other.gammas)), betas(std::move(other.betas)),
               x(std::move(other.x)), y(std::move(other.y)), z(std::move(other.z)),
-              w(std::move(other.w)) {}
+              w(std::move(other.w)), rows(std::move(other.rows)) {}
 
         PolarGrid<T> &operator=(PolarGrid<T> &&other) noexcept {
             if (this != &other) {
@@ -158,6 +218,7 @@ namespace tomocam {
                 y = std::move(other.y);
                 z = std::move(other.z);
                 w = std::move(other.w);
+                rows = std::move(other.rows);
             }
             return *this;
         }
@@ -172,6 +233,7 @@ namespace tomocam {
             out.y = this->y.clone();
             out.z = this->z.clone();
             out.w = this->w.clone();
+            out.rows = this->rows;
             return out;
         }
         void print_limits() const {

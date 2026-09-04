@@ -40,11 +40,16 @@ namespace tomocam::gpu {
         T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
 
         // Uniform -> Polar (nufft3d2 output is complex)
+        auto w_cmplx = gpu::array::to_complex(grid.w);
         VecArray<Complex<T>> tmp;
         for (size_t i = 0; i < 3; ++i) {
             auto xcmplx = gpu::array::to_complex(x[i]);
             auto ccmplx = DeviceArray<Complex<T>>(grid.dims());
             gpu::nufft::nufft3d2(ccmplx, xcmplx, grid);
+
+            // discard aliased points (outside [-pi,pi]) before backprojecting
+            ccmplx *= w_cmplx;
+
             tmp[i] = std::move(ccmplx);
         }
         // Apply (e ⊗ e) projection matrix in the polar domain

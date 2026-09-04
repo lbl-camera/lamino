@@ -46,6 +46,7 @@ namespace tomocam::gpu {
         DeviceArray<T> x;
         DeviceArray<T> y;
         DeviceArray<T> z;
+        DeviceArray<T> w; // 1 inside [-pi,pi]^3, 0 outside (masks aliased q-points)
         thrust::device_vector<T> angles;
 
         /// Returns dimensions (nangles, nrows, ncols) of the coordinate arrays.
@@ -63,7 +64,7 @@ namespace tomocam::gpu {
         PolarGrid(const std::vector<T> &theta, T gamma, size_t nrows, size_t ncols);
 
         // default constructor
-        PolarGrid() : npts(0), x(), y(), z(), angles() {}
+        PolarGrid() : npts(0), x(), y(), z(), w(), angles() {}
     };
 } // namespace tomocam::gpu
 
