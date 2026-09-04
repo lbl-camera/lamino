@@ -95,7 +95,7 @@ namespace tomocam::opt {
             T res = std::sqrt(dot(r, r)) / y_norm;
             if (logger)
                 logger->log(std::format(
-                    "\tCG iter: {:5}, residual: {:.5e}, dx: {:.5e}\n", iter + 1,
+                    "\tCG iter: {:5}, residual: {:.5e}, ||dx||: {:.5e}\n", iter + 1,
                     res, dx));
             if (res < tol || dx < xtol) { break; }
         }

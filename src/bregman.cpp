@@ -128,9 +128,8 @@ namespace tomocam::opt {
                              (array::norm2(x_old[i]) + static_cast<T>(EPSILON));
             }
             if (logger)
-                logger->log(
-                    std::format("Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n",
-                                iter, norm_diff));
+                logger->log(std::format("Outer iter: {}, ||dx||/||x||: {:.6e}\n",
+                                        iter, norm_diff));
             for (size_t i = 0; i < 3; ++i) { x_old[i] = x[i].clone(); }
             if (norm_diff < xtol) { break; }
         }

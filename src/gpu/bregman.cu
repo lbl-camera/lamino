@@ -27,10 +27,10 @@
 #include "gpu/bregman.h"
 #include "gpu/device_array.h"
 #include "gpu/device_array_ops.h"
-#include "gpu/vec_array.h"
 #include "gpu/finitediff.h"
 #include "gpu/gpu_opt.h"
 #include "gpu/mem_check.h"
+#include "gpu/vec_array.h"
 
 namespace tomocam::gpu::opt {
 
@@ -119,7 +119,7 @@ namespace tomocam::gpu::opt {
             return Au;
         };
 
-        for (int iter = 0; iter < outer_max; ++iter) {
+        for (size_t iter = 0; iter < outer_max; ++iter) {
 
             // x-update: solve (A^TA + μ∇^T∇)x = A^T y + μ∇^T(d - b)
             std::array<VecArray<T>, 3> d_b;
@@ -162,9 +162,8 @@ namespace tomocam::gpu::opt {
             // norm_diff = ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂
             T norm_diff = (x - x_old).norm2() / (x_old.norm2() + (T)EPSILON);
             if (logger)
-                logger->log(std::format(
-                    "Outer iter: {}, ‖xᵏ⁺¹ − xᵏ‖₂ / ‖xᵏ‖₂: {:.6e}\n", iter,
-                    norm_diff));
+                logger->log(std::format("Outer iter: {}, ||dx||/||x|| : {:.6e}\n",
+                                        iter, norm_diff));
             x_old = x.clone();
             if (norm_diff < xtol) { break; }
         }
@@ -185,9 +184,8 @@ namespace tomocam::gpu::opt {
                   dims_t support_dims, Logger *logger);
 #ifdef DEBUG
     // compute_sk test
-    template DeviceArray<float>
-    compute_sk(const std::array<VecArray<float>, 3> &dx,
-               const std::array<VecArray<float>, 3> &b);
+    template DeviceArray<float> compute_sk(const std::array<VecArray<float>, 3> &dx,
+                                           const std::array<VecArray<float>, 3> &b);
     template DeviceArray<double>
     compute_sk(const std::array<VecArray<double>, 3> &dx,
                const std::array<VecArray<double>, 3> &b);

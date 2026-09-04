@@ -108,8 +108,8 @@ namespace tomocam::gpu::opt {
             T res = r.norm2() / y_norm;
             if (logger)
                 logger->log(std::format(
-                    "\tCG iter {:5d}: residual = {:.5e}, dx = {:.5e}\n", iter + 1,
-                    res, dx));
+                    "\tCG iter {:5d}: residual = {:.5e}, ||dx|| = {:.5e}\n",
+                    iter + 1, res, dx));
             if (res < tol || dx < xtol) break;
         }
 #ifdef DEBUG
