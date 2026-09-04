@@ -47,5 +47,9 @@ if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_alignment test_gpu_alignment.cu)
     target_link_libraries(test_gpu_alignment PUBLIC tomocam)
     add_test(NAME test_gpu_alignment COMMAND test_gpu_alignment)
+
+    add_executable(test_gpu_toeplitz test_gpu_toeplitz.cu)
+    target_link_libraries(test_gpu_toeplitz PUBLIC tomocam)
+    add_test(NAME test_gpu_toeplitz COMMAND test_gpu_toeplitz)
 endif()
 

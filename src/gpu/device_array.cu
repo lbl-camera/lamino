@@ -22,10 +22,19 @@
 #include <cuda_runtime.h>
 
 #include <thrust/device_ptr.h>
+#include <thrust/fill.h>
 
 #include "gpu/device_array.h"
 
 namespace tomocam::gpu {
+
+    template <typename T>
+    DeviceArray<T> DeviceArray<T>::ones(dims_t d) {
+        DeviceArray<T> out(d);
+        thrust::fill(out.begin(), out.end(), T(1));
+        return out;
+    }
+
     /// Add
     template <typename T>
     DeviceArray<T> DeviceArray<T>::operator+(const DeviceArray<T> &other) const {

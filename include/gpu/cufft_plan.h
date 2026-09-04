@@ -96,12 +96,25 @@ namespace tomocam::gpu::fft {
         int device_id;
 
       public:
+        // For ndim=2, n = {batch, n1, n2} (n1,n2 = transform dims, batched over
+        // the leading dim). For ndim=3, n = {n1, n2, n3} (single, unbatched 3D
+        // transform -- no leading batch dim).
         cuFFTPlanWrapper(int ndim, int *n, cufftType type, int gpu_id)
             : device_id(gpu_id), fft_type(type) {
             SAFE_CALL(cudaSetDevice(device_id));
-            int batch = n[0];
-            int dims[] = {n[1], n[2]};
-            int ierr = Traits::make_plan(ndim, dims, batch, &plan, fft_type);
+            int ierr;
+            if (ndim == 2) {
+                int batch = n[0];
+                int dims[] = {n[1], n[2]};
+                ierr = Traits::make_plan(ndim, dims, batch, &plan, fft_type);
+            } else if (ndim == 3) {
+                int batch = 1;
+                int dims[] = {n[0], n[1], n[2]};
+                ierr = Traits::make_plan(ndim, dims, batch, &plan, fft_type);
+            } else {
+                throw std::runtime_error(
+                    "cuFFTPlanWrapper: only ndim 2 or 3 are supported");
+            }
             if (ierr != 0) { throw std::runtime_error("Error in cufftPlanMany"); }
         }
 

@@ -99,7 +99,7 @@ namespace tomocam::gpu::nufft {
         cuFinfftPlanWrapper() = default;
 
         cuFinfftPlanWrapper(int type, int dim, std::array<int64_t, 3> n_modes,
-                            int iflag, int gpu_id) {
+                            int iflag, int gpu_id, int ntrans = 1) {
 
             if (dim != n_modes.size()) {
                 throw std::runtime_error("cuFinfftPlanWrapper constructor: dim does "
@@ -109,8 +109,8 @@ namespace tomocam::gpu::nufft {
             cufinufft_default_opts(&opts);
             opts.upsampfac = 1.25;
             opts.gpu_device_id = gpu_id;
-            int ierr =
-                Traits::makeplan(type, dim, n_modes.data(), iflag, 1, &plan, &opts);
+            int ierr = Traits::makeplan(type, dim, n_modes.data(), iflag, ntrans,
+                                        &plan, &opts);
             if (ierr != 0) {
                 throw std::runtime_error("Error in cufinufft_makeplan");
             }

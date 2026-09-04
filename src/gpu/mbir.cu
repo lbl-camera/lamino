@@ -34,6 +34,7 @@
 #include "gpu/padding.h"
 #include "gpu/polar_grid.h"
 #include "gpu/projection.h"
+#include "gpu/toeplitz.h"
 #include "gpu/tomocam.h"
 #include "gpu/vec_array.h"
 #include "mask.h"
@@ -104,11 +105,22 @@ namespace tomocam::gpu {
                 for (size_t j = 0; j < 3; ++j) { yT[j] += yTmp[j]; }
             }
 
+            // Precompute the Toeplitz PSF kernels once per dataset grid, so
+            // A^T A becomes a set of FFT convolutions instead of a NUFFT
+            // forward+adjoint pair per solver iteration (mirrors CPU's
+            // src/mbir.cpp).
+            std::vector<gpu::ToeplitzVectorOp<T>> toeplitz_ops;
+            toeplitz_ops.reserve(n_datasets);
+            for (size_t i = 0; i < n_datasets; ++i) {
+                toeplitz_ops.emplace_back(polar_grids[i], out_dims,
+                                          gpu::ToeplitzMode::SEQUENTIAL);
+            }
+
             // setup the linear operator for all datasets
-            opt::gpuFunction<T> A = [&polar_grids](const gpu::VecArray<T> &x) {
-                auto Ax = sysmat<T>(x, polar_grids[0]);
-                for (size_t i = 1; i < polar_grids.size(); ++i) {
-                    auto tmp = sysmat<T>(x, polar_grids[i]);
+            opt::gpuFunction<T> A = [&toeplitz_ops](const gpu::VecArray<T> &x) {
+                auto Ax = sysmat<T>(x, toeplitz_ops[0]);
+                for (size_t i = 1; i < toeplitz_ops.size(); ++i) {
+                    auto tmp = sysmat<T>(x, toeplitz_ops[i]);
                     for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
                 }
                 return Ax;

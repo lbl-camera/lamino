@@ -90,6 +90,12 @@ namespace tomocam::gpu {
         /// Destructor automatically managed by cunique_ptr.
         ~DeviceArray() = default;
 
+        /// Returns a zero-initialized array of the given dimensions.
+        static DeviceArray<T> zeros(dims_t d) { return DeviceArray<T>(d); }
+
+        /// Returns an array of the given dimensions with every element set to 1.
+        static DeviceArray<T> ones(dims_t d);
+
         /// Creates explicit clone of the device array on GPU.
         /// Allocates without zero-initialization since the full contents are
         /// immediately overwritten by the device-to-device copy.

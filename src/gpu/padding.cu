@@ -73,6 +73,46 @@ namespace tomocam::gpu {
                                        float pad_factor, PadType type);
 
     template <typename T>
+    DeviceArray<T> pad3d(const DeviceArray<T> &input, dims_t new_dims,
+                         dims_t offset) {
+        dims_t dims = input.dims();
+        int3 off = {(int)offset.n1, (int)offset.n2, (int)offset.n3};
+        DeviceArray<T> output(new_dims);
+        dim3 blockSize = dim3(1, 8, 32);
+        dim3 gridSize = make_grid(dims, blockSize);
+        pad2d_kernel<T><<<gridSize, blockSize>>>(input, output, off);
+        SAFE_CALL(cudaGetLastError());
+        return output;
+    }
+
+    template <typename T>
+    DeviceArray<T> pad3d(const DeviceArray<T> &input, float factor, PadType type) {
+        dims_t dims = input.dims();
+        size_t n1 = static_cast<size_t>(dims.n1 * factor);
+        size_t n2 = static_cast<size_t>(dims.n2 * factor);
+        size_t n3 = static_cast<size_t>(dims.n3 * factor);
+        dims_t new_dims = {n1, n2, n3};
+        dims_t pad_size = new_dims - dims;
+
+        dims_t offset = {pad_size.n1 / 2, pad_size.n2 / 2, pad_size.n3 / 2};
+        if (type == PadType::RIGHT) {
+            offset = dims_t(0, 0, 0);
+        } else if (type == PadType::LEFT) {
+            offset = pad_size;
+        }
+        return pad3d(input, new_dims, offset);
+    }
+
+    template DeviceArray<float> pad3d(const DeviceArray<float> &input,
+                                      dims_t new_dims, dims_t offset);
+    template DeviceArray<double> pad3d(const DeviceArray<double> &input,
+                                       dims_t new_dims, dims_t offset);
+    template DeviceArray<float> pad3d(const DeviceArray<float> &input, float factor,
+                                      PadType type);
+    template DeviceArray<double> pad3d(const DeviceArray<double> &input,
+                                       float factor, PadType type);
+
+    template <typename T>
     __global__ void crop3d_kernel(DevicePtr<const T> input, DevicePtr<T> output,
                                   int3 offset) {
         int3 idx = Index3D();
@@ -116,4 +156,22 @@ namespace tomocam::gpu {
                                        dims_t out_dims, PadType type);
     template DeviceArray<double> crop3d(const DeviceArray<double> &input,
                                         dims_t out_dims, PadType type);
+
+    template <typename T>
+    DeviceArray<T> crop3d(const DeviceArray<T> &input, dims_t new_dims,
+                          dims_t offset) {
+        int3 off = {(int)offset.n1, (int)offset.n2, (int)offset.n3};
+        DeviceArray<T> output(new_dims);
+        dim3 blockSize = dim3(1, 8, 32);
+        dim3 gridSize = make_grid(new_dims, blockSize);
+        crop3d_kernel<T><<<gridSize, blockSize>>>(input, output, off);
+        SAFE_CALL(cudaGetLastError());
+        return output;
+    }
+
+    template DeviceArray<float> crop3d(const DeviceArray<float> &input,
+                                       dims_t new_dims, dims_t offset);
+    template DeviceArray<double> crop3d(const DeviceArray<double> &input,
+                                        dims_t new_dims, dims_t offset);
+
 } // namespace tomocam::gpu

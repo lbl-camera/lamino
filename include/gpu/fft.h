@@ -117,6 +117,47 @@ namespace tomocam::gpu::fft {
         return output;
     }
 
+    // 3D real-to-complex forward transform. Output has shape
+    // {n1, n2, n3/2+1} (Hermitian-packed last dim), matching cpu::fft::fft3_r2c.
+    template <typename T>
+    DeviceArray<complex<T>> rfft3d(DeviceArray<T> &data) {
+
+        int n1 = static_cast<int>(data.nslices());
+        int n2 = static_cast<int>(data.nrows());
+        int n3 = static_cast<int>(data.ncols());
+
+        dims_t out_dims{(size_t)n1, (size_t)n2, (size_t)(n3 / 2 + 1)};
+        DeviceArray<complex<T>> output(out_dims);
+
+        int dim = 3;
+        std::array<int, 3> n_modes = {n1, n2, n3};
+        int device_id = -1;
+        SAFE_CALL(cudaGetDevice(&device_id));
+        auto &plan = plans::cache<T>.get_plan(dim, n_modes, CUFFT_R2C, device_id);
+        plan.execute(data.data(), output.data());
+        return output;
+    }
+
+    // 3D complex-to-real inverse transform. `output_dims` gives the full
+    // (non-Hermitian-packed) output shape, matching cpu::fft::fft3_c2r.
+    template <typename T>
+    DeviceArray<T> irfft3d(DeviceArray<complex<T>> &data, dims_t output_dims) {
+
+        int n1 = static_cast<int>(output_dims.n1);
+        int n2 = static_cast<int>(output_dims.n2);
+        int n3 = static_cast<int>(output_dims.n3);
+
+        DeviceArray<T> output(output_dims);
+
+        int dim = 3;
+        std::array<int, 3> n_modes = {n1, n2, n3};
+        int device_id = -1;
+        SAFE_CALL(cudaGetDevice(&device_id));
+        auto &plan = plans::cache<T>.get_plan(dim, n_modes, CUFFT_C2R, device_id);
+        plan.execute(data.data(), output.data());
+        return output;
+    }
+
 } // namespace tomocam::gpu::fft
 
 #endif // GPU_FFT_H

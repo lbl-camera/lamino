@@ -46,6 +46,21 @@ namespace tomocam::gpu {
     DeviceArray<T> pad2d(const DeviceArray<T> &input, float factor, PadType type);
 
     /**
+     * @brief zero-pad `input` into a `new_dims`-sized array, placing `input`
+     * starting at `offset` along each axis (e.g. offset={0,0,0} = zero
+     * right-pad). Mirrors CPU's pad3d(arr, new_dims, offset) (include/padding.h).
+     */
+    template <typename T>
+    DeviceArray<T> pad3d(const DeviceArray<T> &input, dims_t new_dims,
+                         dims_t offset);
+
+    /**
+     * @brief zero-pad `input` by `factor` in every dimension, per `type`.
+     */
+    template <typename T>
+    DeviceArray<T> pad3d(const DeviceArray<T> &input, float factor, PadType type);
+
+    /**
      * @tparam T
      * @param input
      * @param output dimensions
@@ -57,6 +72,15 @@ namespace tomocam::gpu {
     template <typename T>
     DeviceArray<T> crop3d(const DeviceArray<T> &input, dims_t out_dims,
                           PadType type);
+
+    /**
+     * @brief crop a `new_dims`-sized block out of `input`, reading starting at
+     * `offset` along each axis. Mirrors CPU's crop3d(arr, new_dims, offset)
+     * (include/padding.h).
+     */
+    template <typename T>
+    DeviceArray<T> crop3d(const DeviceArray<T> &input, dims_t new_dims,
+                          dims_t offset);
 
 } // namespace tomocam::gpu
 
