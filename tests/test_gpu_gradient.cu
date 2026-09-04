@@ -22,10 +22,10 @@
 // where A(x) = sum_j [R_j^T R_j x] for 3 datasets with different tilt angles
 // (gamma = 0°, 45°, -45°), matching the XMCD configuration.
 //
-// Both functions implement the multi-dataset normal equations operator.
-// The CPU version divides by scale per dataset; the GPU version does not.
-// This test will surface that difference explicitly via a reported ratio,
-// in addition to computing the per-component relative L2 error.
+// Both functions implement the multi-dataset normal equations operator and
+// now share the same normalization convention (src/gpu/gradient.cu matches
+// include/toeplitz.h / src/gradient.cpp), so the reported ratio should be
+// ~1.0; it is still printed as a diagnostic.
 // Pass criterion: relative L2 error < 1e-3 (after accounting for the
 // scale factor, if present).
 
@@ -46,9 +46,11 @@
 namespace tomocam {
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
-                                   const PolarGrid<T> &grid, T gamma);
+                                   const PolarGrid<T> &grid);
 }
 
+#include "gpu/cufft_plan_cache.h"
+#include "gpu/cufinufft_plan_cache.h"
 #include "gpu/device_array.h"
 #include "gpu/polar_grid.h"
 #include "gpu/projection.h"
@@ -81,7 +83,7 @@ int main() {
     std::array<gpu::PolarGrid<float>, 3> gpu_grids;
     for (size_t j = 0; j < 3; j++) {
         cpu_grids[j] = PolarGrid<float>(theta, dims.n2, dims.n3, gammas[j]);
-        gpu_grids[j] = gpu::PolarGrid<float>(theta, gammas[j], dims.n2, dims.n3);
+        gpu_grids[j] = gpu::PolarGrid<float>(theta, dims.n2, dims.n3, gammas[j]);
     }
 
     // Random 3-component fields on CPU
@@ -106,9 +108,9 @@ int main() {
     std::cout << "Running CPU multi-dataset sysmat ...\n";
     auto t_cpu_start = std::chrono::high_resolution_clock::now();
 
-    auto Ax_cpu = tomocam::sysmat(x_cpu, cpu_grids[0], gammas[0]);
+    auto Ax_cpu = tomocam::sysmat(x_cpu, cpu_grids[0]);
     for (size_t j = 1; j < 3; j++) {
-        auto tmp = tomocam::sysmat(x_cpu, cpu_grids[j], gammas[j]);
+        auto tmp = tomocam::sysmat(x_cpu, cpu_grids[j]);
         for (size_t i = 0; i < 3; i++) Ax_cpu[i] += tmp[i];
     }
 
@@ -134,9 +136,9 @@ int main() {
     std::cout << "Running GPU multi-dataset sysmat ...\n";
     auto t_gpu_start = std::chrono::high_resolution_clock::now();
 
-    auto Ax_gpu = gpu::sysmat(x_gpu, gpu_grids[0], gammas[0]);
+    auto Ax_gpu = gpu::sysmat(x_gpu, gpu_grids[0]);
     for (size_t j = 1; j < 3; j++) {
-        auto tmp = gpu::sysmat(x_gpu, gpu_grids[j], gammas[j]);
+        auto tmp = gpu::sysmat(x_gpu, gpu_grids[j]);
         Ax_gpu += tmp;
     }
     auto r_gpu = y_gpu - Ax_gpu;
@@ -235,6 +237,14 @@ int main() {
     } else {
         std::cout << "\ntest_gpu_gradient: FAILED\n";
     }
+    std::cout.flush();
+
+    // Tear down plan caches explicitly while the CUDA context is still fully
+    // alive -- their global-static destructors otherwise run during process
+    // exit / driver shutdown and abort (see tomocam::gpu::MBIR for the same
+    // pattern in src/gpu/mbir.cu).
+    tomocam::gpu::nufft::plans::cache<float>.clear();
+    tomocam::gpu::fft::plans::cache<float>.clear();
 
     return all_passed ? 0 : 1;
 }

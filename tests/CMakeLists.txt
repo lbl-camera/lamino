@@ -43,5 +43,9 @@ if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_gradient test_gpu_gradient.cu)
     target_link_libraries(test_gpu_gradient PUBLIC tomocam)
     add_test(NAME test_gpu_gradient COMMAND test_gpu_gradient)
+
+    add_executable(test_gpu_alignment test_gpu_alignment.cu)
+    target_link_libraries(test_gpu_alignment PUBLIC tomocam)
+    add_test(NAME test_gpu_alignment COMMAND test_gpu_alignment)
 endif()
 

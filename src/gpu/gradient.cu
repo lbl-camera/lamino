@@ -33,11 +33,16 @@ namespace tomocam::gpu {
     using Complex = cuda::std::complex<T>;
 
     template <typename T>
-    VecArray<T> sysmat(const VecArray<T> &x, const gpu::PolarGrid<T> &grid,
-                       T gamma) {
+    VecArray<T> sysmat(const VecArray<T> &x, const gpu::PolarGrid<T> &grid) {
 
         VecArray<T> Ax;
-        T scale = static_cast<T>(grid.dims().n2 * grid.dims().n3);
+        // match CPU sysmat's normalization convention (src/gradient.cpp):
+        // divide by n1^2*n2*n3 of the recon volume dims, not the detector
+        // dims -- sysmat = R^T R, and forward/adjoint each notionally divide
+        // by the volume n1*n2*n3, so A^T A divides by
+        // (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3 (the FFT2/IFFT2 round-trip
+        // implicit in forward/adjoint is unnormalized and adds n2*n3 back).
+        T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
 
         // Uniform -> Polar (nufft3d2 output is complex)
         auto w_cmplx = gpu::array::to_complex(grid.w);
@@ -53,7 +58,7 @@ namespace tomocam::gpu {
             tmp[i] = std::move(ccmplx);
         }
         // Apply (e ⊗ e) projection matrix in the polar domain
-        xmcd_projection(tmp, grid, gamma);
+        xmcd_projection(tmp, grid);
 
         // Polar -> Uniform (nufft3d1), take real part
         for (size_t i = 0; i < 3; ++i) {
@@ -65,9 +70,8 @@ namespace tomocam::gpu {
     }
     // explicit instantiations
     template VecArray<float> sysmat(const VecArray<float> &x,
-                                    const gpu::PolarGrid<float> &grid, float gamma);
+                                    const gpu::PolarGrid<float> &grid);
     template VecArray<double> sysmat(const VecArray<double> &x,
-                                     const gpu::PolarGrid<double> &grid,
-                                     double gamma);
+                                     const gpu::PolarGrid<double> &grid);
 
 } // namespace tomocam::gpu

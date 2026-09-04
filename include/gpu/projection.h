@@ -23,6 +23,8 @@
 
 #include <array>
 
+#include <thrust/device_vector.h>
+
 #include "dtypes.h"
 #include "gpu/device_array.h"
 #include "gpu/polar_grid.h"
@@ -34,34 +36,38 @@ namespace tomocam::gpu {
      * @brief GPU forward projection: volume -> projections.
      * @param magnetization 3D magnetization components as std::array of 3
      * DeviceArrays.
-     * @param pg      GPU polar grid.
+     * @param pg      GPU polar grid (carries per-projection gamma/beta).
      * @return        Device array of projections with shape (ntheta, nrows, ncols).
      */
     template <typename T>
-    DeviceArray<T> forward(const VecArray<T> &magnetization, const PolarGrid<T> &pg,
-                           T gamma);
+    DeviceArray<T> forward(const VecArray<T> &magnetization, const PolarGrid<T> &pg);
 
     /**
      * @brief GPU adjoint projection: projections -> magnetization.
      * @param proj        Device array of projections.
-     * @param pg          GPU polar grid.
+     * @param pg          GPU polar grid (carries per-projection gamma/beta).
      * @param recon_dims  Dimensions of the output
+     * @param shift_dx    Optional per-projection center-of-rotation x-shift
+     *                    (length nprojs); empty to skip the phase-shift step.
+     * @param shift_dy    Optional per-projection center-of-rotation y-shift
+     *                    (length nprojs).
      * @return            array of 3 DeviceArrays with shape recon_dims,
      * corresponding to the 3 magnetization components.
      */
     template <typename T>
     VecArray<T> adjoint(const DeviceArray<T> &proj, const PolarGrid<T> &pg,
-                        const dims_t &recon_dims, T gamma);
+                        const dims_t &recon_dims,
+                        const thrust::device_vector<T> &shift_dx = {},
+                        const thrust::device_vector<T> &shift_dy = {});
 
     /**
      * @brief GPU system matrix: (A^T A) x.
-     * @param x   DeviceArray[3] with shape (nz, ny, nx).
-     * @param pg  GPU polar grid.
-     * @param gamma  Orientation in plane normal to beam direction
-     * @return    DeviceArray[3] of shape (nz, ny, nx).
+     * @param x     DeviceArray[3] with shape (nz, ny, nx).
+     * @param pg    GPU polar grid (carries per-projection gamma/beta).
+     * @return      DeviceArray[3] of shape (nz, ny, nx).
      */
     template <typename T>
-    VecArray<T> sysmat(const VecArray<T> &x, const PolarGrid<T> &pg, T gamma);
+    VecArray<T> sysmat(const VecArray<T> &x, const PolarGrid<T> &pg);
 } // namespace tomocam::gpu
 
 #endif // TOMOCAM_GPU_PROJECTION_H

@@ -18,39 +18,28 @@
  *---------------------------------------------------------------------------------
  */
 
-#ifndef TOMOCAM_GPU_H
-#define TOMOCAM_GPU_H
+#ifndef TOMOCAM_GPU_PHASE_SHIFT_H
+#define TOMOCAM_GPU_PHASE_SHIFT_H
 
-#include <string>
-#include <vector>
+#include <cuda/std/complex>
+#include <thrust/device_vector.h>
 
 #include "gpu/device_array.h"
-#include "gpu/polar_grid.h"
-#include "gpu/projection.h"
-#include "recon_params.h"
 
 namespace tomocam::gpu {
 
-    // reuse the CPU host-side struct verbatim: it's plain host memory
-    // (Array<T>, std::vector<T>, scalars), and MBIR's callers already build
-    // one of these directly (see src/recon.cpp).
     template <typename T>
-    using Dataset_t = tomocam::Dataset_t<T>;
+    using Complex = cuda::std::complex<T>;
 
-    /**
-     * @brief Host wrapper for GPU MBIR: takes projections and angles on the host,
-     *        moves data to GPU, calls the GPU MBIR function, and returns the
-     *        reconstructed volume back on the host.
-     * @param dataset  Dataset containing projections, angles, and gamma reference.
-     * @param params   Reconstruction parameters (e.g. number of iterations,
-     * regularization weight, etc.).
-     * @return         Reconstructed vector components
-     * similar).
-     */
+    // Applies a per-projection center-of-rotation phase shift in-place:
+    // data[i,j,k] *= exp(-i*(qx*dx[i] + qy*dy[i])), mirroring
+    // tomocam::fft::phase_shift2d (include/fft.h). dx/dy have length nprojs
+    // (= data.dims().n1), one entry per projection.
     template <typename T>
-    std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                 const ReconParams &params);
+    void phase_shift2d(DeviceArray<Complex<T>> &data,
+                       const thrust::device_vector<T> &dx,
+                       const thrust::device_vector<T> &dy);
 
 } // namespace tomocam::gpu
 
-#endif // TOMOCAM_GPU_H
+#endif // TOMOCAM_GPU_PHASE_SHIFT_H

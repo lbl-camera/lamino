@@ -29,6 +29,7 @@
 #include "gpu/fft.h"
 #include "gpu/fftshift.h"
 #include "gpu/nufft.h"
+#include "gpu/phase_shift.h"
 #include "gpu/polar_grid.h"
 #include "gpu/utils.h"
 #include "gpu/vec_array.h"
@@ -40,12 +41,16 @@ namespace tomocam::gpu {
     using complex = cuda::std::complex<T>;
 
     template <typename T>
-    DeviceArray<T> forward(const VecArray<T> &m, const gpu::PolarGrid<T> &pg,
-                           T gamma) {
+    DeviceArray<T> forward(const VecArray<T> &m, const gpu::PolarGrid<T> &pg) {
 
         // cast to complex
         auto dims = pg.dims();
-        T scale = static_cast<T>(dims.n2 * dims.n3);
+        // match CPU forward's normalization convention (include/projection.h /
+        // src/projection.cpp): divide by the magnetization volume, not the
+        // detector-plane dims.
+        auto vol_dims = m[0].dims();
+        T scale = static_cast<T>(vol_dims.n1) * static_cast<T>(vol_dims.n2) *
+                 static_cast<T>(vol_dims.n3);
         auto proj = DeviceArray<complex<T>>(dims);
         auto w_cmplx = array::to_complex(pg.w);
 
@@ -57,7 +62,7 @@ namespace tomocam::gpu {
             // discard aliased points (outside [-pi,pi]) before ifft2
             C *= w_cmplx;
 
-            gpu::project_component(C, pg, gamma, i);
+            gpu::project_component(C, pg, i);
             // accumulate projections
             proj += C;
         }
@@ -71,9 +76,9 @@ namespace tomocam::gpu {
 
     // Explicit instantiations for forward
     template DeviceArray<float> forward(const VecArray<float> &,
-                                        const gpu::PolarGrid<float> &, float);
+                                        const gpu::PolarGrid<float> &);
     template DeviceArray<double> forward(const VecArray<double> &,
-                                         const gpu::PolarGrid<double> &, double);
+                                         const gpu::PolarGrid<double> &);
 
     // -------------------------------------------------------------------------
     // backward: projections -> volume
@@ -81,11 +86,16 @@ namespace tomocam::gpu {
 
     template <typename T>
     VecArray<T> adjoint(const DeviceArray<T> &proj, const gpu::PolarGrid<T> &pg,
-                        const dims_t &recon_dims, T gamma) {
+                        const dims_t &recon_dims,
+                        const thrust::device_vector<T> &shift_dx,
+                        const thrust::device_vector<T> &shift_dy) {
 
         // declare output array
         VecArray<T> m;
-        T scale = static_cast<T>(proj.nrows() * proj.ncols());
+        // match CPU adjoint's normalization convention: divide by the full
+        // recon volume, not the detector-plane dims.
+        T scale = static_cast<T>(recon_dims.n1) * static_cast<T>(recon_dims.n2) *
+                 static_cast<T>(recon_dims.n3);
 
         // cast to complex
         auto C = array::to_complex(proj);
@@ -95,6 +105,9 @@ namespace tomocam::gpu {
         C = gpu::fft::fft2d(C);
         C = gpu::ifftshift2(C);
 
+        // optional per-projection center-of-rotation alignment correction
+        if (!shift_dx.empty()) { gpu::phase_shift2d(C, shift_dx, shift_dy); }
+
         auto w_cmplx = array::to_complex(pg.w);
 
         for (size_t i = 0; i < 3; ++i) {
@@ -103,7 +116,7 @@ namespace tomocam::gpu {
             // discard aliased points (outside [-pi,pi]) before backprojecting
             ccmplx *= w_cmplx;
 
-            gpu::project_component(ccmplx, pg, gamma, i);
+            gpu::project_component(ccmplx, pg, i);
             DeviceArray<complex<T>> fcmplx(recon_dims);
             nufft::nufft3d1(ccmplx, fcmplx, pg);
             m[i] = array::to_real(fcmplx) / scale;
@@ -113,8 +126,10 @@ namespace tomocam::gpu {
     // explicit instantiations for adjoint
     template VecArray<float> adjoint(const DeviceArray<float> &,
                                      const gpu::PolarGrid<float> &, const dims_t &,
-                                     float);
+                                     const thrust::device_vector<float> &,
+                                     const thrust::device_vector<float> &);
     template VecArray<double> adjoint(const DeviceArray<double> &,
                                       const gpu::PolarGrid<double> &, const dims_t &,
-                                      double);
+                                      const thrust::device_vector<double> &,
+                                      const thrust::device_vector<double> &);
 } // namespace tomocam::gpu

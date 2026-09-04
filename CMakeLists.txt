@@ -49,6 +49,7 @@ if (USE_CUDA)
         src/gpu/finitediff.cu
         src/gpu/padding.cu
         src/gpu/xmcdprojs.cu
+        src/gpu/phase_shift.cu
     )
     include_directories(${CMAKE_SOURCE_DIR}/src/cuda)
 endif()

@@ -34,30 +34,28 @@
 #include "gpu/padding.h"
 #include "gpu/polar_grid.h"
 #include "gpu/projection.h"
+#include "gpu/tomocam.h"
 #include "gpu/vec_array.h"
 #include "mask.h"
 
 namespace tomocam::gpu {
-    template <typename T>
-    using Dataset_t = std::tuple<Array<T>, std::vector<T>, T>;
 
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
                                  const ReconParams &params) {
 
         T proj_max = (T)0;
-        for (auto &[projs, angles, gamma] : datasets) {
-            proj_max = std::max(proj_max, tomocam::array::max(projs));
+        for (const auto &ds : datasets) {
+            proj_max = std::max(proj_max, tomocam::array::max(ds.projs));
         }
 
         // pad solution and projection data
         T padfac = static_cast<T>(params.PAD_FACTOR);
-        dims_t proj_dims = std::get<0>(datasets[0]).dims();
         dims_t recon_dims = params.recon_dims;
 
         // extend recon dimensions: n1 padded by PAD_FACTOR (prevents NUFFT
         // z-aliasing), n2/n3 derived from padded projection dimensions
-        dims_t proj_dims = std::get<0>(datasets[0]).dims();
+        dims_t proj_dims = datasets[0].projs.dims();
         dims_t out_dims = {recon_dims.n1 + n_pad<T>(proj_dims.n1, padfac),
                            proj_dims.n2 + n_pad<T>(proj_dims.n2, padfac),
                            proj_dims.n3 + n_pad<T>(proj_dims.n3, padfac)};
@@ -69,17 +67,14 @@ namespace tomocam::gpu {
             // setup the linear system for all datasets
             size_t n_datasets = datasets.size();
             std::vector<PolarGrid<T>> polar_grids(n_datasets);
-            std::vector<T> gammas(n_datasets, (T)0);
             VecArray<T> yT{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
                            DeviceArray<T>(out_dims)};
 
             for (size_t i = 0; i < n_datasets; ++i) {
-                auto &[projs, angles, gamma_ref] = datasets[i];
-                auto gamma = gamma_ref;
-                gammas[i] = gamma;
+                const auto &ds = datasets[i];
 
                 // move data to device and normalize
-                DeviceArray<T> y(projs);
+                DeviceArray<T> y(ds.projs);
                 y /= proj_max;
 
                 // zero-pad projections by sqrt(2) to avoid aliasing
@@ -88,20 +83,32 @@ namespace tomocam::gpu {
                 // setup polar grid
                 size_t nrows = y.nrows();
                 size_t ncols = y.ncols();
-                polar_grids[i] =
-                    std::move(PolarGrid<T>(angles, gamma, nrows, ncols));
+                polar_grids[i] = std::move(
+                    PolarGrid<T>(ds.angles, nrows, ncols, ds.gamma, ds.beta));
+
+                // per-projection center-of-rotation alignment shifts, if any
+                thrust::device_vector<T> shift_dx, shift_dy;
+                if (!ds.shifts.empty()) {
+                    std::vector<T> hx(ds.shifts.size()), hy(ds.shifts.size());
+                    for (size_t k = 0; k < ds.shifts.size(); ++k) {
+                        hx[k] = ds.shifts[k][0];
+                        hy[k] = ds.shifts[k][1];
+                    }
+                    shift_dx = thrust::device_vector<T>(hx);
+                    shift_dy = thrust::device_vector<T>(hy);
+                }
 
                 // backproject y to get A^T y for optimization
-                auto yTmp = adjoint(y, polar_grids[i], out_dims, gamma);
+                auto yTmp =
+                    adjoint(y, polar_grids[i], out_dims, shift_dx, shift_dy);
                 for (size_t j = 0; j < 3; ++j) { yT[j] += yTmp[j]; }
             }
 
             // setup the linear operator for all datasets
-            opt::gpuFunction<T> A = [&polar_grids,
-                                     &gammas](const gpu::VecArray<T> &x) {
-                auto Ax = sysmat<T>(x, polar_grids[0], gammas[0]);
-                for (size_t i = 1; i < gammas.size(); ++i) {
-                    auto tmp = sysmat<T>(x, polar_grids[i], gammas[i]);
+            opt::gpuFunction<T> A = [&polar_grids](const gpu::VecArray<T> &x) {
+                auto Ax = sysmat<T>(x, polar_grids[0]);
+                for (size_t i = 1; i < polar_grids.size(); ++i) {
+                    auto tmp = sysmat<T>(x, polar_grids[i]);
                     for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
                 }
                 return Ax;
