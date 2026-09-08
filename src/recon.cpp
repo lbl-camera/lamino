@@ -52,9 +52,20 @@ int main(int argc, char **argv) {
     auto params = tomocam::parse_recon_params(config);
     auto output = tomocam::OutputParams(config);
 
+    // verify that the number of projections matches the number of angles
+    for (size_t i = 0; i < float_datasets.size(); i++) {
+        size_t nprojs = float_datasets[i].projs.nslices();
+        size_t nangles = float_datasets[i].angles.size();
+        if (nprojs != nangles) {
+            std::cerr << std::format(
+                "Error: [[input]] entry {} has {} projections but {} angles.\n", i,
+                nprojs, nangles);
+            return 1;
+        }
+    }
+
     // print parameters
     params.print(std::cout);
-
     tomocam::Timer t0;
     t0.start();
 #ifdef USE_CUDA
@@ -74,7 +85,7 @@ int main(int argc, char **argv) {
                 {static_cast<double>(s[0]), static_cast<double>(s[1])});
         double_datasets.push_back(std::move(dd));
     }
-    auto recon_d = tomocam::MBIR<double>(double_datasets, params);
+    auto recon_d = tomocam::MBIR2<double>(double_datasets, params);
     // convert outputs back to float
     std::array<tomocam::Array<float>, 3> recon = {
         tomocam::array::cast<double, float>(recon_d[0]),

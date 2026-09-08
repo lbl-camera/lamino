@@ -191,9 +191,7 @@ namespace tomocam {
         auto supp_mask = mask_support<T>(recon_dims, output_dims);
         for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
 
-        // Precompute the Toeplitz PSF kernels once for the unified grid, so
-        // A^T A becomes a set of FFT convolutions instead of a NUFFT
-        // forward+adjoint pair per solver iteration.
+        // Precompute the Toeplitz PSF kernels once for the unified grid
         cpu::ToeplitzVectorOp<T> toeplitz_op(pg, recon_dims);
 
         opt::Function<T> A = [&toeplitz_op](const std::array<Array<T>, 3> &m) {
