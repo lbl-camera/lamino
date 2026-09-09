@@ -156,8 +156,8 @@ namespace tomocam {
                     throw std::runtime_error(
                         "[[input]] 'shifts' must be a string path");
                 if (!std::filesystem::exists(*shifts_path))
-                    throw std::runtime_error(std::format(
-                        "Shifts file does not exist: {}", *shifts_path));
+                    throw std::runtime_error(
+                        std::format("Shifts file does not exist: {}", *shifts_path));
                 per_proj_shifts = read_shifts_file<T>(*shifts_path);
             } else if (input_table->contains("cor-offset")) {
                 auto offsets_array = (*input_table)["cor-offset"].as_array();
@@ -221,8 +221,8 @@ namespace tomocam {
                     for (auto &e : *spx) {
                         auto *pair = e.as_array();
                         if (!pair || pair->size() < 2)
-                            throw std::runtime_error(
-                                "Alignment TOML 'shifts_px' entries must be [dx, dy]");
+                            throw std::runtime_error("Alignment TOML 'shifts_px' "
+                                                     "entries must be [dx, dy]");
                         T dx = (*pair)[0].value<T>().value();
                         T dy = (*pair)[1].value<T>().value();
                         per_proj_shifts.push_back({dx, dy});
@@ -236,7 +236,7 @@ namespace tomocam {
             }
 
             datasets.push_back({std::move(projs), std::move(angles), gamma_rad,
-                                 beta_rad, std::move(per_proj_shifts)});
+                                beta_rad, std::move(per_proj_shifts)});
         }
         return datasets;
     }
@@ -382,9 +382,12 @@ namespace tomocam {
         outfile << "angles = \"/path/to/gamma0_angles.txt\"\n";
         outfile << "gamma = 0\n";
         outfile << "beta = 0        # optional: out-of-plane tilt in degrees\n";
-        outfile << "# cor-offset = [0.0, 0.0]  # optional: [dx, dy] COR shift in pixels\n";
-        outfile << "# shifts = \"/path/to/gamma0_shifts.txt\"  # optional: per-projection shifts\n";
-        outfile << "# alignment = \"/path/to/alignment.toml\"  # optional: override angles/shifts\n";
+        outfile << "# cor-offset = [0.0, 0.0]  # optional: [dx, dy] COR shift in "
+                   "pixels\n";
+        outfile << "# shifts = \"/path/to/gamma0_shifts.txt\"  # optional: "
+                   "per-projection shifts\n";
+        outfile << "# alignment = \"/path/to/alignment.toml\"  # optional: override "
+                   "angles/shifts\n";
         outfile << "\n";
         outfile << "[[input]]\n";
         outfile << "filename = \"/path/to/gamma45_stack.tiff\"\n";

@@ -35,6 +35,7 @@
 #include "polar_grid.h"
 #include "projection.h"
 #include "recon_params.h"
+#include "timer.h"
 #include "toeplitz.h"
 
 namespace tomocam {
@@ -61,6 +62,9 @@ namespace tomocam {
         size_t n_datasets = datasets.size();
         std::vector<PolarGrid<T>> polar_grids(n_datasets);
 
+        // start preprocessing timer
+        Timer t0;
+        t0.start();
         T proj_max = 0.0;
         for (const auto &ds : datasets) {
             proj_max = std::max(proj_max, array::max(ds.projs));
@@ -103,6 +107,9 @@ namespace tomocam {
             }
             return Ax;
         };
+
+        t0.stop();
+        logger.log(std::format("Preprocessing took {} seconds", t0.seconds()));
 
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
