@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)  # required for CMAKE_CUDA_ARCHITECTURES "native"
 
 project(XMCD CXX)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -73,7 +73,7 @@ include_directories(${tomlplusplus_SOURCE_DIR}/include)
 if (USE_CUDA)
     find_package(CUDAToolkit REQUIRED)
     include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-    set(CMAKE_CUDA_ARCHITECTURES "60;61;70;75;80;86")
+    set(CMAKE_CUDA_ARCHITECTURES "native")
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
