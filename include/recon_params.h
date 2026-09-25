@@ -30,6 +30,7 @@
 
 #include "array.h"
 #include "logger.h"
+#include "padding.h"
 
 namespace tomocam {
 
@@ -53,7 +54,7 @@ namespace tomocam {
         float mu = 10.0f;
         float tol = 1e-5f;
         float xtol = 1e-5f;
-        float PAD_FACTOR = 1.4142f;
+        float PAD_FACTOR = DEFAULT_PAD_FACTOR;
         LogMode logMode = LogMode::STDOUT;
         std::string logfile = "";
 

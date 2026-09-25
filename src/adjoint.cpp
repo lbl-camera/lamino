@@ -17,8 +17,7 @@
 #include "tiff.h"
 #include "timer.h"
 
-constexpr double PADDING =
-    1.41421356237; // sqrt(2) to avoid cropping corners of the sample
+constexpr float PADDING = tomocam::DEFAULT_PAD_FACTOR;
 
 int main(int argc, char **argv) {
 
@@ -43,32 +42,20 @@ int main(int argc, char **argv) {
     float gamma = ds.gamma;
     float beta = ds.beta;
 
-    // record start time
-    // record unpadded projection spatial dimensions
-    int proj_nrows = static_cast<int>(proj.nrows());
-    int proj_ncols = static_cast<int>(proj.ncols());
-
     // pad projections in 2D — mirrors the pad3d applied to magnetization in
     // forward.cpp so that the polar grid covers the same frequency extent
     tomocam::Timer t0;
     t0.start();
-    proj = tomocam::pad2d<float>(proj, static_cast<float>(PADDING - 1),
-                                 tomocam::PadType::SYMMETRIC);
+    proj = tomocam::pad2d<float>(proj, PADDING, tomocam::PadType::SYMMETRIC);
     t0.stop();
     std::cerr << "Time to pad projections: " << t0.seconds() << "(s)\n";
     std::cerr << "Padded projection dims: [" << proj.nslices() << ", "
               << proj.nrows() << ", " << proj.ncols() << "]\n";
 
-    // compute padded sizes consistent with forward.cpp
-    auto padded = [&](int dim) {
-        int p = (dim * (PADDING - 1)) / 2;
-        return static_cast<size_t>(dim + 2 * p);
-    };
-
     // create polar grid with padded projection dimensions
     t0.start();
-    size_t nrows = padded(proj_nrows);
-    size_t ncols = padded(proj_ncols);
+    size_t nrows = proj.nrows();
+    size_t ncols = proj.ncols();
     tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma, beta);
     t0.stop();
     std::cerr << "Time to build polar grid: " << t0.seconds() << "(s)\n";

@@ -11,6 +11,7 @@
 #include <toml++/toml.hpp>
 
 #include "array_ops.h"
+#include "config.h"
 #include "ovf.h"
 #include "padding.h"
 #include "polar_grid.h"
@@ -19,7 +20,7 @@
 #include "timer.h"
 #include "tomocam.h"
 
-constexpr double PADDING = 1.41421356237;
+constexpr double PADDING = tomocam::DEFAULT_PAD_FACTOR;
 
 int main(int argc, char **argv) {
 
@@ -68,7 +69,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     struct ProjEntry {
-        float gamma_rad;
+        double gamma_rad;
         std::string output_path;
     };
     std::vector<ProjEntry> projections;
@@ -78,7 +79,7 @@ int main(int argc, char **argv) {
             std::cerr << "Invalid [[projections]] entry\n";
             return 1;
         }
-        auto gamma_opt = (*entry)["gamma"].value<float>();
+        auto gamma_opt = (*entry)["gamma"].value<double>();
         auto filename_opt = (*entry)["filename"].value<std::string>();
         if (!gamma_opt) {
             std::cerr << "[[projections]] entry missing 'gamma' field\n";
@@ -88,7 +89,7 @@ int main(int argc, char **argv) {
             std::cerr << "[[projections]] entry missing 'filename' field\n";
             return 1;
         }
-        float gamma_rad = *gamma_opt * static_cast<float>(M_PI) / 180.0f;
+        double gamma_rad = *gamma_opt * M_PI / 180.0;
         auto output_path =
             (std::filesystem::path(output_basedir) / *filename_opt).string();
         projections.push_back({gamma_rad, output_path});
@@ -126,22 +127,18 @@ int main(int argc, char **argv) {
     }
 
     // read angles — either from a file or generated from {start, end, num_projs}
-    std::vector<float> angles;
+    std::vector<double> angles;
     auto angles_node = table["angles"];
     if (auto filename_opt = angles_node["filename"].value<std::string>()) {
-        std::ifstream angles_stream(*filename_opt);
-        if (!angles_stream.is_open()) {
-            std::cerr << "Could not open angles file: " << *filename_opt << "\n";
+        try {
+            // same reader (and degree detection) recon uses
+            angles = tomocam::read_angles_file<double>(*filename_opt);
+        } catch (const std::runtime_error &err) {
+            std::cerr << err.what() << "\n";
             return 1;
         }
-        float angle;
-        while (angles_stream >> angle) { angles.push_back(angle); }
-        if (angles.empty()) {
-            std::cerr << "No angles found in file: " << *filename_opt << "\n";
-            return 1;
-        }
-    } else if (auto start_opt = angles_node["begin"].value<float>()) {
-        auto end_opt = angles_node["end"].value<float>();
+    } else if (auto start_opt = angles_node["begin"].value<double>()) {
+        auto end_opt = angles_node["end"].value<double>();
         auto num_opt = angles_node["num_projs"].value<int>();
         if (!end_opt || !num_opt || *num_opt < 2) {
             std::cerr
@@ -150,9 +147,10 @@ int main(int argc, char **argv) {
         }
         // generate angles linearly spaced between start and end [begin, end)
         int n = *num_opt;
-        float start = *start_opt, end = *end_opt;
+        double start = *start_opt, end = *end_opt;
         angles.resize(n);
         for (int i = 0; i < n; ++i) angles[i] = start + i * (end - start) / n;
+        tomocam::to_radians_if_degrees(angles);
     } else {
         std::cerr
             << "angles must specify either 'filename' or {start, end, num_projs}\n";
@@ -161,9 +159,6 @@ int main(int argc, char **argv) {
 
     auto minangle = *std::min_element(angles.begin(), angles.end());
     auto maxangle = *std::max_element(angles.begin(), angles.end());
-    if (std::abs(minangle) > M_PI || std::abs(maxangle) > M_PI) {
-        for (auto &a : angles) { a = a * M_PI / 180.0f; }
-    }
 
     // print parameters
     std::cerr << "----------------------------------------\n";
@@ -171,12 +166,13 @@ int main(int argc, char **argv) {
     std::cerr << "Component 1: " << comp1 << "\n";
     std::cerr << "Component 2: " << comp2 << "\n";
     std::cerr << "Component 3: " << comp3 << "\n";
-    std::cerr << "Angles: [" << minangle << ", " << maxangle << "] with "
-              << angles.size() << " steps\n";
+    std::cerr << std::format("Angles: [{:.2f}, {:.2f}] deg with {} steps\n",
+                             minangle * 180.0 / M_PI, maxangle * 180.0 / M_PI,
+                             angles.size());
     std::cerr << "Output basedir: " << output_basedir << "\n";
     std::cerr << "Projections:\n";
     for (const auto &p : projections) {
-        std::cerr << "  gamma=" << (p.gamma_rad * 180.0f / static_cast<float>(M_PI))
+        std::cerr << "  gamma=" << (p.gamma_rad * 180.0 / M_PI)
                   << " deg -> " << p.output_path << "\n";
     }
     std::cerr << "----------------------------------------\n";
@@ -184,42 +180,44 @@ int main(int argc, char **argv) {
     // load data
     auto base_path = std::filesystem::path(basedir);
     std::array<std::string, 3> components = {comp1, comp2, comp3};
-    std::array<tomocam::Array<float>, 3> m_data;
+    std::array<tomocam::Array<float>, 3> m_float;
     tomocam::Timer t0;
     t0.start();
     if (tiff_format) {
         for (int i = 0; i < 3; ++i) {
             auto filename = (base_path / components[i]).string();
-            m_data[i] = tomocam::tiff::read(filename);
+            m_float[i] = tomocam::tiff::read(filename);
         }
     } else {
         auto ovf_filename = (base_path / comp1).string();
-        m_data = tomocam::ovf::read<float>(ovf_filename);
+        m_float = tomocam::ovf::read<float>(ovf_filename);
     }
 
     t0.stop();
     std::cerr << "Time to read data: " << t0.seconds() << "(s)\n";
-    std::cerr << "Data dimensions: [" << m_data[0].nslices() << ", "
-              << m_data[0].nrows() << ", " << m_data[0].ncols() << "]\n";
+    std::cerr << "Data dimensions: [" << m_float[0].nslices() << ", "
+              << m_float[0].nrows() << ", " << m_float[0].ncols() << "]\n";
 
-    // pad the sample
+    // convert to double and pad the sample
     t0.start();
+    std::array<tomocam::Array<double>, 3> m_data;
     for (int i = 0; i < 3; ++i) {
-        m_data[i] =
-            tomocam::pad3d<float>(m_data[i], PADDING, tomocam::PadType::SYMMETRIC);
+        m_data[i] = tomocam::pad3d<double>(
+            tomocam::array::cast<float, double>(m_float[i]), PADDING,
+            tomocam::PadType::SYMMETRIC);
     }
     t0.stop();
     std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";
     std::cerr << "Padded data dimensions: [" << m_data[0].nslices() << ", "
               << m_data[0].nrows() << ", " << m_data[0].ncols() << "]\n";
 
-    auto padded = [&](int dim) {
-        int p = (dim * (PADDING - 1)) / 2;
-        return static_cast<size_t>(dim + 2 * p);
-    };
-
-    size_t nrows = static_cast<size_t>(padded(output_dims[0]));
-    size_t ncols = static_cast<size_t>(padded(output_dims[1]));
+    // same (odd) padded size as the volume and as recon's padded projections
+    size_t nrows = tomocam::padded_dim(static_cast<size_t>(output_dims[0]), PADDING);
+    size_t ncols = tomocam::padded_dim(static_cast<size_t>(output_dims[1]), PADDING);
+    if (nrows != m_data[0].nrows() || ncols != m_data[0].ncols()) {
+        std::cerr << "Warning: output dims differ from the volume's in-plane "
+                     "dims; projections will be offset from the volume center\n";
+    }
     tomocam::dims_t crop_dims = {angles.size(), static_cast<size_t>(output_dims[0]),
                                  static_cast<size_t>(output_dims[1])};
 
@@ -228,28 +226,29 @@ int main(int argc, char **argv) {
         const auto &[gamma_rad, output_path] = projections[k];
         std::cerr << std::format("\n[{}/{}] gamma = {:.1f} deg\n", k + 1,
                                  projections.size(),
-                                 gamma_rad * 180.0f / static_cast<float>(M_PI));
+                                 gamma_rad * 180.0 / M_PI);
 
         // build polar grid for this gamma
         t0.start();
-        tomocam::PolarGrid<float> grid(angles, nrows, ncols, gamma_rad);
+        tomocam::PolarGrid<double> grid(angles, nrows, ncols, gamma_rad);
         t0.stop();
         std::cerr << "Time to build polar grid: " << t0.seconds() << "(s)\n";
 
         // do the forward projection
         t0.start();
-        auto proj = tomocam::forward(m_data, grid, gamma_rad, 0.0f);
+        auto proj = tomocam::forward(m_data, grid, gamma_rad, 0.0);
         t0.stop();
         std::cerr << "Time to do forward projection: " << t0.seconds() << "(s)\n";
 
         // crop the projection to original size
         t0.start();
-        proj = tomocam::crop2d<float>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
+        proj = tomocam::crop2d<double>(proj, crop_dims, tomocam::PadType::SYMMETRIC);
         t0.stop();
         std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
 
         //  save data to tiff-stack
-        tomocam::tiff::write(output_path, proj);
+        tomocam::tiff::write(output_path,
+                             tomocam::array::cast<double, float>(proj));
         std::cerr << "Written: " << output_path << "\n";
     }
     // save angles to a text file
@@ -261,7 +260,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     for (const auto &angle : angles) {
-        float deg_angle = angle * 180.0f / static_cast<float>(M_PI);
+        double deg_angle = angle * 180.0 / M_PI;
         angles_file << std::format("{:.6f}\n", deg_angle);
     }
     std::cout << std::format("Written angles to: {}\n", angles_path);

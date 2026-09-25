@@ -46,8 +46,8 @@ namespace tomocam::gpu {
     DeviceArray<T> pad2d(const DeviceArray<T> &input, float pad_factor, PadType type) {
 
         dims_t dims = input.dims();
-        size_t n2 = static_cast<size_t>(dims.n2 * pad_factor);
-        size_t n3 = static_cast<size_t>(dims.n3 * pad_factor);
+        size_t n2 = padded_dim(dims.n2, pad_factor);
+        size_t n3 = padded_dim(dims.n3, pad_factor);
         dims_t out_dims = {dims.n1, n2, n3};
         int3 offset = {0, 0, 0};
         if (type == PadType::SYMMETRIC) {
@@ -88,9 +88,9 @@ namespace tomocam::gpu {
     template <typename T>
     DeviceArray<T> pad3d(const DeviceArray<T> &input, float factor, PadType type) {
         dims_t dims = input.dims();
-        size_t n1 = static_cast<size_t>(dims.n1 * factor);
-        size_t n2 = static_cast<size_t>(dims.n2 * factor);
-        size_t n3 = static_cast<size_t>(dims.n3 * factor);
+        size_t n1 = padded_dim(dims.n1, factor);
+        size_t n2 = padded_dim(dims.n2, factor);
+        size_t n3 = padded_dim(dims.n3, factor);
         dims_t new_dims = {n1, n2, n3};
         dims_t pad_size = new_dims - dims;
 

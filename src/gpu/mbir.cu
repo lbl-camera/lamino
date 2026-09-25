@@ -57,9 +57,9 @@ namespace tomocam::gpu {
         // extend recon dimensions: n1 padded by PAD_FACTOR (prevents NUFFT
         // z-aliasing), n2/n3 derived from padded projection dimensions
         dims_t proj_dims = datasets[0].projs.dims();
-        dims_t out_dims = {recon_dims.n1 + n_pad<T>(proj_dims.n1, padfac),
-                           proj_dims.n2 + n_pad<T>(proj_dims.n2, padfac),
-                           proj_dims.n3 + n_pad<T>(proj_dims.n3, padfac)};
+        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac),
+                           padded_dim<T>(proj_dims.n2, padfac),
+                           padded_dim<T>(proj_dims.n3, padfac)};
 
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()

@@ -53,3 +53,7 @@ if(CMAKE_CUDA_COMPILER)
     add_test(NAME test_gpu_toeplitz COMMAND test_gpu_toeplitz)
 endif()
 
+
+add_executable(test_forward_consistency test_forward_consistency.cpp)
+target_link_libraries(test_forward_consistency PUBLIC tomocam)
+add_test(NAME test_forward_consistency COMMAND test_forward_consistency)

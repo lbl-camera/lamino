@@ -132,7 +132,8 @@ namespace tomocam {
     // Overload: read gamma and beta read per-angle from pg
     template <typename T>
     std::array<Array<T>, 3> adjoint(const Array<T> &proj, const PolarGrid<T> &pg,
-                                    const dims_t &recon_dims) {
+                                    const dims_t &recon_dims,
+                                    const std::vector<std::array<T, 2>> &shifts) {
 
         auto c_cmplx = array::to_complex(proj);
         T scale = static_cast<T>(recon_dims.n1 * recon_dims.n2 * recon_dims.n3);
@@ -140,6 +141,8 @@ namespace tomocam {
         c_cmplx = fft::fftshift2(c_cmplx);
         c_cmplx = fft::fft2(c_cmplx);
         c_cmplx = fft::ifftshift2(c_cmplx);
+
+        if (!shifts.empty()) fft::phase_shift2d(c_cmplx, shifts);
 
         // discard aliased points (outside [-pi,pi]) before backprojecting
         std::transform(std::execution::par_unseq, c_cmplx.begin(), c_cmplx.end(),
@@ -166,11 +169,13 @@ namespace tomocam {
 
         return m_components;
     }
-    template std::array<Array<float>, 3> adjoint<float>(const Array<float> &proj,
-                                                        const PolarGrid<float> &pg,
-                                                        const dims_t &recon_dims);
+    template std::array<Array<float>, 3>
+    adjoint<float>(const Array<float> &proj, const PolarGrid<float> &pg,
+                   const dims_t &recon_dims,
+                   const std::vector<std::array<float, 2>> &shifts);
     template std::array<Array<double>, 3>
     adjoint<double>(const Array<double> &proj, const PolarGrid<double> &pg,
-                    const dims_t &recon_dims);
+                    const dims_t &recon_dims,
+                    const std::vector<std::array<double, 2>> &shifts);
 
 } // namespace tomocam

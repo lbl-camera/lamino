@@ -52,9 +52,9 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        dims_t recon_dims = {output_dims.n1 + n_pad(output_dims.n1, padfac),
-                             proj_dims.n2 + n_pad(proj_dims.n2, padfac),
-                             proj_dims.n3 + n_pad(proj_dims.n3, padfac)};
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac),
+                             padded_dim(proj_dims.n2, padfac),
+                             padded_dim(proj_dims.n3, padfac)};
 
         std::array<Array<T>, 3> yT;
         for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
@@ -153,9 +153,9 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        dims_t recon_dims = {output_dims.n1 + n_pad(output_dims.n1, padfac),
-                             proj_dims.n2 + n_pad(proj_dims.n2, padfac),
-                             proj_dims.n3 + n_pad(proj_dims.n3, padfac)};
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac),
+                             padded_dim(proj_dims.n2, padfac),
+                             padded_dim(proj_dims.n3, padfac)};
 
         T proj_max = 0.0;
         for (const auto &ds : datasets) {
@@ -167,6 +167,8 @@ namespace tomocam {
         size_t nrows = 0, ncols = 0;
 
         std::vector<Array<T>> padded;
+        std::vector<std::array<T, 2>> shifts; // stacked in the same order as y
+        bool has_shifts = false;
         for (const auto &ds : datasets) {
             auto y = pad2d(ds.projs / proj_max, padfac, PadType::SYMMETRIC);
             assert(nrows == 0 || (y.nrows() == nrows && y.ncols() == ncols));
@@ -175,6 +177,16 @@ namespace tomocam {
             angle_gamma_beta.push_back({ds.angles, ds.gamma, ds.beta});
             total_nangles += ds.angles.size();
             padded.push_back(std::move(y));
+
+            if (ds.shifts.empty()) {
+                shifts.insert(shifts.end(), ds.angles.size(), {T(0), T(0)});
+            } else {
+                assert(ds.shifts.size() == ds.angles.size());
+                shifts.insert(shifts.end(), ds.shifts.begin(), ds.shifts.end());
+                for (const auto &s : ds.shifts) {
+                    if (s[0] != T(0) || s[1] != T(0)) has_shifts = true;
+                }
+            }
         }
 
         Array<T> y_stacked(dims_t{total_nangles, nrows, ncols});
@@ -191,7 +203,9 @@ namespace tomocam {
         PolarGrid<T> pg(angle_gamma_beta, nrows, ncols);
 
         // Backproject once with the unified grid
-        auto yT = adjoint(y_stacked, pg, recon_dims);
+        // skip the phase ramp entirely when no dataset has a nonzero shift
+        if (!has_shifts) shifts.clear();
+        auto yT = adjoint(y_stacked, pg, recon_dims, shifts);
 
         // initial guess
         std::array<Array<T>, 3> x0;

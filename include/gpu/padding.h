@@ -33,6 +33,14 @@ namespace tomocam::gpu {
         return 2 * ((n2 - n) / 2);
     }
 
+    // Odd padded size shared by volume and detector grid; mirrors CPU
+    // tomocam::padded_dim (include/padding.h), see there for why it is odd.
+    template <typename T>
+    size_t padded_dim(size_t n, T factor) {
+        size_t N = n + n_pad(n, factor);
+        return (N % 2 == 0) ? N - 1 : N;
+    }
+
     /**
      * @tparam T
      * @param input

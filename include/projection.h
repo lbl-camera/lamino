@@ -77,10 +77,12 @@ namespace tomocam {
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,
                                    const PolarGrid<T> &grid, T gamma, T beta);
 
-    // Overloads for unified PolarGrid — beta read per-angle from pg.beta(j)
+    // Overloads for unified PolarGrid — beta read per-angle from pg.beta(j);
+    // optional per-projection COR shifts (one per row of pg)
     template <typename T>
-    std::array<Array<T>, 3> adjoint(const Array<T> &proj, const PolarGrid<T> &pg,
-                                    const dims_t &recon_dims);
+    std::array<Array<T>, 3>
+    adjoint(const Array<T> &proj, const PolarGrid<T> &pg, const dims_t &recon_dims,
+            const std::vector<std::array<T, 2>> &shifts = {});
 
     template <typename T>
     std::array<Array<T>, 3> sysmat(const std::array<Array<T>, 3> &x,

@@ -21,13 +21,68 @@ include(FindPackageHandleStandardArgs)
 
 # --- Config mode (preferred when available) ---
 # Recent FFTW3 releases ship FFTW3Config.cmake; try the user-supplied dir first.
-find_package(FFTW3 CONFIG QUIET
-    PATHS
+#
+# Some vendor packages ship a broken config: the Cray cray-fftw module installs
+# FFTW3Config.cmake but not the FFTW3LibraryDepends.cmake it include()s, and its
+# paths still point at the RPM BUILDROOT. That include() is a hard error which
+# CONFIG QUIET does not suppress, so probe the config for completeness before
+# handing it to find_package() and fall through to module mode when it is broken.
+function(_fftw_config_is_usable config_file out_var)
+    set(${out_var} FALSE PARENT_SCOPE)
+    if (NOT EXISTS "${config_file}")
+        return()
+    endif()
+    get_filename_component(_dir "${config_file}" DIRECTORY)
+    file(STRINGS "${config_file}" _includes REGEX "^[ \t]*include[ \t]*\\(")
+    foreach (_line IN LISTS _includes)
+        # Only relative-to-config includes are checkable without evaluating the file.
+        if (_line MATCHES "\\$\\{CMAKE_CURRENT_LIST_DIR\\}/([^\"\\)]+)")
+            if (NOT EXISTS "${_dir}/${CMAKE_MATCH_1}")
+                message(STATUS
+                    "Ignoring incomplete FFTW3 CMake package in ${_dir}: "
+                    "missing ${CMAKE_MATCH_1}")
+                return()
+            endif()
+        endif()
+    endforeach()
+    set(${out_var} TRUE PARENT_SCOPE)
+endfunction()
+
+# Locate a candidate config without loading it. FFTW_DIR may be either the
+# config directory itself or an install prefix (NERSC's module sets it to
+# <prefix>/lib), so search both directly and via the usual suffixes.
+find_path(FFTW3_CONFIG_DIR
+    NAMES
+        FFTW3Config.cmake
+        fftw3-config.cmake
+    HINTS
         "${FFTW_DIR}"
-    NO_DEFAULT_PATH
+        "$ENV{FFTW_DIR}"
+        "${FFTW_ROOT}"
+        "$ENV{FFTW_ROOT}"
+        ${CMAKE_PREFIX_PATH}
+    PATH_SUFFIXES
+        cmake/fftw3
+        lib/cmake/fftw3
+        lib64/cmake/fftw3
+        share/cmake/fftw3
 )
-if (NOT FFTW3_FOUND)
-    find_package(FFTW3 CONFIG QUIET)
+mark_as_advanced(FFTW3_CONFIG_DIR)
+
+set(_fftw3_usable FALSE)
+foreach (_name FFTW3Config.cmake fftw3-config.cmake)
+    if (FFTW3_CONFIG_DIR AND EXISTS "${FFTW3_CONFIG_DIR}/${_name}")
+        _fftw_config_is_usable("${FFTW3_CONFIG_DIR}/${_name}" _fftw3_usable)
+        break()
+    endif()
+endforeach()
+
+if (_fftw3_usable)
+    find_package(FFTW3 CONFIG QUIET
+        PATHS
+            "${FFTW3_CONFIG_DIR}"
+        NO_DEFAULT_PATH
+    )
 endif()
 
 if (FFTW3_FOUND)

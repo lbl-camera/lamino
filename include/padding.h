@@ -32,10 +32,25 @@
 namespace tomocam {
     enum class PadType { LEFT, RIGHT, SYMMETRIC };
 
+    // ~sqrt(2): shared by forward/adjoint tools and ReconParams so the padded
+    // volume and detector grid sizes agree between simulation and recon
+    inline constexpr float DEFAULT_PAD_FACTOR = 1.4142f;
+
     template <typename T>
     size_t n_pad(size_t n, T factor) {
         auto n2 = static_cast<size_t>(n * factor);
         return 2 * ((n2 - n) / 2);
+    }
+
+    // Padded size shared by the volume and the detector (polar) grid. It is
+    // always odd: PolarGrid samples q at (k + 0.5) * 2pi/N - pi, which only
+    // contains q = 0 and is Hermitian-symmetric for odd N. With even N the
+    // forward projection picks up a cos(pi x / N) modulation and a large
+    // imaginary part, and A^T A (Toeplitz) no longer matches the forward model.
+    template <typename T>
+    size_t padded_dim(size_t n, T factor) {
+        size_t N = n + n_pad(n, factor);
+        return (N % 2 == 0) ? N - 1 : N;
     }
 
     template <typename T>
@@ -44,8 +59,8 @@ namespace tomocam {
         // if factor is zero, return copy of input array
         if (factor - 1 < 1.e-06) { return arr.clone(); }
 
-        size_t n2 = static_cast<size_t>(arr.nrows() * factor);
-        size_t n3 = static_cast<size_t>(arr.ncols() * factor);
+        size_t n2 = padded_dim(arr.nrows(), factor);
+        size_t n3 = padded_dim(arr.ncols(), factor);
 
         // create and initialize return array
         dims_t dims{arr.nslices(), n2, n3};
@@ -131,9 +146,9 @@ namespace tomocam {
         if (factor - 1 < 1.e-06) { return arr.clone(); }
 
         // calculate new dims
-        auto n1 = static_cast<size_t>(arr.nslices() * factor);
-        auto n2 = static_cast<size_t>(arr.nrows() * factor);
-        auto n3 = static_cast<size_t>(arr.ncols() * factor);
+        auto n1 = padded_dim(arr.nslices(), factor);
+        auto n2 = padded_dim(arr.nrows(), factor);
+        auto n3 = padded_dim(arr.ncols(), factor);
         dims_t dims{n1, n2, n3};
 
         auto pad_size = dims - arr.dims();
