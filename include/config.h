@@ -21,6 +21,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <format>
@@ -54,6 +55,16 @@ namespace tomocam {
         }
     }
 
+    // Angles are taken to be degrees if any |angle| > 2*pi, otherwise radians.
+    template <typename T>
+    inline void to_radians_if_degrees(std::vector<T> &angles) {
+        T max_abs = T(0);
+        for (auto a : angles) max_abs = std::max(max_abs, std::abs(a));
+        if (max_abs > T(2 * M_PI)) {
+            for (auto &a : angles) { a = a * T(M_PI) / T(180); }
+        }
+    }
+
     // Function to read angles from a text file
     template <typename T>
     inline std::vector<T> read_angles_file(const std::string &filepath) {
@@ -71,11 +82,7 @@ namespace tomocam {
                 std::format("No angles found in file: {}", filepath));
         }
 
-        // Convert to radians if necessary
-        auto max_angle = *std::max_element(angles.begin(), angles.end());
-        if (std::abs(max_angle) > 2 * M_PI) {
-            for (auto &a : angles) { a = a * M_PI / (T)180.0; }
-        }
+        to_radians_if_degrees(angles);
         return angles;
     }
 
