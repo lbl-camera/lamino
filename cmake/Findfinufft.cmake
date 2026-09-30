@@ -41,7 +41,6 @@ endif()
 # ~/finufft is first so a local build takes priority over system installations.
 # finufft_ROOT (CMake 3.12+) is honoured automatically by find_path/find_library.
 set(finufft_SEARCH_PATHS
-    ~/finufft
     /usr/local
     /opt/homebrew
     /opt/local
