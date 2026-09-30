@@ -172,8 +172,8 @@ int main(int argc, char **argv) {
     std::cerr << "Output basedir: " << output_basedir << "\n";
     std::cerr << "Projections:\n";
     for (const auto &p : projections) {
-        std::cerr << "  gamma=" << (p.gamma_rad * 180.0 / M_PI)
-                  << " deg -> " << p.output_path << "\n";
+        std::cerr << "  gamma=" << (p.gamma_rad * 180.0 / M_PI) << " deg -> "
+                  << p.output_path << "\n";
     }
     std::cerr << "----------------------------------------\n";
 
@@ -202,9 +202,9 @@ int main(int argc, char **argv) {
     t0.start();
     std::array<tomocam::Array<double>, 3> m_data;
     for (int i = 0; i < 3; ++i) {
-        m_data[i] = tomocam::pad3d<double>(
-            tomocam::array::cast<float, double>(m_float[i]), PADDING,
-            tomocam::PadType::SYMMETRIC);
+        m_data[i] =
+            tomocam::pad3d<double>(tomocam::array::cast<float, double>(m_float[i]),
+                                   PADDING, tomocam::PadType::SYMMETRIC);
     }
     t0.stop();
     std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";
@@ -225,8 +225,7 @@ int main(int argc, char **argv) {
     for (size_t k = 0; k < projections.size(); ++k) {
         const auto &[gamma_rad, output_path] = projections[k];
         std::cerr << std::format("\n[{}/{}] gamma = {:.1f} deg\n", k + 1,
-                                 projections.size(),
-                                 gamma_rad * 180.0 / M_PI);
+                                 projections.size(), gamma_rad * 180.0 / M_PI);
 
         // build polar grid for this gamma
         t0.start();
@@ -247,8 +246,7 @@ int main(int argc, char **argv) {
         std::cerr << "Time to crop data: " << t0.seconds() << "(s)\n";
 
         //  save data to tiff-stack
-        tomocam::tiff::write(output_path,
-                             tomocam::array::cast<double, float>(proj));
+        tomocam::tiff::write(output_path, tomocam::array::cast<double, float>(proj));
         std::cerr << "Written: " << output_path << "\n";
     }
     // save angles to a text file
