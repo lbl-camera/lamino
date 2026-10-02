@@ -33,8 +33,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <exception>
 #include <format>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include "array.h"
@@ -62,7 +64,7 @@ namespace tomocam {
 
 using namespace tomocam;
 
-int main() {
+static int run() {
 
     // -----------------------------------------------------------------------
     // Problem setup: small 3D field + 141 evenly-spaced projection angles
@@ -247,4 +249,20 @@ int main() {
     tomocam::gpu::fft::plans::cache<float>.clear();
 
     return all_passed ? 0 : 1;
+}
+
+int main() {
+    try {
+        return run();
+    } catch (const std::exception &e) {
+        std::string msg = e.what();
+        if (msg.find("setpts") != std::string::npos) {
+            std::cerr << "\ntest_gpu_gradient: " << msg
+                      << "\n  GPU VRAM is too small for this problem size "
+                         "(cufinufft_setpts failed to allocate).\n";
+        } else {
+            std::cerr << "\ntest_gpu_gradient: exception: " << msg << "\n";
+        }
+        return 1;
+    }
 }
