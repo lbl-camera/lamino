@@ -2,6 +2,9 @@
 
 A C++/CUDA library for reconstruction of magnetic field in materials exhibiting magetic circular dichroism (XMCD). The code is optimized for samples with thin form-factor.
 
+[![Docker image](https://github.com/lbl-camera/lamino/actions/workflows/docker.yml/badge.svg?branch=master&event=status)](https://github.com/lbl-camera/lamino/actions/workflows/docker.yml)
+
+
 ## Overview
 
 Tomocam is a high-performance library developed at Lawrence Berkeley National Laboratory for advanced reconstruction of magnetic field in thin XMCD materials. It provides forward and backward projection operators, iterative reconstruction algorithms, and Model-Based Iterative Reconstion.
