@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <stdexcept>
+#include <string>
 #include <system_error>
 
 #include "array.h"
@@ -50,7 +52,13 @@ namespace tomocam {
     template <typename T>
     size_t padded_dim(size_t n, T factor) {
         size_t N = n + n_pad(n, factor);
-        return (N % 2 == 0) ? N - 1 : N;
+        if (N % 2 == 0) { N -= 1; }
+        if (N < n) {
+            throw std::invalid_argument(
+                "padded_dim: odd padded size " + std::to_string(N) +
+                " is smaller than input size " + std::to_string(n));
+        }
+        return N;
     }
 
     template <typename T>
