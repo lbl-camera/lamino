@@ -12,7 +12,7 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
-                    "value": "OFF"
+                    "value": "ON"
                 },
                 "USE_CUDA": {
                     "type": "BOOL",
@@ -36,7 +36,7 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
-                    "value": "OFF"
+                    "value": "ON"
                 },
                 "USE_CUDA": {
                     "type": "BOOL",
@@ -63,7 +63,7 @@
                 "CMAKE_CUDA_HOST_COMPILER": "clang++-18",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
-                    "value": "OFF"
+                    "value": "ON"
                 },
                 "USE_CUDA": {
                     "type": "BOOL",
@@ -90,7 +90,7 @@
                 "CMAKE_CUDA_HOST_COMPILER": "clang++-18",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
-                    "value": "OFF"
+                    "value": "ON"
                 },
                 "USE_CUDA": {
                     "type": "BOOL",
@@ -115,7 +115,7 @@
                 "CMAKE_CXX_COMPILER": "g++",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
-                    "value": "OFF"
+                    "value": "ON"
                 },
                 "USE_CUDA": {
                     "type": "BOOL",
