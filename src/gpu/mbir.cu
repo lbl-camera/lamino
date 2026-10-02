@@ -26,6 +26,9 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "logger.h"
+#include "mask.h"
+
 #include "gpu/cufft_plan_cache.h"
 #include "gpu/cufinufft_plan_cache.h"
 #include "gpu/device_array.h"
@@ -37,13 +40,15 @@
 #include "gpu/toeplitz.h"
 #include "gpu/tomocam.h"
 #include "gpu/vec_array.h"
-#include "mask.h"
 
 namespace tomocam::gpu {
 
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
                                  const ReconParams &params) {
+
+        // create logger
+        Logger logger(params.logMode, params.logfile);
 
         T proj_max = (T)0;
         for (const auto &ds : datasets) {
@@ -100,8 +105,7 @@ namespace tomocam::gpu {
                 }
 
                 // backproject y to get A^T y for optimization
-                auto yTmp =
-                    adjoint(y, polar_grids[i], out_dims, shift_dx, shift_dy);
+                auto yTmp = adjoint(y, polar_grids[i], out_dims, shift_dx, shift_dy);
                 for (size_t j = 0; j < 3; ++j) { yT[j] += yTmp[j]; }
             }
 
@@ -136,15 +140,16 @@ namespace tomocam::gpu {
                     std::cout << "Starting unconstrained reconstruction with CG on "
                                  "GPU ...\n";
                     recon = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                             params.xtol, out_dims);
+                                             params.xtol, out_dims, T(0), &logger);
                     break;
                 }
                 case Regularizer::SPLIT_BREGMAN: {
                     std::cout
                         << "Starting MBIR with Split-Bregman method on GPU ...\n";
-                    recon = opt::split_bregman<T>(
-                        A, yT, x0, params.lambda, params.mu, params.maxIters,
-                        params.innerIters, params.tol, params.xtol, out_dims);
+                    recon = opt::split_bregman<T>(A, yT, x0, params.lambda,
+                                                  params.mu, params.maxIters,
+                                                  params.innerIters, params.tol,
+                                                  params.xtol, out_dims, &logger);
 
                     break;
                 }
