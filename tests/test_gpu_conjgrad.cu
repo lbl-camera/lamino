@@ -40,6 +40,7 @@
 
 #include "array.h"
 #include "array_ops.h"
+#include "mask.h"
 #include "optimize.h"
 
 #include "gpu/device_array.h"
@@ -49,9 +50,8 @@
 using namespace tomocam;
 
 // Build a CPU VecArray from separate CPU arrays (each cloned into the slot)
-static opt::VecArray<float> make_cpu_vec(const Array<float> &a,
-                                         const Array<float> &b,
-                                         const Array<float> &c) {
+static opt::VecArray<float>
+make_cpu_vec(const Array<float> &a, const Array<float> &b, const Array<float> &c) {
     opt::VecArray<float> v;
     v[0] = a.clone();
     v[1] = b.clone();
@@ -98,9 +98,10 @@ int main() {
 
     std::cout << "--- CPU CG solver ---\n";
     // xtol=1e-30: disable step-size stopping so only residual tol drives convergence
+    auto mask = mask_support<float>(dims, dims);
     auto x_sol_cpu = opt::cgsolver<float>(A_cpu, b_cpu, x0_cpu,
                                           /*max_iter=*/1000, /*tol=*/1e-8f,
-                                          /*xtol=*/1e-30f, dims);
+                                          /*xtol=*/1e-30f, mask);
 
     // -----------------------------------------------------------------------
     // GPU solve (same diagMat uploaded to device)
