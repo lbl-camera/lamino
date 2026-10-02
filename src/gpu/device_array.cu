@@ -23,6 +23,7 @@
 
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
+#include <thrust/transform.h>
 
 #include "gpu/device_array.h"
 
