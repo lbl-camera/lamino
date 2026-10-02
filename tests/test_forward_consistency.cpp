@@ -55,7 +55,8 @@ static vec3 random_padded_volume(size_t n1, size_t n, std::mt19937 &gen) {
 
 static bool test_padded_sizes() {
     bool ok = true;
-    for (size_t n = 1; n <= 2048; ++n) {
+    // start at 5: padded_dim throws for n = 2, 4 (no room for odd padding)
+    for (size_t n = 5; n <= 2048; ++n) {
         size_t N = padded_dim(n, DEFAULT_PAD_FACTOR);
         Array<double> a2(dims_t{1, n, n});
         auto p2 = pad2d<double>(a2, DEFAULT_PAD_FACTOR, PadType::SYMMETRIC);
@@ -113,8 +114,8 @@ static double normal_operator_error(size_t n, double gamma) {
     for (int i = 0; i < 12; ++i) theta.push_back(-M_PI / 3 + i * M_PI / 18);
     PolarGrid<double> pg(theta, N, N, gamma, 0.0);
 
-    auto ata = adjoint<double>(forward<double>(x, pg, gamma, 0.0), pg, vol, gamma,
-                               0.0);
+    auto ata =
+        adjoint<double>(forward<double>(x, pg, gamma, 0.0), pg, vol, gamma, 0.0);
     cpu::ToeplitzVectorOp<double> op(pg, vol);
     auto toe = cpu::sysmat(x, op);
 
@@ -145,7 +146,8 @@ static bool test_degree_detection() {
     // ordinary symmetric degree range
     auto c = conv({-90.0f, 0.0f, 89.0f});
     ok = ok && std::abs(c[0] + 90.0f * d2r) < 1e-6f;
-    std::cout << std::format("degree detection shared rule: {}\n", ok ? "PASS" : "FAIL");
+    std::cout << std::format("degree detection shared rule: {}\n",
+                             ok ? "PASS" : "FAIL");
     return ok;
 }
 
@@ -210,8 +212,9 @@ int main() {
         double e = straight_projection_error(N);
         bool odd = N % 2 == 1;
         bool pass = e < 1e-8;
-        std::cout << std::format("forward vs exact projection, N={:<3}: err={:.2e} {}\n",
-                                 N, e, odd ? (pass ? "PASS" : "FAIL") : "(even, info)");
+        std::cout << std::format(
+            "forward vs exact projection, N={:<3}: err={:.2e} {}\n", N, e,
+            odd ? (pass ? "PASS" : "FAIL") : "(even, info)");
         if (odd) ok = ok && pass;
     }
 
