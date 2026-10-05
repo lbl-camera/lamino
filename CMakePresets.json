@@ -104,7 +104,7 @@
             }
         },
         {
-            "name": "nersc-release",
+            "name": "nersc",
             "displayName": "Perlmutter Release",
             "description": "Release build for NERSC Perlmutter with CUDA",
             "generator": "Ninja",
@@ -115,7 +115,7 @@
                 "CMAKE_CXX_COMPILER": "g++",
                 "ENABLE_TESTS": {
                     "type": "BOOL",
-                    "value": "OFF"
+                    "value": "ON"
                 },
                 "USE_CUDA": {
                     "type": "BOOL",
