@@ -19,8 +19,8 @@
  */
 
 // Compare the GPU residual computation r = y - A(x) against the CPU version,
-// where A(x) = sum_j [R_j^T R_j x] for 3 datasets with different tilt angles
-// (gamma = 0°, 45°, -45°), matching the XMCD configuration.
+// where A(x) = sum_j [R_j^T R_j x] for 2 datasets with different tilt angles
+// (gamma = 0°, 45°), matching the XMCD configuration.
 //
 // Both functions implement the multi-dataset normal equations operator and
 // now share the same normalization convention (src/gpu/gradient.cu matches
@@ -68,22 +68,23 @@ static int run() {
 
     // -----------------------------------------------------------------------
     // Problem setup: small 3D field + 141 evenly-spaced projection angles
-    // 3 datasets with gamma = 0°, 45°, -45°
+    // 2 datasets with gamma = 0°, 45° (3 datasets exceed a 16 GB GPU)
     // -----------------------------------------------------------------------
     dims_t dims{21, 511, 511};
     constexpr size_t ntheta = 141;
     constexpr float DEG = static_cast<float>(M_PI) / 180.f;
-    const std::array<float, 3> gammas = {0.f, 45.f * DEG, -45.f * DEG};
+    constexpr size_t ndatasets = 2;
+    const std::array<float, ndatasets> gammas = {0.f, 45.f * DEG};
 
     std::vector<float> theta(ntheta);
     for (size_t i = 0; i < ntheta; i++)
         theta[i] = static_cast<float>(i) * 2.f * static_cast<float>(M_PI) /
                    static_cast<float>(ntheta);
 
-    // Build CPU and GPU grids for all 3 datasets
-    std::array<PolarGrid<float>, 3> cpu_grids;
-    std::array<gpu::PolarGrid<float>, 3> gpu_grids;
-    for (size_t j = 0; j < 3; j++) {
+    // Build CPU and GPU grids for all datasets
+    std::array<PolarGrid<float>, ndatasets> cpu_grids;
+    std::array<gpu::PolarGrid<float>, ndatasets> gpu_grids;
+    for (size_t j = 0; j < ndatasets; j++) {
         cpu_grids[j] = PolarGrid<float>(theta, dims.n2, dims.n3, gammas[j]);
         gpu_grids[j] = gpu::PolarGrid<float>(theta, dims.n2, dims.n3, gammas[j]);
     }
@@ -111,7 +112,7 @@ static int run() {
     auto t_cpu_start = std::chrono::high_resolution_clock::now();
 
     auto Ax_cpu = tomocam::sysmat(x_cpu, cpu_grids[0]);
-    for (size_t j = 1; j < 3; j++) {
+    for (size_t j = 1; j < ndatasets; j++) {
         auto tmp = tomocam::sysmat(x_cpu, cpu_grids[j]);
         for (size_t i = 0; i < 3; i++) Ax_cpu[i] += tmp[i];
     }
@@ -139,7 +140,7 @@ static int run() {
     auto t_gpu_start = std::chrono::high_resolution_clock::now();
 
     auto Ax_gpu = gpu::sysmat(x_gpu, gpu_grids[0]);
-    for (size_t j = 1; j < 3; j++) {
+    for (size_t j = 1; j < ndatasets; j++) {
         auto tmp = gpu::sysmat(x_gpu, gpu_grids[j]);
         Ax_gpu += tmp;
     }
