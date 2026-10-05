@@ -48,7 +48,7 @@ namespace tomocam::opt {
         };
 
         // project x0 onto support subspace once so every iterate stays in it
-        apply_support(x);
+        // apply_support(x);
 
         T y_norm = std::sqrt(dot(y, y)) + (T)1e-10;
 
@@ -77,7 +77,7 @@ namespace tomocam::opt {
                 x[i] += p[i] * alpha;
                 r[i] -= Ap[i] * alpha;
             }
-            apply_support(x);
+            // apply_support(x);
 
             // apply preconditioner
             z = precond_apply(r);

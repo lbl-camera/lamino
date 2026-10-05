@@ -34,9 +34,8 @@ namespace tomocam::gpu {
     // (qX, qY, 0) -- see include/rotation.h. Returns transpose(Rx(theta) *
     // Ry(beta) * Rz(gamma)) * (qX, qY, 0).
     template <typename T>
-    __device__ __forceinline__ void rotate_transpose(T theta, T gamma, T beta,
-                                                      T qX, T qY, T &qx, T &qy,
-                                                      T &qz) {
+    __device__ __forceinline__ void rotate_transpose(T theta, T gamma, T beta, T qX,
+                                                     T qY, T &qx, T &qy, T &qz) {
         T ct = cos(theta), st = sin(theta);
         T cb = cos(beta), sb = sin(beta);
         T cg = cos(gamma), sg = sin(gamma);
@@ -65,13 +64,13 @@ namespace tomocam::gpu {
             T qY = (idx.y + 0.5) * dY - PI;
 
             T qx, qy, qz;
-            rotate_transpose(theta[idx.x], gamma[idx.x], beta[idx.x], qX, qY, qx,
-                             qy, qz);
+            rotate_transpose(theta[idx.x], gamma[idx.x], beta[idx.x], qX, qY, qx, qy,
+                             qz);
             x[idx] = qx;
             y[idx] = qy;
             z[idx] = qz;
-            w[idx] = (fabs(qx) <= PI && fabs(qy) <= PI && fabs(qz) <= PI) ? T(1)
-                                                                          : T(0);
+            w[idx] =
+                (fabs(qx) <= PI && fabs(qy) <= PI && fabs(qz) <= PI) ? T(1) : T(0);
         }
     }
 
@@ -95,11 +94,33 @@ namespace tomocam::gpu {
     }
 
     template <typename T>
-    PolarGrid<T>::PolarGrid(const std::vector<T> &theta_, size_t nrows,
-                            size_t ncols, T gamma, T beta) {
+    PolarGrid<T>::PolarGrid(const std::vector<T> &theta_, size_t nrows, size_t ncols,
+                            T gamma, T beta) {
         theta = theta_;
         gammas = std::vector<T>(theta.size(), gamma);
         betas = std::vector<T>(theta.size(), beta);
+
+        auto dims = dims_t{theta.size(), nrows, ncols};
+        npts = dims.n1 * dims.n2 * dims.n3;
+        x = DeviceArray<T>(dims);
+        y = DeviceArray<T>(dims);
+        z = DeviceArray<T>(dims);
+        w = DeviceArray<T>(dims);
+        angles = thrust::device_vector<T>(theta);
+        d_gammas = thrust::device_vector<T>(gammas);
+        d_betas = thrust::device_vector<T>(betas);
+        make_polar_grid(angles, d_gammas, d_betas, x, y, z, w);
+    }
+
+    template <typename T>
+    PolarGrid<T>::PolarGrid(
+        const std::vector<std::tuple<std::vector<T>, T, T>> &angle_gamma_beta,
+        size_t nrows, size_t ncols) {
+        for (const auto &[angs, gamma, beta] : angle_gamma_beta) {
+            theta.insert(theta.end(), angs.begin(), angs.end());
+            gammas.insert(gammas.end(), angs.size(), gamma);
+            betas.insert(betas.end(), angs.size(), beta);
+        }
 
         auto dims = dims_t{theta.size(), nrows, ncols};
         npts = dims.n1 * dims.n2 * dims.n3;

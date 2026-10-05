@@ -88,7 +88,7 @@ namespace tomocam::gpu::opt {
 
             vec_xpay(x, p, alpha);   // x += alpha * p
             vec_xpay(r, Ap, -alpha); // r -= alpha * Ap
-            apply_support(x);
+            // apply_support(x);
 
             // Apply preconditioner and compute new residual norm
             T rs_new = 0;

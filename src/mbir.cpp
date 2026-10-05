@@ -29,7 +29,6 @@
 #include "array.h"
 #include "array_ops.h"
 #include "logger.h"
-#include "mask.h"
 #include "optimize.h"
 #include "padding.h"
 #include "polar_grid.h"
@@ -52,9 +51,12 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        dims_t recon_dims = {padded_dim(output_dims.n1, padfac),
-                             padded_dim(proj_dims.n2, padfac),
-                             padded_dim(proj_dims.n3, padfac)};
+        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but
+        // the volume in n2/n3 stays at the unpadded projection size: the type-1
+        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
+        // any mode window (mirrors src/gpu/mbir.cu).
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), proj_dims.n2,
+                             proj_dims.n3};
 
         std::array<Array<T>, 3> yT;
         for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
@@ -87,8 +89,7 @@ namespace tomocam {
         }
 
         std::array<Array<T>, 3> x0;
-        auto supp_mask = mask_support<T>(recon_dims, output_dims);
-        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
 
         // Precompute the Toeplitz PSF kernels once per dataset grid, so A^T A
         // becomes a set of FFT convolutions instead of a NUFFT
@@ -116,11 +117,11 @@ namespace tomocam {
             case Regularizer::SPLIT_BREGMAN:
                 recon_m = opt::split_bregman<T>(
                     A, yT, x0, params.lambda, params.mu, params.maxIters,
-                    params.innerIters, params.tol, params.xtol, supp_mask, &logger);
+                    params.innerIters, params.tol, params.xtol, Array<T>(), &logger);
                 break;
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                           params.xtol, supp_mask, T(0), &logger);
+                                           params.xtol, Array<T>(), T(0), &logger);
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
         }
@@ -153,9 +154,12 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        dims_t recon_dims = {padded_dim(output_dims.n1, padfac),
-                             padded_dim(proj_dims.n2, padfac),
-                             padded_dim(proj_dims.n3, padfac)};
+        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but
+        // the volume in n2/n3 stays at the unpadded projection size: the type-1
+        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
+        // any mode window (mirrors src/gpu/mbir.cu).
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), proj_dims.n2,
+                             proj_dims.n3};
 
         T proj_max = 0.0;
         for (const auto &ds : datasets) {
@@ -209,8 +213,7 @@ namespace tomocam {
 
         // initial guess
         std::array<Array<T>, 3> x0;
-        auto supp_mask = mask_support<T>(recon_dims, output_dims);
-        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i] * supp_mask; }
+        for (size_t i = 0; i < 3; ++i) { x0[i] = yT[i].clone(); }
 
         // Precompute the Toeplitz PSF kernels once for the unified grid
         cpu::ToeplitzVectorOp<T> toeplitz_op(pg, recon_dims);
@@ -224,11 +227,11 @@ namespace tomocam {
             case Regularizer::SPLIT_BREGMAN:
                 recon_m = opt::split_bregman<T>(
                     A, yT, x0, params.lambda, params.mu, params.maxIters,
-                    params.innerIters, params.tol, params.xtol, supp_mask, &logger);
+                    params.innerIters, params.tol, params.xtol, Array<T>(), &logger);
                 break;
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                           params.xtol, supp_mask, T(0), &logger);
+                                           params.xtol, Array<T>(), T(0), &logger);
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
         }

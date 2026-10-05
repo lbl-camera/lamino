@@ -22,6 +22,7 @@
 #define TOMOCAM_GPU_POLAR_GRID_H
 
 #include <cstddef>
+#include <tuple>
 #include <vector>
 
 #include <thrust/device_vector.h>
@@ -47,9 +48,10 @@ namespace tomocam::gpu {
     template <typename T>
     struct PolarGrid {
         size_t npts;
-        std::vector<T> theta;   // host, length nprojs
-        std::vector<T> gammas;  // host, length nprojs (broadcast-constant per dataset)
-        std::vector<T> betas;   // host, length nprojs
+        std::vector<T> theta; // host, length nprojs
+        std::vector<T>
+            gammas;           // host, length nprojs (broadcast-constant per dataset)
+        std::vector<T> betas; // host, length nprojs
         DeviceArray<T> x;
         DeviceArray<T> y;
         DeviceArray<T> z;
@@ -84,11 +86,21 @@ namespace tomocam::gpu {
         /// @param gamma  Out-of-plane tilt angle (radians), broadcast to all angles
         /// @param beta   Out-of-plane tilt angle (radians), broadcast to all angles
         PolarGrid(const std::vector<T> &theta, size_t nrows, size_t ncols, T gamma,
-                 T beta = T(0));
+                  T beta = T(0));
+
+        /// Constructs a unified grid for several datasets: angles of all
+        /// datasets are concatenated, each with its own (gamma, beta)
+        /// (mirrors the CPU PolarGrid overload of the same signature).
+        ///
+        /// @param angle_gamma_beta  One (angles, gamma, beta) tuple per dataset
+        /// @param nrows  Number of radial samples
+        /// @param ncols  Number of axial samples
+        PolarGrid(
+            const std::vector<std::tuple<std::vector<T>, T, T>> &angle_gamma_beta,
+            size_t nrows, size_t ncols);
 
         // default constructor
-        PolarGrid()
-            : npts(0), x(), y(), z(), w(), angles(), d_gammas(), d_betas() {}
+        PolarGrid() : npts(0), x(), y(), z(), w(), angles(), d_gammas(), d_betas() {}
     };
 } // namespace tomocam::gpu
 
