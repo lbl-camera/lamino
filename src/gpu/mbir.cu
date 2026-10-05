@@ -29,7 +29,6 @@
 #include "array.h"
 #include "array_ops.h"
 #include "logger.h"
-#include "mask.h"
 
 #include "gpu/cufft_plan_cache.h"
 #include "gpu/cufinufft_plan_cache.h"
@@ -150,8 +149,7 @@ namespace tomocam::gpu {
             };
 
             // initialize solution with backprojection of yT
-            VecArray<T> x0{DeviceArray<T>(out_dims), DeviceArray<T>(out_dims),
-                           DeviceArray<T>(out_dims)};
+            VecArray<T> x0 = yT.clone();
 
             VecArray<T> recon;
             switch (params.regularizer) {
