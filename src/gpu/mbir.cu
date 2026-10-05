@@ -62,9 +62,13 @@ namespace tomocam::gpu {
         // extend recon dimensions: n1 padded by PAD_FACTOR (prevents NUFFT
         // z-aliasing), n2/n3 derived from padded projection dimensions
         dims_t proj_dims = datasets[0].projs.dims();
-        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac),
-                           padded_dim<T>(proj_dims.n2, padfac),
-                           padded_dim<T>(proj_dims.n3, padfac)};
+        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but the
+        // volume in n2/n3 stays at the unpadded projection size: the type-1
+        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
+        // any mode window, so the PSF grid is 2*n-1 of the unpadded size
+        // instead of 2*(padfac*n)-1 (~2x fewer voxels, less cufinufft memory).
+        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac), proj_dims.n2,
+                           proj_dims.n3};
 
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()
@@ -113,21 +117,14 @@ namespace tomocam::gpu {
             // A^T A becomes a set of FFT convolutions instead of a NUFFT
             // forward+adjoint pair per solver iteration (mirrors CPU's
             // src/mbir.cpp).
-            std::vector<gpu::ToeplitzVectorOp<T>> toeplitz_ops;
-            toeplitz_ops.reserve(n_datasets);
-            for (size_t i = 0; i < n_datasets; ++i) {
-                toeplitz_ops.emplace_back(polar_grids[i], out_dims,
-                                          gpu::ToeplitzMode::SEQUENTIAL);
-            }
+            // kernels of all datasets are summed (A^T A is linear in the PSF), so
+            // only 6 kernels live on the device regardless of dataset count.
+            gpu::ToeplitzVectorOp<T> toeplitz_op(polar_grids, out_dims,
+                                                 gpu::ToeplitzMode::SEQUENTIAL);
 
             // setup the linear operator for all datasets
-            opt::gpuFunction<T> A = [&toeplitz_ops](const gpu::VecArray<T> &x) {
-                auto Ax = sysmat<T>(x, toeplitz_ops[0]);
-                for (size_t i = 1; i < toeplitz_ops.size(); ++i) {
-                    auto tmp = sysmat<T>(x, toeplitz_ops[i]);
-                    for (size_t j = 0; j < 3; ++j) { Ax[j] += tmp[j]; }
-                }
-                return Ax;
+            opt::gpuFunction<T> A = [&toeplitz_op](const gpu::VecArray<T> &x) {
+                return sysmat<T>(x, toeplitz_op);
             };
 
             // initialize solution with backprojection of yT

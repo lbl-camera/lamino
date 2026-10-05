@@ -59,8 +59,8 @@ namespace tomocam::gpu {
                     const DeviceArray<T> &mask) {
         dim3 threads(1, 16, 16);
         auto g = make_grid(data.dims(), threads);
-        scale_rows_kernel<T><<<g, threads>>>(
-            data, thrust::raw_pointer_cast(weights.data()), mask);
+        scale_rows_kernel<T>
+            <<<g, threads>>>(data, thrust::raw_pointer_cast(weights.data()), mask);
         SAFE_CALL(cudaGetLastError());
     }
 
@@ -112,6 +112,32 @@ namespace tomocam::gpu {
 
         int device = gpu_id;
         if (device < 0) { SAFE_CALL(cudaGetDevice(&device)); }
+        add_grid(grid, mode, device);
+    }
+
+    template <typename T>
+    ToeplitzVectorOp<T>::ToeplitzVectorOp(const std::vector<PolarGrid<T>> &grids,
+                                          const dims_t &recon_dims,
+                                          ToeplitzMode mode, int gpu_id) {
+        dims_ = {next_fast_dim(2 * recon_dims.n1 - 1),
+                 next_fast_dim(2 * recon_dims.n2 - 1),
+                 next_fast_dim(2 * recon_dims.n3 - 1)};
+
+        int device = gpu_id;
+        if (device < 0) { SAFE_CALL(cudaGetDevice(&device)); }
+        for (const auto &grid : grids) { add_grid(grid, mode, device); }
+    }
+
+    template <typename T>
+    void ToeplitzVectorOp<T>::add_grid(const PolarGrid<T> &grid, ToeplitzMode mode,
+                                       int device) {
+        auto accumulate = [this](int k, PointSpreadFunction<T> &&psf) {
+            if (kernels_[k].empty()) {
+                kernels_[k] = std::move(psf);
+            } else {
+                kernels_[k] += psf;
+            }
+        };
 
         std::array<int64_t, 3> n_modes = {static_cast<int64_t>(dims_.n3),
                                           static_cast<int64_t>(dims_.n2),
@@ -125,8 +151,8 @@ namespace tomocam::gpu {
             for (int j = i; j < 3; ++j) {
                 std::vector<T> weights(grid.nprojs());
                 for (size_t k = 0; k < grid.nprojs(); ++k) {
-                    auto n_hat = tomocam::beam_dir_vector(grid.angle(k), grid.gamma(k),
-                                                          grid.beta(k));
+                    auto n_hat = tomocam::beam_dir_vector(
+                        grid.angle(k), grid.gamma(k), grid.beta(k));
                     weights[k] = n_hat[i] * n_hat[j];
                 }
                 all_weights[idx(i, j)] = std::move(weights);
@@ -142,8 +168,8 @@ namespace tomocam::gpu {
             plan.set_points(grid);
 
             for (int k = 0; k < 6; ++k) {
-                kernels_[k] =
-                    PointSpreadFunction<T>(grid, dims_, all_weights[k], plan);
+                accumulate(
+                    k, PointSpreadFunction<T>(grid, dims_, all_weights[k], plan));
             }
         } else { // BATCHED
             // one type-1 plan with ntrans=6: builds all 6 kernels in a single
@@ -164,7 +190,7 @@ namespace tomocam::gpu {
                 thrust::device_vector<T> d_weights(all_weights[k]);
                 scale_rows(ones, d_weights, grid.w);
                 copyD2D(strengths.get() + k * npts, ones.data(),
-                       npts * sizeof(Complex<T>));
+                        npts * sizeof(Complex<T>));
             }
 
             auto nufft_out_all = memory::make_cunique_ptr<Complex<T>>(6 * vol_size);
@@ -173,9 +199,9 @@ namespace tomocam::gpu {
             for (int k = 0; k < 6; ++k) {
                 DeviceArray<Complex<T>> block(dims_);
                 copyD2D(block.data(), nufft_out_all.get() + k * vol_size,
-                       vol_size * sizeof(Complex<T>));
-                kernels_[k] =
-                    PointSpreadFunction<T>::from_backprojection(dims_, std::move(block));
+                        vol_size * sizeof(Complex<T>));
+                accumulate(k, PointSpreadFunction<T>::from_backprojection(
+                                  dims_, std::move(block)));
             }
         }
     }
@@ -213,7 +239,7 @@ namespace tomocam::gpu {
         // A^T A divides by (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3, plus the padded-
         // volume factor left unnormalized by the FFT/IFFT round trip.
         T fft_norm = static_cast<T>(dims.n1) * static_cast<T>(dims.n2) *
-                    static_cast<T>(dims.n3);
+                     static_cast<T>(dims.n3);
         T scale = static_cast<T>(orig_dims.n1) * static_cast<T>(x[0].size());
 
         // see PointSpreadFunction's backprojection (FINUFFT's CMCL mode

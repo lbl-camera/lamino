@@ -97,8 +97,16 @@ namespace tomocam::gpu {
         // type-1 NUFFT backprojection (used by ToeplitzVectorOp's BATCHED
         // path, where all 6 kernels' backprojections come from one
         // ntrans=6 execute() call rather than one execute() each).
-        static PointSpreadFunction<T> from_backprojection(
-            dims_t dims, DeviceArray<Complex<T>> &&nufft_out);
+        static PointSpreadFunction<T>
+        from_backprojection(dims_t dims, DeviceArray<Complex<T>> &&nufft_out);
+
+        // sum of PSFs on the same grid dims: A^T A is linear in the kernel, so
+        // datasets' kernels can be merged into one.
+        PointSpreadFunction<T> &operator+=(const PointSpreadFunction<T> &rhs) {
+            kernel_hat_ += rhs.kernel_hat_;
+            return *this;
+        }
+        [[nodiscard]] bool empty() const { return kernel_hat_.size() == 0; }
     };
 
     /**
@@ -123,6 +131,9 @@ namespace tomocam::gpu {
             return i == 0 ? j : (i == 1 ? j + 2 : 5);
         }
 
+        // builds the 6 kernels of `grid` and adds them into kernels_
+        void add_grid(const PolarGrid<T> &grid, ToeplitzMode mode, int device);
+
       public:
         // gpu_id: scaffolding for future multi-GPU dataset placement. It is
         // forwarded to the cufinufft plan(s) used to build the 6 PSF
@@ -132,6 +143,14 @@ namespace tomocam::gpu {
         // (e.g. gpu::mbir.cu) currently always pass -1 (use the current
         // device) for every dataset. -1 means "use the current device".
         ToeplitzVectorOp(const PolarGrid<T> &grid, const dims_t &recon_dims,
+                         ToeplitzMode mode = ToeplitzMode::SEQUENTIAL,
+                         int gpu_id = -1);
+
+        // Combined operator for several grids (e.g. one per dataset): the
+        // kernels are summed in place, so device memory holds 6 kernels
+        // regardless of the number of grids, instead of 6 per grid.
+        ToeplitzVectorOp(const std::vector<PolarGrid<T>> &grids,
+                         const dims_t &recon_dims,
                          ToeplitzMode mode = ToeplitzMode::SEQUENTIAL,
                          int gpu_id = -1);
 
