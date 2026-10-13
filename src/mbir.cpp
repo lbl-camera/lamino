@@ -55,8 +55,8 @@ namespace tomocam {
         // the volume in n2/n3 stays at the unpadded projection size: the type-1
         // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
         // any mode window (mirrors src/gpu/mbir.cu).
-        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), proj_dims.n2,
-                             proj_dims.n3};
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), odd_dim(proj_dims.n2),
+                             odd_dim(proj_dims.n3)};
 
         std::array<Array<T>, 3> yT;
         for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
@@ -158,8 +158,8 @@ namespace tomocam {
         // the volume in n2/n3 stays at the unpadded projection size: the type-1
         // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
         // any mode window (mirrors src/gpu/mbir.cu).
-        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), proj_dims.n2,
-                             proj_dims.n3};
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), odd_dim(proj_dims.n2),
+                             odd_dim(proj_dims.n3)};
 
         T proj_max = 0.0;
         for (const auto &ds : datasets) {

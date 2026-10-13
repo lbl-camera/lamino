@@ -61,6 +61,10 @@ namespace tomocam {
         return N;
     }
 
+    // Largest odd size <= n. Volume n2/n3 must be odd so the NUFFT mode window
+    // [-(N-1)/2, (N-1)/2] is centred on the same origin as the polar grid.
+    inline size_t odd_dim(size_t n) { return n % 2 == 0 ? n - 1 : n; }
+
     template <typename T>
     Array<T> pad2d(const Array<T> &arr, T factor, PadType pad_type) {
 

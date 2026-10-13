@@ -68,8 +68,8 @@ namespace tomocam::gpu {
         // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
         // any mode window, so the PSF grid is 2*n-1 of the unpadded size
         // instead of 2*(padfac*n)-1 (~2x fewer voxels, less cufinufft memory).
-        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac), proj_dims.n2,
-                           proj_dims.n3};
+        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac), odd_dim(proj_dims.n2),
+                           odd_dim(proj_dims.n3)};
 
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()
