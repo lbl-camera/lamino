@@ -56,8 +56,8 @@ namespace tomocam {
             nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
 
             // discard aliased points (outside [-pi,pi]) before ifft2
-            std::transform(std::execution::par_unseq, c_cmplx.begin(),
-                           c_cmplx.end(), pg.w.begin(), c_cmplx.begin(),
+            std::transform(std::execution::par_unseq, c_cmplx.begin(), c_cmplx.end(),
+                           pg.w.begin(), c_cmplx.begin(),
                            [](complex_t c, T m) { return c * m; });
 
             for (size_t j = 0; j < pg.nprojs(); ++j) {

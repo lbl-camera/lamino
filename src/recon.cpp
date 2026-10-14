@@ -27,6 +27,7 @@
 
 #include "array_ops.h"
 #include "config.h"
+#include "mask.h"
 #include "tiff.h"
 #include "timer.h"
 #include "tomocam.h"
@@ -64,12 +65,29 @@ int main(int argc, char **argv) {
         }
     }
 
+    // support of the constant-magnitude constraint, laid out at recon_dims:
+    // read from file if given, otherwise every voxel of recon_dims
+    tomocam::dims_t recon_dims = {params.recon_dims[0], params.recon_dims[1],
+                                  params.recon_dims[2]};
+    tomocam::Array<float> mask;
+    try {
+        tomocam::Array<float> file_mask;
+        if (!params.mask_file.empty()) {
+            file_mask = tomocam::tiff::read(params.mask_file);
+        }
+        mask = tomocam::support_mask(file_mask, recon_dims);
+    } catch (const std::exception &e) {
+        std::cerr << std::format("Error: mask '{}': {}\n", params.mask_file,
+                                 e.what());
+        return 1;
+    }
+
     // print parameters
     params.print(std::cout);
     tomocam::Timer t0;
     t0.start();
 #ifdef USE_CUDA
-    auto recon = tomocam::gpu::MBIR<float>(float_datasets, params);
+    auto recon = tomocam::gpu::MBIR<float>(float_datasets, params, mask);
 #else
     // convert inputs to double
     std::vector<tomocam::Dataset_t<double>> double_datasets;
@@ -85,7 +103,8 @@ int main(int argc, char **argv) {
                 {static_cast<double>(s[0]), static_cast<double>(s[1])});
         double_datasets.push_back(std::move(dd));
     }
-    auto recon_d = tomocam::MBIR2<double>(double_datasets, params);
+    auto recon_d = tomocam::MBIR2<double>(double_datasets, params,
+                                          tomocam::array::cast<float, double>(mask));
     // convert outputs back to float
     std::array<tomocam::Array<float>, 3> recon = {
         tomocam::array::cast<double, float>(recon_d[0]),

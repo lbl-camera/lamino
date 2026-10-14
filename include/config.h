@@ -282,6 +282,7 @@ namespace tomocam {
                                      "array of three integers");
         }
         p.recon_dims = recon_dims;
+        p.mask_file = recon["mask"].value_or<std::string>("");
         // if reocn dims[0]/dims[2] > 0.15, remind user that since this is
         // laminography, the thickness is expected to be much smaller than the
         // in-plane dimensions, and this may lead to increased memory usage
@@ -315,9 +316,58 @@ namespace tomocam {
                 p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
                 p.lambda = (*params)["lambda"].value_or<float>(0.1f);
                 p.mu = (*params)["mu"].value_or<float>(10.0f);
+            } else if (reg_str == "const_mag") {
+                p.regularizer = Regularizer::CONST_MAG;
+                auto params = (*reg)["const_mag"].as_table();
+                if (!params) {
+                    throw std::runtime_error(
+                        "Missing [recon_params.regularizer.const_mag] section "
+                        "in config file");
+                }
+                p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
+                p.lambda_l2 = (*params)["lambda_l2"].value_or<float>(0.1f);
+                p.mu = (*params)["mu"].value_or<float>(10.0f);
+            } else if (reg_str == "combined") {
+                p.regularizer = Regularizer::COMBINED;
+                auto params = (*reg)["combined"].as_table();
+                if (!params) {
+                    throw std::runtime_error(
+                        "Missing [recon_params.regularizer.combined] section "
+                        "in config file");
+                }
+                p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
+                p.const_mag = (*params)["const_mag"].value_or<bool>(true);
+                // 0 switches a term off
+                p.lambda = (*params)["lambda_tv"].value_or<float>(0.0f);
+                // beta is the name used in the theory docs for lambda_l2
+                p.lambda_l2 = (*params)["lambda_l2"].value_or<float>(
+                    (*params)["beta"].value_or<float>(0.0f));
+                p.mu = (*params)["mu"].value_or<float>(10.0f);
+                p.rho = (*params)["rho"].value_or<float>(0.0f);
+                p.rho_growth = (*params)["rho_growth"].value_or<float>(1.0f);
+                p.rho_max = (*params)["rho_max"].value_or<float>(0.0f);
+                p.Ms = (*params)["Ms"].value_or<float>(0.0f);
+                p.estimate_Ms = (*params)["estimate_Ms"].value_or<bool>(true);
+                p.zero_outside = (*params)["zero_outside"].value_or<bool>(false);
+                if (p.rho < 0.0f || p.rho_growth < 1.0f || p.rho_max < 0.0f) {
+                    throw std::runtime_error(
+                        "[recon_params.regularizer.combined] needs rho >= 0, "
+                        "rho_max >= 0 and rho_growth >= 1 (rho never decreases)");
+                }
+                if (p.const_mag && !p.estimate_Ms && p.Ms <= 0.0f) {
+                    throw std::runtime_error(
+                        "[recon_params.regularizer.combined] estimate_Ms = false "
+                        "needs Ms > 0");
+                }
+                if (!p.const_mag && p.lambda <= 0.0f && p.lambda_l2 <= 0.0f) {
+                    throw std::runtime_error(
+                        "[recon_params.regularizer.combined] needs at least one "
+                        "of const_mag = true, lambda_tv > 0 or lambda_l2 > 0");
+                }
             } else {
-                throw std::runtime_error("[recon_params] 'regularizer' must be "
-                                         "either 'qGGMRF' or 'split_bregman'");
+                throw std::runtime_error(
+                    "[recon_params] 'regularizer' must be 'split_bregman', "
+                    "'const_mag' or 'combined'");
             }
         }
         return p;
@@ -411,6 +461,8 @@ namespace tomocam {
         outfile << "tol = 1e-5\n";
         outfile << "xtol = 1e-5\n";
         outfile << "recon_dims = [51, 511, 511]\n";
+        outfile << "# mask = \"mask.tiff\"  # binary support of |m| = M0 (const_mag, "
+                   "combined); [1 or n1, n2, n3] of recon_dims, default: all voxels\n";
         outfile << "\n";
         outfile << "[recon_params.regularizer]\n";
         outfile << "method = \"split_bregman\"\n";
@@ -419,12 +471,31 @@ namespace tomocam {
         outfile << "lambda = 0.1\n";
         outfile << "mu = 10.0\n";
         outfile << "\n";
-        outfile << "# alternatively, for qGGMRF regularization:\n";
+        outfile << "# alternatively, constant magnitude + L2 smoothing:\n";
         outfile << "# [recon_params.regularizer]\n";
-        outfile << "# method = \"qGGMRF\"\n";
-        outfile << "# [recon_params.regularizer.qGGMRF]\n";
-        outfile << "# sigma = 1000.0\n";
-        outfile << "# p = 1.2\n";
+        outfile << "# method = \"const_mag\"\n";
+        outfile << "# [recon_params.regularizer.const_mag]\n";
+        outfile << "# lambda_l2 = 0.1\n";
+        outfile << "# mu = 10.0\n";
+        outfile << "# inner_iters = 5\n";
+        outfile << "\n";
+        outfile << "# or any combination of constant magnitude, TV and L2 "
+                   "(set a weight to 0 to switch it off):\n";
+        outfile << "# [recon_params.regularizer]\n";
+        outfile << "# method = \"combined\"\n";
+        outfile << "# [recon_params.regularizer.combined]\n";
+        outfile << "# const_mag = true\n";
+        outfile << "# lambda_tv = 0.1\n";
+        outfile << "# lambda_l2 = 0.0   # Tikhonov weight (beta)\n";
+        outfile << "# mu = 10.0\n";
+        outfile << "# inner_iters = 5\n";
+        outfile << "# rho = 0.0          # magnitude penalty, 0 means rho = mu\n";
+        outfile << "# rho_growth = 1.0   # >1: rho <- min(rho*growth, rho_max)\n";
+        outfile << "# rho_max = 0.0      # 0 means unbounded\n";
+        outfile << "# estimate_Ms = true # false: hold |m| = Ms\n";
+        outfile << "# Ms = 0.0\n";
+        outfile
+            << "# zero_outside = false # true: m = 0 outside the output region\n";
         outfile.close();
     }
 } // namespace tomocam

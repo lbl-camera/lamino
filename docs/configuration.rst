@@ -122,6 +122,16 @@ Parameters
    * Second dimension: Height (y-axis)
    * Third dimension: Width (x-axis)
 
+**mask** (string, optional)
+   TIFF file with a binary support (values > 0.5 are inside) on which the
+   constant-magnitude constraint ``|m| = M0`` is enforced by the ``const_mag``
+   and ``combined`` regularizers. The image is ``[height, width]`` of
+   ``recon_dims`` and is applied to every thickness slice; a stack of
+   ``recon_dims[0]`` slices is used slice by slice. Voxels outside the mask
+   (and the internal padding) are unconstrained. By default every voxel of
+   ``recon_dims`` is constrained. Use ``scripts/make_mask.py`` to create a mask
+   from a scalar reconstruction.
+
 Regularization
 --------------
 
@@ -154,6 +164,77 @@ Parameters:
 
 **inner_iters** (int)
   Split-Bregman runs a CG for data-fidelity part
+
+Combined Constant Magnitude / TV / L2
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Any combination of a constant-magnitude constraint (:math:`|m| = M_0`, with
+unknown :math:`M_0`), total variation and L2 smoothing, solved with one ADMM
+solver. Each term can be switched on or off independently; at least one must
+be active.
+
+.. code-block:: toml
+
+   [recon_params.regularizer]
+   method = "combined"
+
+   [recon_params.regularizer.combined]
+   const_mag = true
+   lambda_tv = 0.1
+   lambda_l2 = 0.0
+   mu = 10.0
+   inner_iters = 5
+
+Parameters:
+
+**const_mag** (bool)
+   Enforce uniform magnitude inside the reconstructed region. Default: true.
+
+**lambda_tv** (float)
+   TV weight; 0 disables TV. Default: 0.
+
+**lambda_l2** (float)
+   L2 (Tikhonov) smoothness weight; 0 disables it. Default: 0.
+
+**beta** (float)
+   Alias of ``lambda_l2``.
+
+**mu**, **inner_iters**
+   As for split Bregman. ``mu`` is the TV penalty.
+
+**rho** (float)
+   Penalty of the magnitude split :math:`z = m`. 0 (default) means
+   :math:`\rho = \mu`.
+
+**rho_growth** (float), **rho_max** (float)
+   Continuation: after each outer iteration
+   :math:`\rho \leftarrow \min(\rho \cdot \text{rho\_growth}, \text{rho\_max})`
+   and the multiplier is rescaled so that :math:`\rho b_z` is unchanged.
+   ``rho_growth`` must be >= 1 (rho never decreases); ``rho_max = 0`` means
+   unbounded. Default: no continuation.
+
+**estimate_Ms** (bool), **Ms** (float)
+   By default :math:`M_s` is re-estimated every iteration as the mean of
+   :math:`|m + b_z|` over the region. Set ``estimate_Ms = false`` and ``Ms > 0``
+   to hold it fixed.
+
+**zero_outside** (bool)
+   Set :math:`z = 0` outside the reconstructed region instead of leaving the
+   padding free. Default: false.
+
+.. note::
+
+   The sphere constraint is nonconvex, so the solver converges to a stationary
+   point that depends on the initialization. Suggested workflow (starting
+   points are heuristics, not established results):
+
+   1. Run TV (and/or L2) without ``const_mag`` to get a baseline.
+   2. Run with ``const_mag = true`` and ``rho_growth`` about 1.01 - 1.05 up to
+      ``rho_max`` about 10 - 50 times ``rho``; start ``rho`` at the order of
+      ``mu``.
+   3. Keep ``lambda_l2`` small relative to ``mu``; choose it with the
+      discrepancy principle (data misfit about
+      :math:`\tfrac12 N_\text{meas}\sigma^2`) rather than by eye.
 
 QGGMRF Regularization
 ~~~~~~~~~~~~~~~~~~~~~

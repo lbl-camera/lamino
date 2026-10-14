@@ -1,13 +1,13 @@
-# Tomocam
+# Tomocam-lamino
 
 A C++/CUDA library for reconstruction of magnetic field in materials exhibiting magetic circular dichroism (XMCD). The code is optimized for samples with thin form-factor.
 
-[![Docker image](https://github.com/lbl-camera/lamino/actions/workflows/docker.yml/badge.svg?branch=master&event=status)](https://github.com/lbl-camera/lamino/actions/workflows/docker.yml)
+[![Docker image](https://github.com/lbl-camera/lamino/actions/workflows/docker.yml/badge.svg)](https://github.com/lbl-camera/lamino/actions/workflows/docker.yml)
 
 
 ## Overview
 
-Tomocam is a high-performance library developed at Lawrence Berkeley National Laboratory for advanced reconstruction of magnetic field in thin XMCD materials. It provides forward and backward projection operators, iterative reconstruction algorithms, and Model-Based Iterative Reconstion.
+Tomocam-lamino is a high-performance library developed by Center for Advanced Mathematics for Energy Research Applications (CAMERA) at Lawrence Berkeley National Laboratory for reconstruction of magnetic field in thin XMCD materials. It provides forward and backward projection operators, iterative reconstruction algorithms, and Model-Based Iterative (MBIR) methods.
 
 The library is optimized for performance using:
 - OpenMP parallelization
@@ -101,6 +101,17 @@ method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMR
 [recon_params.regularizer.split_bregman]
 lambda = 0.5                            # Regularization parameter
 mu = 10.0                               # Penalty parameter
+
+# Alternatively, combine constant magnitude, TV and L2 smoothing; each term is
+# independent (set a weight to 0 / const_mag to false to switch it off)
+# [recon_params.regularizer]
+# method = "combined"
+# [recon_params.regularizer.combined]
+# const_mag = true                      # enforce |m| = M0 (M0 estimated)
+# lambda_tv = 0.1                       # TV weight (0 = off)
+# lambda_l2 = 0.0                       # L2 smoothness weight (0 = off)
+# mu = 10.0
+# inner_iters = 5
 
 ```
 

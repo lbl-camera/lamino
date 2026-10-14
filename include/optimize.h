@@ -23,6 +23,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 #include "array.h"
 #include "array_ops.h"
@@ -114,6 +115,141 @@ namespace tomocam::opt {
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
                               const Array<T> &mask, Logger *logger = nullptr);
+
+    /**
+     * @brief Constant-magnitude reconstruction with L2 (Tikhonov) smoothing,
+     * solved by ADMM / scaled Bregman splitting:
+     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_l2/2 ||grad x||^2
+     *   s.t. |x(r)| = M0 for r in the mask
+     * with splitting variable z = x and dual b. The magnitude M0 is uniform but
+     * unknown: it is initialised to the mean voxel magnitude of x0 and
+     * re-estimated in every z-update as the mean magnitude of (x + b). The
+     * constraint is only enforced inside the support mask; the remaining
+     * voxels (padding) are left free.
+     * @param A Function representing R^T R
+     * @param yT Backprojected data R^T y
+     * @param x0 Initial guess (also used to initialise M0)
+     * @param lambda_l2 Weight of the L2 smoothness term
+     * @param mu Penalty weight of the constraint splitting
+     * @param outer_max Maximum number of outer iterations
+     * @param inner_max Maximum number of CG iterations per outer iteration
+     * @param tol Tolerance for the inner CG
+     * @param xtol Tolerance on relative change of x and on ||x - z||/||x||
+     * @param mask Binary support (same dims as x0, > 0.5 inside) where
+     * |x| = M0 is enforced; pass all ones to constrain every voxel
+     * @param zero_outside Restrict x and z to the mask: both are 0 outside it
+     * (the CG solves the restricted system)
+     * @return Solution z (|z| = M0 inside the mask)
+     */
+    template <typename T>
+    VecArray<T> constmag_l2(const Function<T> &A, const VecArray<T> &yT,
+                            const VecArray<T> &x0, T lambda_l2, T mu,
+                            size_t outer_max, size_t inner_max, T tol, T xtol,
+                            const Array<T> &mask, Logger *logger = nullptr,
+                            bool zero_outside = false);
+
+    /**
+     * @brief Switchable regularization terms of regularized_admm. Each term is
+     * independent: const_mag enables |x| = M0, lambda_tv > 0 enables TV and
+     * lambda_l2 > 0 enables the L2 smoothness term.
+     */
+    template <typename T>
+    struct RegWeights {
+        bool const_mag = false;
+        T lambda_tv = 0;
+        T lambda_l2 = 0;
+
+        [[nodiscard]] bool tv() const { return lambda_tv > T(0); }
+        [[nodiscard]] bool l2() const { return lambda_l2 > T(0); }
+    };
+
+    /**
+     * @brief Options of the magnitude constraint of regularized_admm. The
+     * defaults reproduce the original behaviour (rho = mu, Ms re-estimated in
+     * every iteration, no continuation, padding left free).
+     */
+    template <typename T>
+    struct MagOptions {
+        T rho = 0;                 // penalty of the z = x split; 0 means use mu
+        T Ms = 0;                  // fixed magnitude if !estimate_Ms (0: mean |x0|)
+        bool estimate_Ms = true;   // Ms <- mean_mask |x + b_z| before projecting
+        T rho_growth = 1;          // rho <- min(rho * rho_growth, rho_max) per iter
+        T rho_max = 0;             // 0 means unbounded
+        bool zero_outside = false; // z = 0 outside the mask instead of leaving free
+    };
+
+    /**
+     * @brief Per-iteration diagnostics of regularized_admm. Residuals are
+     * divided by ||x||; terms that are switched
+     * off are zero. data_shifted = 0.5<x,Ax> - <x,A^Ty>, i.e. the data misfit
+     * without the constant 0.5||y||^2.
+     */
+    template <typename T>
+    struct AdmmIter {
+        size_t iter = 0;
+        T primal_tv = 0, dual_tv = 0, primal_mag = 0, dual_mag = 0;
+        T data_shifted = 0, tv = 0, l2 = 0;
+        T rho = 0, Ms = 0;
+    };
+
+    template <typename T>
+    struct AdmmHistory {
+        std::vector<AdmmIter<T>> iters;
+        VecArray<T> m;   // unprojected ADMM variable (|m|/Ms shows constraint load)
+        VecArray<T> b_z; // final magnitude multiplier (scaled form)
+        T rho = 0;       // final rho
+        T Ms = 0;        // final Ms
+    };
+
+    /**
+     * @brief Combined constant-magnitude / TV / L2 reconstruction, solved by
+     * ADMM / scaled Bregman splitting:
+     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_tv TV(x) + lambda_l2/2 ||grad x||^2
+     *   s.t. |x(r)| = M0 for r in the mask (only if const_mag)
+     * with splitting variables z = x (magnitude, penalty rho) and d = grad x
+     * (TV, penalty mu). Terms that are switched off cost no memory and no work;
+     * TV only reproduces split_bregman and const_mag + L2 reproduces
+     * constmag_l2. The sphere constraint is non-convex: only a stationary point
+     * is reached, so warm-start from the unconstrained solution and use rho
+     * continuation (mag.rho_growth > 1).
+     * @param w Which terms are active and their weights
+     * @param mu Penalty weight of the TV splitting (and of the magnitude
+     * splitting unless mag.rho is set)
+     * @param mask Binary support (same dims as x0, > 0.5 inside) where
+     * |x| = M0 is enforced
+     * @param mag Options of the magnitude constraint
+     * @param history If not null, receives per-iteration diagnostics (this costs
+     * one extra application of A per iteration)
+     * @return z (|z| = M0 inside the mask) if const_mag, otherwise x
+     */
+    template <typename T>
+    VecArray<T> regularized_admm(const Function<T> &A, const VecArray<T> &yT,
+                                 const VecArray<T> &x0, const RegWeights<T> &w, T mu,
+                                 size_t outer_max, size_t inner_max, T tol, T xtol,
+                                 const Array<T> &mask, Logger *logger = nullptr,
+                                 const MagOptions<T> &mag = MagOptions<T>(),
+                                 AdmmHistory<T> *history = nullptr);
+
+    /**
+     * @brief Project a vector field onto the sphere |z| = M0 voxel-wise.
+     * Zero vectors are left as zero.
+     */
+    template <typename T>
+    VecArray<T> project_magnitude(const VecArray<T> &v, T M0);
+
+    /**
+     * @brief Voxel-wise projection onto |z| = Ms. Where |v| <= eps the
+     * projection is not unique and the previous value z_prev is kept.
+     */
+    template <typename T>
+    VecArray<T> project_sphere(const VecArray<T> &v, T Ms, const VecArray<T> &z_prev,
+                               T eps);
+
+    /**
+     * @brief Mean voxel magnitude of a vector field.
+     */
+    template <typename T>
+    T mean_magnitude(const VecArray<T> &v);
 
     /**
      * @brief Conjugate Gradient method for solving the

@@ -130,7 +130,8 @@ int main() {
     std::cout << "--- GPU CG solver ---\n";
     auto x_sol_gpu = gpu::opt::cgsolver<float>(A_gpu, b_gpu, x0_gpu,
                                                /*max_iter=*/1000, /*tol=*/1e-8f,
-                                               /*xtol=*/1e-30f, dims);
+                                               /*xtol=*/1e-30f,
+                                               gpu::DeviceArray<float>::ones(dims));
 
     // -----------------------------------------------------------------------
     // Compare CPU vs GPU solutions

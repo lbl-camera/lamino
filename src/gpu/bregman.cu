@@ -92,7 +92,7 @@ namespace tomocam::gpu::opt {
     VecArray<T> split_bregman(const gpuFunction<T> &A, const VecArray<T> &yT,
                               const VecArray<T> &x0, T lambda, T mu,
                               size_t outer_max, size_t inner_max, T tol, T xtol,
-                              dims_t support_dims, Logger *logger) {
+                              const DeviceArray<T> &support, Logger *logger) {
 
         // initialize variables
         VecArray<T> x = x0.clone();
@@ -135,8 +135,7 @@ namespace tomocam::gpu::opt {
             }
 
             // use conjugate gradient to solve the linear system
-            x = cgsolver(Ap, rhs, x, inner_max, tol, xtol, support_dims, (T)0,
-                         nullptr);
+            x = cgsolver(Ap, rhs, x, inner_max, tol, xtol, support, (T)0, nullptr);
 
             // isotropic TV shrinkage
             std::array<VecArray<T>, 3> dx;
@@ -171,19 +170,18 @@ namespace tomocam::gpu::opt {
     }
 
     // explicit template instantiations for float and double
-    template VecArray<float> split_bregman(const gpuFunction<float> &A,
-                                           const VecArray<float> &yT,
-                                           const VecArray<float> &x0, float lambda,
-                                           float mu, size_t outer_max,
-                                           size_t inner_max, float tol, float xtol,
-                                           dims_t support_dims, Logger *logger);
+    template VecArray<float>
+    split_bregman(const gpuFunction<float> &A, const VecArray<float> &yT,
+                  const VecArray<float> &x0, float lambda, float mu,
+                  size_t outer_max, size_t inner_max, float tol, float xtol,
+                  const DeviceArray<float> &support, Logger *logger);
     template VecArray<double>
     split_bregman(const gpuFunction<double> &A, const VecArray<double> &yT,
                   const VecArray<double> &x0, double lambda, double mu,
                   size_t outer_max, size_t inner_max, double tol, double xtol,
-                  dims_t support_dims, Logger *logger);
-#ifdef DEBUG
-    // compute_sk test
+                  const DeviceArray<double> &support, Logger *logger);
+    // compute_sk / shrink are also used by regularized_admm (regularized_admm.cu)
+    // compute_sk
     template DeviceArray<float> compute_sk(const std::array<VecArray<float>, 3> &dx,
                                            const std::array<VecArray<float>, 3> &b);
     template DeviceArray<double>
@@ -199,5 +197,4 @@ namespace tomocam::gpu::opt {
                                         const DeviceArray<double> &b,
                                         const DeviceArray<double> &sk, double lambda,
                                         double mu);
-#endif
 } // namespace tomocam::gpu::opt
