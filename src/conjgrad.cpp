@@ -42,18 +42,22 @@ namespace tomocam::opt {
         // placeholder for preconditioner, currently identity
         auto precond_apply = [](const VecArray<T> &r) { return clone(r); };
 
-        // support constraint
-        auto apply_support = [&sup_mask](VecArray<T> &v) {
+        // Support constraint: solve P A P x = P y with P = diag(sup_mask).
+        // x0, the residual and A p are projected, so every iterate stays in
+        // the support subspace and CG remains exact (an empty mask means no
+        // constraint).
+        const bool use_support = sup_mask.size() != 0;
+        auto apply_support = [&sup_mask, use_support](VecArray<T> &v) {
+            if (!use_support) return;
             for (size_t i = 0; i < 3; i++) { v[i] *= sup_mask; }
         };
-
-        // project x0 onto support subspace once so every iterate stays in it
-        // apply_support(x);
+        apply_support(x);
 
         T y_norm = std::sqrt(dot(y, y)) + (T)1e-10;
 
         // compute initial residual
         VecArray<T> r = y - A(x);
+        apply_support(r);
         VecArray<T> z = precond_apply(r);
         VecArray<T> p = clone(z);
         T rs_old = dot(z, r);
@@ -61,6 +65,7 @@ namespace tomocam::opt {
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             VecArray<T> Ap = A(p);
+            apply_support(Ap);
             T pAp = dot(p, Ap);
             if (std::abs(pAp) < 2.e-10) {
                 std::cerr << "pAp is close to zero\n";
@@ -77,7 +82,6 @@ namespace tomocam::opt {
                 x[i] += p[i] * alpha;
                 r[i] -= Ap[i] * alpha;
             }
-            // apply_support(x);
 
             // apply preconditioner
             z = precond_apply(r);
@@ -93,10 +97,11 @@ namespace tomocam::opt {
             rs_old = rs_new;
 
             T res = std::sqrt(dot(r, r)) / y_norm;
-            if (logger)
-                logger->log(std::format(
-                    "\tCG iter: {:5}, residual: {:.5e}, ||dx||: {:.5e}\n", iter + 1,
-                    res, dx));
+            if (logger) {
+                logger->log(std::format("\tCG iter: {:5}, residual: {:.5e}, "
+                                        "||dx||: {:.5e}\n",
+                                        iter + 1, res, dx));
+            }
             if (res < tol || dx < xtol) { break; }
         }
         return x;

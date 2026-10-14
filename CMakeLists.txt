@@ -27,6 +27,7 @@ endif()
 
 set(SRC
     src/bregman.cpp
+    src/regularized_admm.cpp
     src/finitediff.cpp
     src/conjgrad.cpp
     src/projection.cpp
@@ -45,6 +46,7 @@ if (USE_CUDA)
         src/gpu/polar_grid.cu
         src/gpu/array_ops.cu
         src/gpu/bregman.cu
+        src/gpu/regularized_admm.cu
         src/gpu/conjgrad.cu
         src/gpu/fftshift.cu
         src/gpu/finitediff.cu

@@ -35,31 +35,35 @@
 #include "gpu/mem_check.h"
 #include "gpu/utils.h"
 #include "gpu/vec_array.h"
-#include "mask.h"
 
 namespace tomocam::gpu::opt {
 
     template <typename T>
     VecArray<T> cgsolver(const gpuFunction<T> &A, const VecArray<T> &y,
                          const VecArray<T> &x0, size_t max_iter, T tol, T xtol,
-                         dims_t support_dims, T lambda, Logger *logger) {
+                         const DeviceArray<T> &support, T lambda, Logger *logger) {
 
         auto precond_apply = [](const VecArray<T> &r) {
             return r.clone(); // placeholder
         };
 
-        // Build support mask and upload to GPU
-        auto cpu_mask = mask_support<T>(x0[0].dims(), support_dims);
-        DeviceArray<T> gpu_mask(cpu_mask);
-        auto apply_support = [&gpu_mask](VecArray<T> &v) {
-            for (size_t i = 0; i < 3; ++i) { v[i] *= gpu_mask; }
+        // Support constraint: solve P A P x = P y with P = diag(support). x0,
+        // the residual and A p are projected, so every iterate stays in the
+        // support subspace and CG remains exact (an empty mask means no
+        // constraint).
+        const bool use_support = support.size() != 0;
+        auto apply_support = [&support, use_support](VecArray<T> &v) {
+            if (!use_support) return;
+            for (size_t i = 0; i < 3; ++i) { v[i] *= support; }
         };
 
         // Initialize solution and residual arrays
         VecArray<T> x = x0.clone();
+        apply_support(x);
 
         // r = y - A(x)
-        auto r = y - A(x);
+        VecArray<T> r = y - A(x);
+        apply_support(r);
         // z = M^{-1} r,  p = z,  rs_old = z^T r
         VecArray<T> z = precond_apply(r);
         auto p = z.clone();
@@ -72,7 +76,8 @@ namespace tomocam::gpu::opt {
         for (size_t iter = 0; iter < max_iter; iter++) {
 
             // Ap = A(p),  pAp = p^T Ap
-            auto Ap = A(p);
+            VecArray<T> Ap = A(p);
+            apply_support(Ap);
             T pAp = Ap.dot(p);
             if (std::abs(pAp) < 1.e-10) {
                 std::cerr << std::format(
@@ -88,7 +93,6 @@ namespace tomocam::gpu::opt {
 
             vec_xpay(x, p, alpha);   // x += alpha * p
             vec_xpay(r, Ap, -alpha); // r -= alpha * Ap
-            // apply_support(x);
 
             // Apply preconditioner and compute new residual norm
             T rs_new = 0;
@@ -106,10 +110,11 @@ namespace tomocam::gpu::opt {
             rs_old = rs_new;
 
             T res = r.norm2() / y_norm;
-            if (logger)
-                logger->log(std::format(
-                    "\tCG iter {:5d}: residual = {:.5e}, ||dx|| = {:.5e}\n",
-                    iter + 1, res, dx));
+            if (logger) {
+                logger->log(std::format("\tCG iter {:5d}: residual = {:.5e}, "
+                                        "||dx|| = {:.5e}\n",
+                                        iter + 1, res, dx));
+            }
             if (res < tol || dx < xtol) break;
         }
 #ifdef DEBUG
@@ -119,15 +124,13 @@ namespace tomocam::gpu::opt {
     }
 
     // Template instantiations
-    template VecArray<float> cgsolver(const gpuFunction<float> &A,
-                                      const VecArray<float> &y,
-                                      const VecArray<float> &x0, size_t max_iter,
-                                      float tol, float xtol, dims_t support_dims,
-                                      float lambda, Logger *logger);
-    template VecArray<double> cgsolver(const gpuFunction<double> &A,
-                                       const VecArray<double> &y,
-                                       const VecArray<double> &x0, size_t max_iter,
-                                       double tol, double xtol, dims_t support_dims,
-                                       double lambda, Logger *logger);
+    template VecArray<float>
+    cgsolver(const gpuFunction<float> &A, const VecArray<float> &y,
+             const VecArray<float> &x0, size_t max_iter, float tol, float xtol,
+             const DeviceArray<float> &support, float lambda, Logger *logger);
+    template VecArray<double>
+    cgsolver(const gpuFunction<double> &A, const VecArray<double> &y,
+             const VecArray<double> &x0, size_t max_iter, double tol, double xtol,
+             const DeviceArray<double> &support, double lambda, Logger *logger);
 
 } // namespace tomocam::gpu::opt

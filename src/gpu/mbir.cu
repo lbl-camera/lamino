@@ -29,6 +29,7 @@
 #include "array.h"
 #include "array_ops.h"
 #include "logger.h"
+#include "mask.h"
 
 #include "gpu/cufft_plan_cache.h"
 #include "gpu/cufinufft_plan_cache.h"
@@ -46,7 +47,7 @@ namespace tomocam::gpu {
 
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                 const ReconParams &params) {
+                                 const ReconParams &params, const Array<T> &mask) {
 
         // create logger
         Logger logger(params.logMode, params.logfile);
@@ -151,13 +152,23 @@ namespace tomocam::gpu {
             // initialize solution with backprojection of yT
             VecArray<T> x0 = yT.clone();
 
+            // const-mag support, centred in the padded volume; the padding
+            // stays outside the support and is left free
+            DeviceArray<T> solver_mask(embed_mask(mask, out_dims));
+            // with a mask file (or zero_outside) m is 0 outside the mask: the
+            // solvers restrict the CG to the support and z is 0 there
+            const bool use_support =
+                params.zero_outside || !params.mask_file.empty();
+            const DeviceArray<T> no_support;
+            const DeviceArray<T> &support = use_support ? solver_mask : no_support;
+
             VecArray<T> recon;
             switch (params.regularizer) {
                 case Regularizer::UNCONSTRAINED: {
                     std::cout << "Starting unconstrained reconstruction with CG on "
                                  "GPU ...\n";
                     recon = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                             params.xtol, out_dims, T(0), &logger);
+                                             params.xtol, support, T(0), &logger);
                     break;
                 }
                 case Regularizer::SPLIT_BREGMAN: {
@@ -166,8 +177,37 @@ namespace tomocam::gpu {
                     recon = opt::split_bregman<T>(A, yT, x0, params.lambda,
                                                   params.mu, params.maxIters,
                                                   params.innerIters, params.tol,
-                                                  params.xtol, out_dims, &logger);
+                                                  params.xtol, support, &logger);
 
+                    break;
+                }
+                case Regularizer::CONST_MAG: {
+                    std::cout << "Starting constant magnitude + L2 reconstruction "
+                                 "on GPU ...\n";
+                    // constrain only the block that survives the crop below;
+                    // the padding stays free to absorb out-of-view
+                    // contributions
+                    recon = opt::constmag_l2<T>(
+                        A, yT, x0, params.lambda_l2, params.mu, params.maxIters,
+                        params.innerIters, params.tol, params.xtol, solver_mask,
+                        &logger, use_support);
+                    break;
+                }
+                case Regularizer::COMBINED: {
+                    std::cout << "Starting combined constant magnitude / TV / L2 "
+                                 "reconstruction on GPU ...\n";
+                    opt::RegWeights<T> w{params.const_mag, params.lambda,
+                                         params.lambda_l2};
+                    opt::MagOptions<T> mag;
+                    mag.rho = params.rho;
+                    mag.rho_growth = params.rho_growth;
+                    mag.rho_max = params.rho_max;
+                    mag.Ms = params.Ms;
+                    mag.estimate_Ms = params.estimate_Ms;
+                    mag.zero_outside = use_support;
+                    recon = opt::regularized_admm<T>(
+                        A, yT, x0, w, params.mu, params.maxIters, params.innerIters,
+                        params.tol, params.xtol, solver_mask, &logger, mag);
                     break;
                 }
                 default: throw std::invalid_argument("Unsupported optimizer type");
@@ -191,8 +231,10 @@ namespace tomocam::gpu {
 
     // explicit template instantiation
     template std::array<Array<float>, 3>
-    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params,
+         const Array<float> &mask);
     template std::array<Array<double>, 3>
-    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params,
+         const Array<double> &mask);
 
 } // namespace tomocam::gpu

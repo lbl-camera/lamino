@@ -29,6 +29,7 @@
 #include "array.h"
 #include "array_ops.h"
 #include "logger.h"
+#include "mask.h"
 #include "optimize.h"
 #include "padding.h"
 #include "polar_grid.h"
@@ -41,7 +42,7 @@ namespace tomocam {
 
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                 const ReconParams &params) {
+                                 const ReconParams &params, const Array<T> &mask) {
 
         // create logger (defaults to stdout)
         Logger logger(params.logMode, params.logfile);
@@ -112,16 +113,46 @@ namespace tomocam {
         t0.stop();
         logger.log(std::format("Preprocessing took {} seconds", t0.seconds()));
 
+        // the const-mag support, centred in the (padded) solver volume; the
+        // padding stays outside the support and is left free
+        Array<T> solver_mask = embed_mask(mask, recon_dims);
+        // with a mask file (or zero_outside) m is 0 outside the mask: the
+        // solvers restrict the CG to the support and z is 0 there
+        const bool use_support = params.zero_outside || !params.mask_file.empty();
+        const Array<T> no_support;
+        const Array<T> &support = use_support ? solver_mask : no_support;
+
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
                 recon_m = opt::split_bregman<T>(
                     A, yT, x0, params.lambda, params.mu, params.maxIters,
-                    params.innerIters, params.tol, params.xtol, Array<T>(), &logger);
+                    params.innerIters, params.tol, params.xtol, support, &logger);
                 break;
+            case Regularizer::CONST_MAG:
+                recon_m = opt::constmag_l2<T>(A, yT, x0, params.lambda_l2, params.mu,
+                                              params.maxIters, params.innerIters,
+                                              params.tol, params.xtol, solver_mask,
+                                              &logger, use_support);
+                break;
+            case Regularizer::COMBINED: {
+                opt::RegWeights<T> w{params.const_mag, params.lambda,
+                                     params.lambda_l2};
+                opt::MagOptions<T> mag;
+                mag.rho = params.rho;
+                mag.rho_growth = params.rho_growth;
+                mag.rho_max = params.rho_max;
+                mag.Ms = params.Ms;
+                mag.estimate_Ms = params.estimate_Ms;
+                mag.zero_outside = use_support;
+                recon_m = opt::regularized_admm<T>(
+                    A, yT, x0, w, params.mu, params.maxIters, params.innerIters,
+                    params.tol, params.xtol, solver_mask, &logger, mag);
+                break;
+            }
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                           params.xtol, Array<T>(), T(0), &logger);
+                                           params.xtol, support, T(0), &logger);
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
         }
@@ -137,16 +168,18 @@ namespace tomocam {
 
     // Explicit template instantiations
     template std::array<Array<float>, 3>
-    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params,
+         const Array<float> &mask);
     template std::array<Array<double>, 3>
-    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params,
+         const Array<double> &mask);
 
     /*--------------------------------------------------------------------------------
      * MBIR2
      * --------------------------------------------------------------------------------*/
     template <typename T>
     std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
-                                  const ReconParams &params) {
+                                  const ReconParams &params, const Array<T> &mask) {
 
         Logger logger(params.logMode, params.logfile);
 
@@ -222,16 +255,48 @@ namespace tomocam {
             return cpu::sysmat(m, toeplitz_op);
         };
 
+        // the const-mag support, centred in the (padded) solver volume; the
+        // padding stays outside the support and is left free
+        Array<T> solver_mask = embed_mask(mask, recon_dims);
+        // with a mask file (or zero_outside) m is 0 outside the mask: the
+        // solvers restrict the CG to the support and z is 0 there
+        const bool use_support = params.zero_outside || !params.mask_file.empty();
+        const Array<T> no_support;
+        const Array<T> &support = use_support ? solver_mask : no_support;
+
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
                 recon_m = opt::split_bregman<T>(
                     A, yT, x0, params.lambda, params.mu, params.maxIters,
-                    params.innerIters, params.tol, params.xtol, Array<T>(), &logger);
+                    params.innerIters, params.tol, params.xtol, support, &logger);
                 break;
+            case Regularizer::CONST_MAG:
+                // constrain only the block that survives the crop below; the
+                // padding stays free to absorb out-of-view contributions
+                recon_m = opt::constmag_l2<T>(A, yT, x0, params.lambda_l2, params.mu,
+                                              params.maxIters, params.innerIters,
+                                              params.tol, params.xtol, solver_mask,
+                                              &logger, use_support);
+                break;
+            case Regularizer::COMBINED: {
+                opt::RegWeights<T> w{params.const_mag, params.lambda,
+                                     params.lambda_l2};
+                opt::MagOptions<T> mag;
+                mag.rho = params.rho;
+                mag.rho_growth = params.rho_growth;
+                mag.rho_max = params.rho_max;
+                mag.Ms = params.Ms;
+                mag.estimate_Ms = params.estimate_Ms;
+                mag.zero_outside = use_support;
+                recon_m = opt::regularized_admm<T>(
+                    A, yT, x0, w, params.mu, params.maxIters, params.innerIters,
+                    params.tol, params.xtol, solver_mask, &logger, mag);
+                break;
+            }
             case Regularizer::UNCONSTRAINED:
                 recon_m = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                           params.xtol, Array<T>(), T(0), &logger);
+                                           params.xtol, support, T(0), &logger);
                 break;
             default: throw std::invalid_argument("Unsupported regularizer");
         }
@@ -245,8 +310,10 @@ namespace tomocam {
     }
 
     template std::array<Array<float>, 3>
-    MBIR2(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
+    MBIR2(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params,
+          const Array<float> &mask);
     template std::array<Array<double>, 3>
-    MBIR2(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
+    MBIR2(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params,
+          const Array<double> &mask);
 
 } // namespace tomocam

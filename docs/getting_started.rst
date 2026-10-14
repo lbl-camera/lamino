@@ -36,9 +36,7 @@ Reconstruction Methods
 
 The library implements several reconstruction approaches:
 
-* **Filtered Back Projection**: Fast analytical reconstruction
 * **Conjugate Gradient (CG)**: Iterative least-squares reconstruction
-* **Model-Based Iterative Reconstruction (MBIR)**: Advanced reconstruction with regularization
 * **Split Bregman**: Efficient algorithm for TV regularization
 
 Vector Field Reconstruction
