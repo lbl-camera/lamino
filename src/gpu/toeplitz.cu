@@ -19,6 +19,7 @@
  */
 
 #include <array>
+#include <iostream>
 #include <utility>
 #include <vector>
 
@@ -36,6 +37,7 @@
 #include "gpu/padding.h"
 #include "gpu/polar_grid.h"
 #include "gpu/toeplitz.h"
+#include "gpu/toeplitz_host.h"
 #include "gpu/utils.h"
 #include "gpu/vec_array.h"
 
@@ -77,6 +79,15 @@ namespace tomocam::gpu {
     }
 
     template <typename T>
+    PointSpreadFunction<T>
+    PointSpreadFunction<T>::from_host_kernel(dims_t dims,
+                                             const Array<std::complex<T>> &kernel) {
+        DeviceArray<Complex<T>> kernel_hat(kernel.dims());
+        copyH2D(kernel_hat.data(), kernel.begin(), kernel_hat.bytes());
+        return PointSpreadFunction<T>(dims, std::move(kernel_hat));
+    }
+
+    template <typename T>
     PointSpreadFunction<T>::PointSpreadFunction(const PolarGrid<T> &grid,
                                                 dims_t dims,
                                                 const std::vector<T> &weights,
@@ -112,7 +123,7 @@ namespace tomocam::gpu {
 
         int device = gpu_id;
         if (device < 0) { SAFE_CALL(cudaGetDevice(&device)); }
-        add_grid(grid, mode, device);
+        add_grid(grid, recon_dims, mode, device);
     }
 
     template <typename T>
@@ -125,18 +136,27 @@ namespace tomocam::gpu {
 
         int device = gpu_id;
         if (device < 0) { SAFE_CALL(cudaGetDevice(&device)); }
-        for (const auto &grid : grids) { add_grid(grid, mode, device); }
+        for (const auto &grid : grids) { add_grid(grid, recon_dims, mode, device); }
     }
 
     template <typename T>
-    void ToeplitzVectorOp<T>::add_grid(const PolarGrid<T> &grid, ToeplitzMode mode,
+    void ToeplitzVectorOp<T>::add_grid(const PolarGrid<T> &grid,
+                                       const dims_t &recon_dims, ToeplitzMode mode,
                                        int device) {
-        auto accumulate = [this](int k, PointSpreadFunction<T> &&psf) {
-            if (kernels_[k].empty()) {
-                kernels_[k] = std::move(psf);
-            } else {
-                kernels_[k] += psf;
+        // kernels of this grid are collected first, so a failed device build
+        // leaves kernels_ untouched and can be redone on the host
+        std::array<PointSpreadFunction<T>, 6> built;
+        auto accumulate_all = [&]() {
+            for (int k = 0; k < 6; ++k) {
+                if (kernels_[k].empty()) {
+                    kernels_[k] = std::move(built[k]);
+                } else {
+                    kernels_[k] += built[k];
+                }
             }
+        };
+        auto accumulate = [&built](int k, PointSpreadFunction<T> &&psf) {
+            built[k] = std::move(psf);
         };
 
         std::array<int64_t, 3> n_modes = {static_cast<int64_t>(dims_.n3),
@@ -159,51 +179,72 @@ namespace tomocam::gpu {
             }
         }
 
-        if (mode == ToeplitzMode::SEQUENTIAL) {
-            // one type-1 plan, reused for all 6 kernels (same grid, same
-            // n_modes); scoped to this constructor so it's destroyed before
-            // returning, rather than kept alive in a global cache.
-            nufft::cuFinfftPlanWrapper<T> plan(1, 3, n_modes, 1, device,
-                                               /*ntrans=*/1);
-            plan.set_points(grid);
+        try {
+            if (mode == ToeplitzMode::SEQUENTIAL) {
+                // one type-1 plan, reused for all 6 kernels (same grid, same
+                // n_modes); scoped to this constructor so it's destroyed before
+                // returning, rather than kept alive in a global cache.
+                nufft::cuFinfftPlanWrapper<T> plan(1, 3, n_modes, 1, device,
+                                                   /*ntrans=*/1);
+                plan.set_points(grid);
 
-            for (int k = 0; k < 6; ++k) {
-                accumulate(
-                    k, PointSpreadFunction<T>(grid, dims_, all_weights[k], plan));
+                for (int k = 0; k < 6; ++k) {
+                    accumulate(k, PointSpreadFunction<T>(grid, dims_, all_weights[k],
+                                                         plan));
+                }
+            } else { // BATCHED
+                // one type-1 plan with ntrans=6: builds all 6 kernels in a single
+                // execute() call, sharing the non-uniform points across the
+                // batch. Trades fewer launches for ~6x the batched spreading/
+                // fine-grid workspace vs SEQUENTIAL -- see ToeplitzMode's doc
+                // comment (include/gpu/toeplitz.h) for the memory tradeoff.
+                nufft::cuFinfftPlanWrapper<T> plan(1, 3, n_modes, 1, device,
+                                                   /*ntrans=*/6);
+                plan.set_points(grid);
+
+                size_t npts = grid.npts;
+                size_t vol_size = dims_.n1 * dims_.n2 * dims_.n3;
+
+                auto strengths = memory::make_cunique_ptr<Complex<T>>(6 * npts);
+                for (int k = 0; k < 6; ++k) {
+                    auto ones = DeviceArray<Complex<T>>::ones(grid.dims());
+                    thrust::device_vector<T> d_weights(all_weights[k]);
+                    scale_rows(ones, d_weights, grid.w);
+                    copyD2D(strengths.get() + k * npts, ones.data(),
+                            npts * sizeof(Complex<T>));
+                }
+
+                auto nufft_out_all =
+                    memory::make_cunique_ptr<Complex<T>>(6 * vol_size);
+                plan.execute(strengths.get(), nufft_out_all.get());
+
+                for (int k = 0; k < 6; ++k) {
+                    DeviceArray<Complex<T>> block(dims_);
+                    copyD2D(block.data(), nufft_out_all.get() + k * vol_size,
+                            vol_size * sizeof(Complex<T>));
+                    accumulate(k, PointSpreadFunction<T>::from_backprojection(
+                                      dims_, std::move(block)));
+                }
             }
-        } else { // BATCHED
-            // one type-1 plan with ntrans=6: builds all 6 kernels in a single
-            // execute() call, sharing the non-uniform points across the
-            // batch. Trades fewer launches for ~6x the batched spreading/
-            // fine-grid workspace vs SEQUENTIAL -- see ToeplitzMode's doc
-            // comment (include/gpu/toeplitz.h) for the memory tradeoff.
-            nufft::cuFinfftPlanWrapper<T> plan(1, 3, n_modes, 1, device,
-                                               /*ntrans=*/6);
-            plan.set_points(grid);
-
-            size_t npts = grid.npts;
-            size_t vol_size = dims_.n1 * dims_.n2 * dims_.n3;
-
-            auto strengths = memory::make_cunique_ptr<Complex<T>>(6 * npts);
-            for (int k = 0; k < 6; ++k) {
-                auto ones = DeviceArray<Complex<T>>::ones(grid.dims());
-                thrust::device_vector<T> d_weights(all_weights[k]);
-                scale_rows(ones, d_weights, grid.w);
-                copyD2D(strengths.get() + k * npts, ones.data(),
-                        npts * sizeof(Complex<T>));
-            }
-
-            auto nufft_out_all = memory::make_cunique_ptr<Complex<T>>(6 * vol_size);
-            plan.execute(strengths.get(), nufft_out_all.get());
-
-            for (int k = 0; k < 6; ++k) {
-                DeviceArray<Complex<T>> block(dims_);
-                copyD2D(block.data(), nufft_out_all.get() + k * vol_size,
-                        vol_size * sizeof(Complex<T>));
-                accumulate(k, PointSpreadFunction<T>::from_backprojection(
-                                  dims_, std::move(block)));
-            }
+            accumulate_all();
+            return;
+        } catch (const std::runtime_error &e) {
+            // most likely cudaMalloc failure; drop partial device state
+            built = {};
+            cudaGetLastError();
+            std::cerr << "Toeplitz PSF build on GPU failed (" << e.what()
+                      << "); falling back to CPU\n";
         }
+
+        // host fallback: FINUFFT + FFTW, then upload the 6 kernels
+        auto host =
+            build_psf_kernels_host<T>(grid.theta, grid.gammas, grid.betas,
+                                      grid.dims().n2, grid.dims().n3, recon_dims);
+        for (int k = 0; k < 6; ++k) {
+            built[k] = PointSpreadFunction<T>::from_host_kernel(dims_, host[k]);
+            host[k] = Array<std::complex<T>>();
+        }
+        accumulate_all();
     }
 
     // ---------------------------------------------------------------------

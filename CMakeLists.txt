@@ -54,6 +54,7 @@ if (USE_CUDA)
         src/gpu/xmcdprojs.cu
         src/gpu/phase_shift.cu
         src/gpu/toeplitz.cu
+        src/gpu/toeplitz_host.cpp
     )
     include_directories(${CMAKE_SOURCE_DIR}/src/cuda)
 endif()

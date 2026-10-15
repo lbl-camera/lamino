@@ -21,6 +21,7 @@
 #define TOMOCAM_GPU_TOEPLITZ_H
 
 #include <array>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -106,6 +107,12 @@ namespace tomocam::gpu {
             kernel_hat_ += rhs.kernel_hat_;
             return *this;
         }
+
+        // Internal: upload a Fourier-domain kernel built on the host (the
+        // low-memory fallback, see ToeplitzVectorOp::add_grid).
+        static PointSpreadFunction<T>
+        from_host_kernel(dims_t dims, const Array<std::complex<T>> &kernel);
+
         [[nodiscard]] bool empty() const { return kernel_hat_.size() == 0; }
     };
 
@@ -131,8 +138,11 @@ namespace tomocam::gpu {
             return i == 0 ? j : (i == 1 ? j + 2 : 5);
         }
 
-        // builds the 6 kernels of `grid` and adds them into kernels_
-        void add_grid(const PolarGrid<T> &grid, ToeplitzMode mode, int device);
+        // builds the 6 kernels of `grid` and adds them into kernels_. If the
+        // device runs out of memory (cufinufft's fine grid dominates), the
+        // kernels are rebuilt on the host with FINUFFT and uploaded instead.
+        void add_grid(const PolarGrid<T> &grid, const dims_t &recon_dims,
+                      ToeplitzMode mode, int device);
 
       public:
         // gpu_id: scaffolding for future multi-GPU dataset placement. It is
