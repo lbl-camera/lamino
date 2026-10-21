@@ -126,6 +126,7 @@ namespace tomocam::gpu {
     class ToeplitzVectorOp {
       private:
         dims_t dims_;
+        size_t det_size_ = 0; // nrows*ncols of the detector grid
         std::array<PointSpreadFunction<T>, 6> kernels_;
 
         // packs the 6 unique entries of a symmetric 3x3 tensor into [0, 6)
@@ -167,6 +168,9 @@ namespace tomocam::gpu {
         [[nodiscard]] const PointSpreadFunction<T> &get(int i, int j) const {
             return kernels_[idx(i, j)];
         }
+
+        // nrows*ncols of the detector grid the kernels were built from
+        [[nodiscard]] size_t detector_size() const { return det_size_; }
     };
 
     // A^T A x for vector tomography via the Toeplitz/PSF trick:
