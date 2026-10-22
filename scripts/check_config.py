@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Check that the files referenced by [[input]] entries in a <config>.toml exist.
+"""Check that the files referenced by [[input]] entries in a <config>.toml or .json exist.
 
 Checks the keys filename, angles and alignment of every [[input]] table.
 filename and angles are required; alignment is optional.
 
-Usage: check_config.py config.toml [...]
+Usage: check_config.py config.{toml,json} [...]
 Exit status is 1 if any file is missing.
 """
 
+import json
 import sys
 import tomllib
 from pathlib import Path
@@ -18,7 +19,7 @@ OPTIONAL = ("alignment",)
 
 def check(config):
     with open(config, "rb") as f:
-        cfg = tomllib.load(f)
+        cfg = json.load(f) if Path(config).suffix.lower() == ".json" else tomllib.load(f)
 
     nmissing = 0
     for i, entry in enumerate(cfg.get("input", [])):

@@ -74,6 +74,16 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tomlplusplus)
 include_directories(${tomlplusplus_SOURCE_DIR}/include)
 
+# nlohmann_json (JSON config files)
+find_package(nlohmann_json 3.11 QUIET)
+if (NOT nlohmann_json_FOUND)
+    FetchContent_Declare(
+      json
+      URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    )
+    FetchContent_MakeAvailable(json)
+endif()
+
 if (USE_CUDA)
     find_package(CUDAToolkit REQUIRED)
     include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
@@ -115,6 +125,7 @@ if (USE_CUDA AND TARGET finufft::cufinufft)
 endif()
 target_link_libraries(tomocam PUBLIC TBB::tbb)
 target_link_libraries(tomocam PUBLIC TIFF::TIFF)
+target_link_libraries(tomocam PUBLIC nlohmann_json::nlohmann_json)
 if (USE_CUDA)
     target_link_libraries(tomocam PUBLIC CUDA::cufft)
     target_link_libraries(tomocam PUBLIC CUDA::cudart)

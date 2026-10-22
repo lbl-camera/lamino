@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 
     // check for input file (toml)
     if (argc < 2) {
-        std::cerr << std::format("Usage: {} <input.toml>\n", argv[0]);
+        std::cerr << std::format("Usage: {} <input.toml|input.json>\n", argv[0]);
         std::cerr << "Please see config_template.toml for an example input file.\n";
         tomocam::dump_config();
         return 1;
