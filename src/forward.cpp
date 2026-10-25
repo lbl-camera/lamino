@@ -68,9 +68,15 @@ int main(int argc, char **argv) {
         std::cerr << "Missing or empty [[projections]] array in config file\n";
         return 1;
     }
+    // an entry with 'alignment' takes angles, gamma, beta and shifts from that file
+    // (as recon does) and projects into the raw (unaligned) data frame
     struct ProjEntry {
-        double gamma_rad;
+        double gamma_rad = 0;
+        double beta_rad = 0;
         std::string output_path;
+        std::string alignment;
+        std::vector<double> angles; // radians; empty -> use the global angles
+        std::vector<std::array<double, 2>> shifts;
     };
     std::vector<ProjEntry> projections;
     for (const auto &elem : *proj_array) {
@@ -81,18 +87,64 @@ int main(int argc, char **argv) {
         }
         auto gamma_opt = (*entry)["gamma"].value<double>();
         auto filename_opt = (*entry)["filename"].value<std::string>();
-        if (!gamma_opt) {
-            std::cerr << "[[projections]] entry missing 'gamma' field\n";
+        auto align_opt = (*entry)["alignment"].value<std::string>();
+        if (!gamma_opt && !align_opt) {
+            std::cerr << "[[projections]] entry needs 'gamma' or 'alignment'\n";
             return 1;
         }
         if (!filename_opt) {
             std::cerr << "[[projections]] entry missing 'filename' field\n";
             return 1;
         }
-        double gamma_rad = *gamma_opt * M_PI / 180.0;
-        auto output_path =
+        ProjEntry p;
+        p.gamma_rad = gamma_opt.value_or(0.0) * M_PI / 180.0;
+        p.beta_rad = (*entry)["beta"].value_or(0.0) * M_PI / 180.0;
+        p.output_path =
             (std::filesystem::path(output_basedir) / *filename_opt).string();
-        projections.push_back({gamma_rad, output_path});
+
+        if (align_opt) {
+            p.alignment = *align_opt;
+            toml::table align;
+            try {
+                align = toml::parse_file(*align_opt);
+            } catch (const toml::parse_error &err) {
+                std::cerr << std::format("Parsing {} failed:\n{}\n", *align_opt,
+                                         err.description());
+                return 1;
+            }
+            // same keys as recon's [[input]] 'alignment' override
+            if (auto g = align["gamma_deg"].value<double>())
+                p.gamma_rad = *g * M_PI / 180.0;
+            if (auto b = align["beta_deg"].value<double>())
+                p.beta_rad = *b * M_PI / 180.0;
+            auto ang_arr = align["corrected_angles_deg"].as_array();
+            if (!ang_arr) {
+                std::cerr << *align_opt << ": missing 'corrected_angles_deg'\n";
+                return 1;
+            }
+            for (const auto &a : *ang_arr)
+                p.angles.push_back(a.value<double>().value() * M_PI / 180.0);
+            if (auto spx = align["shifts_px"].as_array()) {
+                for (const auto &e : *spx) {
+                    auto pair = e.as_array();
+                    if (!pair || pair->size() < 2) {
+                        std::cerr << *align_opt << ": bad 'shifts_px' entry\n";
+                        return 1;
+                    }
+                    // recon shifts the data by +d to align it; the model goes the
+                    // other way into the raw data frame
+                    p.shifts.push_back({-(*pair)[0].value<double>().value(),
+                                        -(*pair)[1].value<double>().value()});
+                }
+                if (p.shifts.size() != p.angles.size()) {
+                    std::cerr << *align_opt
+                              << ": shifts_px and corrected_angles_deg differ in "
+                                 "length\n";
+                    return 1;
+                }
+            }
+        }
+        projections.push_back(std::move(p));
     }
 
     // sanity checks
@@ -129,7 +181,12 @@ int main(int argc, char **argv) {
     // read angles — either from a file or generated from {start, end, num_projs}
     std::vector<double> angles;
     auto angles_node = table["angles"];
-    if (auto filename_opt = angles_node["filename"].value<std::string>()) {
+    bool all_aligned =
+        std::all_of(projections.begin(), projections.end(),
+                    [](const ProjEntry &p) { return !p.angles.empty(); });
+    if (all_aligned && !angles_node) {
+        angles = projections[0].angles; // only used for the summary below
+    } else if (auto filename_opt = angles_node["filename"].value<std::string>()) {
         try {
             // same reader (and degree detection) recon uses
             angles = tomocam::read_angles_file<double>(*filename_opt);
@@ -172,8 +229,10 @@ int main(int argc, char **argv) {
     std::cerr << "Output basedir: " << output_basedir << "\n";
     std::cerr << "Projections:\n";
     for (const auto &p : projections) {
-        std::cerr << "  gamma=" << (p.gamma_rad * 180.0 / M_PI) << " deg -> "
-                  << p.output_path << "\n";
+        std::cerr << "  gamma=" << (p.gamma_rad * 180.0 / M_PI)
+                  << " deg, beta=" << (p.beta_rad * 180.0 / M_PI) << " deg";
+        if (!p.alignment.empty()) std::cerr << ", alignment=" << p.alignment;
+        std::cerr << " -> " << p.output_path << "\n";
     }
     std::cerr << "----------------------------------------\n";
 
@@ -218,24 +277,28 @@ int main(int argc, char **argv) {
         std::cerr << "Warning: output dims differ from the volume's in-plane "
                      "dims; projections will be offset from the volume center\n";
     }
-    tomocam::dims_t crop_dims = {angles.size(), static_cast<size_t>(output_dims[0]),
-                                 static_cast<size_t>(output_dims[1])};
 
     // loop over projections
     for (size_t k = 0; k < projections.size(); ++k) {
-        const auto &[gamma_rad, output_path] = projections[k];
+        const auto &[gamma_rad, beta_rad, output_path, alignment, own_angles,
+                     shifts] = projections[k];
+        const auto &proj_angles = own_angles.empty() ? angles : own_angles;
+        tomocam::dims_t crop_dims = {proj_angles.size(),
+                                     static_cast<size_t>(output_dims[0]),
+                                     static_cast<size_t>(output_dims[1])};
         std::cerr << std::format("\n[{}/{}] gamma = {:.1f} deg\n", k + 1,
                                  projections.size(), gamma_rad * 180.0 / M_PI);
 
         // build polar grid for this gamma
         t0.start();
-        tomocam::PolarGrid<double> grid(angles, nrows, ncols, gamma_rad);
+        tomocam::PolarGrid<double> grid(proj_angles, nrows, ncols, gamma_rad,
+                                        beta_rad);
         t0.stop();
         std::cerr << "Time to build polar grid: " << t0.seconds() << "(s)\n";
 
         // do the forward projection
         t0.start();
-        auto proj = tomocam::forward(m_data, grid, gamma_rad, 0.0);
+        auto proj = tomocam::forward(m_data, grid, gamma_rad, beta_rad, shifts);
         t0.stop();
         std::cerr << "Time to do forward projection: " << t0.seconds() << "(s)\n";
 
@@ -248,6 +311,15 @@ int main(int argc, char **argv) {
         //  save data to tiff-stack
         tomocam::tiff::write(output_path, tomocam::array::cast<double, float>(proj));
         std::cerr << "Written: " << output_path << "\n";
+
+        // aligned entries have their own angles: save them next to the projection
+        if (!own_angles.empty()) {
+            auto apath =
+                std::filesystem::path(output_path).replace_extension(".angles.txt");
+            std::ofstream af(apath);
+            for (double a : own_angles)
+                af << std::format("{:.6f}\n", a * 180.0 / M_PI);
+        }
     }
     // save angles to a text file
     auto angles_path =

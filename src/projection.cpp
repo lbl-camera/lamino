@@ -42,7 +42,8 @@ namespace tomocam {
 
     template <typename T>
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
-                     const PolarGrid<T> &pg, T gamma, T beta) {
+                     const PolarGrid<T> &pg, T gamma, T beta,
+                     const std::vector<std::array<T, 2>> &shifts) {
 
         auto dims = magnetization[0].dims();
         T scale = static_cast<T>(dims.n1 * dims.n2 * dims.n3);
@@ -69,10 +70,27 @@ namespace tomocam {
             proj += c_cmplx;
         }
 
+        if (!shifts.empty()) fft::phase_shift2d(proj, shifts);
+
         proj = fft::fftshift2(proj);
         proj = fft::ifft2(proj);
         proj = fft::ifftshift2(proj);
         return array::to_real<T>(proj) / scale;
+    }
+    template Array<float>
+    forward<float>(const std::array<Array<float>, 3> &magnetization,
+                   const PolarGrid<float> &pg, float gamma, float beta,
+                   const std::vector<std::array<float, 2>> &shifts);
+    template Array<double>
+    forward<double>(const std::array<Array<double>, 3> &magnetization,
+                    const PolarGrid<double> &pg, double gamma, double beta,
+                    const std::vector<std::array<double, 2>> &shifts);
+
+    template <typename T>
+    Array<T> forward(const std::array<Array<T>, 3> &magnetization,
+                     const PolarGrid<T> &pg, T gamma, T beta) {
+        return forward(magnetization, pg, gamma, beta,
+                       std::vector<std::array<T, 2>>{});
     }
     template Array<float>
     forward<float>(const std::array<Array<float>, 3> &magnetization,
