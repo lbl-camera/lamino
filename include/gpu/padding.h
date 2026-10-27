@@ -53,6 +53,11 @@ namespace tomocam::gpu {
     template <typename T>
     DeviceArray<T> pad2d(const DeviceArray<T> &input, float factor, PadType type);
 
+    /** @brief zero-pad the n2/n3 axes of `input` to explicit sizes. */
+    template <typename T>
+    DeviceArray<T> pad2d(const DeviceArray<T> &input, size_t n2, size_t n3,
+                         PadType type);
+
     /**
      * @brief zero-pad `input` into a `new_dims`-sized array, placing `input`
      * starting at `offset` along each axis (e.g. offset={0,0,0} = zero

@@ -119,6 +119,7 @@ namespace tomocam {
                        [](std::complex<T> c, T m) { return c * m; });
 
         std::array<Array<T>, 3> m_components;
+        dims_t nufft_dims{recon_dims.n1, pg.dims().n2, pg.dims().n3};
         using complex_t = std::complex<T>;
 
         for (size_t i = 0; i < 3; ++i) {
@@ -130,9 +131,11 @@ namespace tomocam {
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
-            Array<complex_t> m_cmplx(recon_dims);
+            // evaluate on the polar grid's n2, n3 dims, then crop to recon_dims
+            Array<complex_t> m_cmplx(nufft_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = array::to_real<T>(m_cmplx) / scale;
+            m_components[i] = crop3d(array::to_real<T>(m_cmplx) / scale, recon_dims,
+                                     PadType::SYMMETRIC);
         }
         return m_components;
     }
@@ -168,6 +171,7 @@ namespace tomocam {
                        [](std::complex<T> c, T m) { return c * m; });
 
         std::array<Array<T>, 3> m_components;
+        dims_t nufft_dims{recon_dims.n1, pg.dims().n2, pg.dims().n3};
         using complex_t = std::complex<T>;
 
         for (size_t i = 0; i < 3; ++i) {
@@ -180,9 +184,11 @@ namespace tomocam {
                               [coeff](complex_t &val) { val *= coeff; });
             }
 
-            Array<complex_t> m_cmplx(recon_dims);
+            // evaluate on the polar grid's n2, n3 dims, then crop to recon_dims
+            Array<complex_t> m_cmplx(nufft_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = array::to_real<T>(m_cmplx) / scale;
+            m_components[i] = crop3d(array::to_real<T>(m_cmplx) / scale, recon_dims,
+                                     PadType::SYMMETRIC);
         }
 
         return m_components;

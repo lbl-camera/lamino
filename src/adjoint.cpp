@@ -46,7 +46,13 @@ int main(int argc, char **argv) {
     // forward.cpp so that the polar grid covers the same frequency extent
     tomocam::Timer t0;
     t0.start();
-    proj = tomocam::pad2d<float>(proj, PADDING, tomocam::PadType::SYMMETRIC);
+    // padded to max(recon n2/n3, sqrt(2) * detector), see recon_grid_dim
+    size_t grid_n2 =
+        tomocam::recon_grid_dim<float>(proj.nrows(), params.recon_dims[1], PADDING);
+    size_t grid_n3 =
+        tomocam::recon_grid_dim<float>(proj.ncols(), params.recon_dims[2], PADDING);
+    proj =
+        tomocam::pad2d<float>(proj, grid_n2, grid_n3, tomocam::PadType::SYMMETRIC);
     t0.stop();
     std::cerr << "Time to pad projections: " << t0.seconds() << "(s)\n";
     std::cerr << "Padded projection dims: [" << proj.nslices() << ", "

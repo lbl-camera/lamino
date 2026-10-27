@@ -66,7 +66,8 @@ int main(int argc, char **argv) {
     }
 
     // support of the constant-magnitude constraint, laid out at recon_dims:
-    // read from file if given, otherwise every voxel of recon_dims
+    // read from file if given, otherwise every voxel of the mask_dims window
+    // (default: all of recon_dims); voxels outside it are unconstrained
     tomocam::dims_t recon_dims = {params.recon_dims[0], params.recon_dims[1],
                                   params.recon_dims[2]};
     tomocam::Array<float> mask;
@@ -75,7 +76,7 @@ int main(int argc, char **argv) {
         if (!params.mask_file.empty()) {
             file_mask = tomocam::tiff::read(params.mask_file);
         }
-        mask = tomocam::support_mask(file_mask, recon_dims);
+        mask = tomocam::support_mask(file_mask, recon_dims, params.mask_dims);
     } catch (const std::exception &e) {
         std::cerr << std::format("Error: mask '{}': {}\n", params.mask_file,
                                  e.what());

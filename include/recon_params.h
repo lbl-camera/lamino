@@ -49,6 +49,9 @@ namespace tomocam {
         Regularizer regularizer = Regularizer::UNCONSTRAINED;
         std::array<size_t, 3> recon_dims = {0, 0, 0};
         std::string mask_file = ""; // binary support for const_mag; "" = all voxels
+        // in-plane {n2, n3} of the mask file; parse_recon_params defaults it to
+        // recon_dims[1:2] ({0, 0} is also treated as recon_dims[1:2])
+        std::array<size_t, 2> mask_dims = {0, 0};
         size_t maxIters = 100;
         size_t innerIters = 1;
         float lambda = 0.1f;
@@ -80,6 +83,9 @@ namespace tomocam {
             os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
                               recon_dims[1], recon_dims[2]);
             if (!mask_file.empty()) os << "  mask: " << mask_file << "\n";
+            if (mask_dims[0] != recon_dims[1] || mask_dims[1] != recon_dims[2])
+                os << std::format("  mask_dims: [{}, {}]\n", mask_dims[0],
+                                  mask_dims[1]);
             os << "  tol: " << tol << "\n";
             os << "  xtol: " << xtol << "\n";
             os << "  regularizer: " << reg_str << "\n";

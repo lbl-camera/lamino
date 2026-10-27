@@ -35,19 +35,22 @@ namespace tomocam::gpu {
     }
 
     /**
-        * Pad intput detector images with zeros in prevent aliasing.
-        * @param input The input 3D array to be padded.
-        * @param pad_factor The factor by which to pad the array. For example, a
-        * pad_factor of 2 will double the size of the array in each dimension.
-        * @param type The type of padding to apply (symmetric, left, or right).
-        * @return A new DeviceArray containing the padded data.
-        */
+     * Pad intput detector images with zeros in prevent aliasing.
+     * @param input The input 3D array to be padded.
+     * @param pad_factor The factor by which to pad the array. For example, a
+     * pad_factor of 2 will double the size of the array in each dimension.
+     * @param type The type of padding to apply (symmetric, left, or right).
+     * @return A new DeviceArray containing the padded data.
+     */
     template <typename T>
-    DeviceArray<T> pad2d(const DeviceArray<T> &input, float pad_factor, PadType type) {
+    DeviceArray<T> pad2d(const DeviceArray<T> &input, size_t n2, size_t n3,
+                         PadType type) {
 
         dims_t dims = input.dims();
-        size_t n2 = padded_dim(dims.n2, pad_factor);
-        size_t n3 = padded_dim(dims.n3, pad_factor);
+        if (n2 < dims.n2 || n3 < dims.n3) {
+            throw std::invalid_argument(
+                "pad2d: target size is smaller than input size");
+        }
         dims_t out_dims = {dims.n1, n2, n3};
         int3 offset = {0, 0, 0};
         if (type == PadType::SYMMETRIC) {
@@ -67,6 +70,18 @@ namespace tomocam::gpu {
         return output;
     }
 
+    template <typename T>
+    DeviceArray<T> pad2d(const DeviceArray<T> &input, float pad_factor,
+                         PadType type) {
+        dims_t dims = input.dims();
+        return pad2d(input, padded_dim(dims.n2, pad_factor),
+                     padded_dim(dims.n3, pad_factor), type);
+    }
+
+    template DeviceArray<float> pad2d(const DeviceArray<float> &input, size_t n2,
+                                      size_t n3, PadType type);
+    template DeviceArray<double> pad2d(const DeviceArray<double> &input, size_t n2,
+                                       size_t n3, PadType type);
     template DeviceArray<float> pad2d(const DeviceArray<float> &input,
                                       float pad_factor, PadType type);
     template DeviceArray<double> pad2d(const DeviceArray<double> &input,

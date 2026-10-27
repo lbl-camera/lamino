@@ -65,15 +65,27 @@ namespace tomocam {
     // [-(N-1)/2, (N-1)/2] is centred on the same origin as the polar grid.
     inline size_t odd_dim(size_t n) { return n % 2 == 0 ? n - 1 : n; }
 
+    // Solver volume n2/n3 for detector size d and requested recon size r: never
+    // smaller than the (odd) detector, grows to r when r exceeds the detector.
+    inline size_t recon_vol_dim(size_t d, size_t r) {
+        return std::max(odd_dim(d), odd_dim(r));
+    }
+
+    // Projection / polar-grid n2/n3: sqrt(2) padding of the detector, or the
+    // requested recon size when that is already larger (no extra padding then).
+    // Always odd and >= recon_vol_dim(d, r).
     template <typename T>
-    Array<T> pad2d(const Array<T> &arr, T factor, PadType pad_type) {
+    size_t recon_grid_dim(size_t d, size_t r, T factor) {
+        return std::max(padded_dim(d, factor), odd_dim(r));
+    }
 
-        // if factor is zero, return copy of input array
-        if (factor - 1 < 1.e-06) { return arr.clone(); }
-
-        size_t n2 = padded_dim(arr.nrows(), factor);
-        size_t n3 = padded_dim(arr.ncols(), factor);
-
+    // Zero-pad the n2/n3 axes of arr to explicit sizes.
+    template <typename T>
+    Array<T> pad2d(const Array<T> &arr, size_t n2, size_t n3, PadType pad_type) {
+        if (n2 < arr.nrows() || n3 < arr.ncols()) {
+            throw std::invalid_argument(
+                "pad2d: target size is smaller than input size");
+        }
         // create and initialize return array
         dims_t dims{arr.nslices(), n2, n3};
         Array<T> arr2(dims);
@@ -100,6 +112,16 @@ namespace tomocam {
             }
         }
         return arr2;
+    }
+
+    template <typename T>
+    Array<T> pad2d(const Array<T> &arr, T factor, PadType pad_type) {
+
+        // if factor is zero, return copy of input array
+        if (factor - 1 < 1.e-06) { return arr.clone(); }
+
+        return pad2d(arr, padded_dim(arr.nrows(), factor),
+                     padded_dim(arr.ncols(), factor), pad_type);
     }
 
     template <typename T>

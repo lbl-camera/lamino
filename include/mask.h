@@ -2,6 +2,7 @@
 #ifndef TOMOCAM_MASK_H
 #define TOMOCAM_MASK_H
 
+#include <array>
 #include <cmath>
 #include <execution>
 #include <format>
@@ -78,27 +79,59 @@ namespace tomocam {
      * mask of shape (n1, n2, n3) is used as is. Values are binarised with
      * > 0.5. With an empty mask (no file given) every voxel is inside.
      *
-     * @param file_mask Mask read from file, or an empty Array
+     * @param file_mask Mask read from file, or an empty Array (then the mask is all
+     * ones in the mask_dims window)
      * @param recon_dims Dimensions of the reconstructed (output) volume
+     * @param mask_dims In-plane size {n2, n3} of the file mask; {0, 0} means
+     * recon_dims. A mask smaller than recon_dims is centred in it and the
+     * surrounding voxels are 0: outside the constraint region (free, not
+     * forced to zero unless zero_outside is set).
      */
     template <typename T>
-    Array<T> support_mask(const Array<T> &file_mask, const dims_t &recon_dims) {
+    Array<T> support_mask(const Array<T> &file_mask, const dims_t &recon_dims,
+                          std::array<size_t, 2> mask_dims = {0, 0}) {
         Array<T> mask = Array<T>::ones(recon_dims);
-        if (file_mask.size() == 0) { return mask; }
+
+        const size_t mn2 = mask_dims[0] == 0 ? recon_dims.n2 : mask_dims[0];
+        const size_t mn3 = mask_dims[1] == 0 ? recon_dims.n3 : mask_dims[1];
+        if (mn2 > recon_dims.n2 || mn3 > recon_dims.n3) {
+            throw std::invalid_argument(
+                std::format("mask_dims [{}, {}] must not exceed recon_dims [{}, {}]",
+                            mn2, mn3, recon_dims.n2, recon_dims.n3));
+        }
+        // no file: the mask is all ones inside the mask_dims window
+        if (file_mask.size() == 0) {
+            if (mn2 == recon_dims.n2 && mn3 == recon_dims.n3) { return mask; }
+            mask = Array<T>::zeros(recon_dims);
+            const size_t o2 = (recon_dims.n2 - mn2) / 2,
+                         o3 = (recon_dims.n3 - mn3) / 2;
+            for (size_t k = 0; k < recon_dims.n1; ++k) {
+                for (size_t j = 0; j < mn2; ++j) {
+                    T *dst = mask.begin() +
+                             (k * recon_dims.n2 + j + o2) * recon_dims.n3 + o3;
+                    std::fill(dst, dst + mn3, T(1));
+                }
+            }
+            return mask;
+        }
 
         const dims_t fd = file_mask.dims();
-        if (fd.n2 != recon_dims.n2 || fd.n3 != recon_dims.n3 ||
-            (fd.n1 != 1 && fd.n1 != recon_dims.n1)) {
+        if (fd.n2 != mn2 || fd.n3 != mn3 || (fd.n1 != 1 && fd.n1 != recon_dims.n1)) {
             throw std::invalid_argument(std::format(
                 "mask has dimensions [{}, {}, {}], expected [1 or {}, {}, {}]",
-                fd.n1, fd.n2, fd.n3, recon_dims.n1, recon_dims.n2, recon_dims.n3));
+                fd.n1, fd.n2, fd.n3, recon_dims.n1, mn2, mn3));
         }
-        const size_t slice = recon_dims.n2 * recon_dims.n3;
+        mask = Array<T>::zeros(recon_dims);
+        const size_t o2 = (recon_dims.n2 - mn2) / 2, o3 = (recon_dims.n3 - mn3) / 2;
         for (size_t k = 0; k < recon_dims.n1; ++k) {
-            const T *src = file_mask.begin() + (fd.n1 == 1 ? 0 : k * slice);
-            T *dst = mask.begin() + k * slice;
-            for (size_t i = 0; i < slice; ++i) {
-                dst[i] = src[i] > static_cast<T>(0.5) ? T(1) : T(0);
+            for (size_t j = 0; j < mn2; ++j) {
+                const T *src =
+                    file_mask.begin() + ((fd.n1 == 1 ? 0 : k) * mn2 + j) * mn3;
+                T *dst =
+                    mask.begin() + (k * recon_dims.n2 + j + o2) * recon_dims.n3 + o3;
+                for (size_t i = 0; i < mn3; ++i) {
+                    dst[i] = src[i] > static_cast<T>(0.5) ? T(1) : T(0);
+                }
             }
         }
         return mask;

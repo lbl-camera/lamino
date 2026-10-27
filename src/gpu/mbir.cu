@@ -64,13 +64,27 @@ namespace tomocam::gpu {
         // extend recon dimensions: n1 padded by PAD_FACTOR (prevents NUFFT
         // z-aliasing), n2/n3 derived from padded projection dimensions
         dims_t proj_dims = datasets[0].projs.dims();
-        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but the
-        // volume in n2/n3 stays at the unpadded projection size: the type-1
-        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
-        // any mode window, so the PSF grid is 2*n-1 of the unpadded size
-        // instead of 2*(padfac*n)-1 (~2x fewer voxels, less cufinufft memory).
-        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac), odd_dim(proj_dims.n2),
-                           odd_dim(proj_dims.n3)};
+        // The detector/PolarGrid is padded (avoids 2D FFT aliasing) to
+        // P = max(recon n2/n3, sqrt(2) * detector), so recon_dims may exceed the
+        // detector. The volume in n2/n3 is V = max(odd detector, recon n2/n3),
+        // V <= P: the type-1 NUFFT evaluates the backprojection and the
+        // Toeplitz PSF exactly on any mode window, so the PSF grid is 2*V-1
+        // instead of 2*P-1 (less cufinufft memory).
+        for (const auto &ds : datasets) {
+            if (ds.projs.nrows() != proj_dims.n2 ||
+                ds.projs.ncols() != proj_dims.n3) {
+                throw std::invalid_argument(
+                    "MBIR: all datasets must have the same projection size");
+            }
+        }
+        size_t grid_n2 = recon_grid_dim<T>(proj_dims.n2, recon_dims.n2, padfac);
+        size_t grid_n3 = recon_grid_dim<T>(proj_dims.n3, recon_dims.n3, padfac);
+        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac),
+                           recon_vol_dim(proj_dims.n2, recon_dims.n2),
+                           recon_vol_dim(proj_dims.n3, recon_dims.n3)};
+        logger.log(std::format("volume {}x{}x{}, projection/polar grid {}x{}\n",
+                               out_dims.n1, out_dims.n2, out_dims.n3, grid_n2,
+                               grid_n3));
 
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()
@@ -101,8 +115,8 @@ namespace tomocam::gpu {
                 DeviceArray<T> y(ds.projs);
                 y /= proj_max;
 
-                // zero-pad projections by sqrt(2) to avoid aliasing
-                y = pad2d(y, padfac, PadType::SYMMETRIC);
+                // zero-pad projections to the polar grid size to avoid aliasing
+                y = pad2d(y, grid_n2, grid_n3, PadType::SYMMETRIC);
 
                 if (i == 0) {
                     nrows = y.nrows();
@@ -155,10 +169,10 @@ namespace tomocam::gpu {
             // const-mag support, centred in the padded volume; the padding
             // stays outside the support and is left free
             DeviceArray<T> solver_mask(embed_mask(mask, out_dims));
-            // with a mask file (or zero_outside) m is 0 outside the mask: the
-            // solvers restrict the CG to the support and z is 0 there
-            const bool use_support =
-                params.zero_outside || !params.mask_file.empty();
+            // the mask only selects where |m| = M0 is enforced: voxels outside it
+            // are free, and are forced to 0 only if zero_outside is set (a mask
+            // file alone does not zero them)
+            const bool use_support = params.zero_outside;
             const DeviceArray<T> no_support;
             const DeviceArray<T> &support = use_support ? solver_mask : no_support;
 

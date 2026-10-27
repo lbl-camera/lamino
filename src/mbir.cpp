@@ -52,12 +52,14 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but
-        // the volume in n2/n3 stays at the unpadded projection size: the type-1
-        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
-        // any mode window (mirrors src/gpu/mbir.cu).
-        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), odd_dim(proj_dims.n2),
-                             odd_dim(proj_dims.n3)};
+        // The detector/PolarGrid is padded to P = max(recon n2/n3, sqrt(2) *
+        // detector); the volume is V = max(odd detector, recon n2/n3) <= P
+        // (mirrors src/gpu/mbir.cu).
+        size_t grid_n2 = recon_grid_dim<T>(proj_dims.n2, output_dims.n2, padfac);
+        size_t grid_n3 = recon_grid_dim<T>(proj_dims.n3, output_dims.n3, padfac);
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac),
+                             recon_vol_dim(proj_dims.n2, output_dims.n2),
+                             recon_vol_dim(proj_dims.n3, output_dims.n3)};
 
         std::array<Array<T>, 3> yT;
         for (size_t i = 0; i < 3; ++i) { yT[i] = Array<T>::zeros(recon_dims); }
@@ -77,7 +79,7 @@ namespace tomocam {
             const auto &ds = datasets[j];
 
             auto y = ds.projs / proj_max;
-            y = pad2d(y, padfac, PadType::SYMMETRIC);
+            y = pad2d(y, grid_n2, grid_n3, PadType::SYMMETRIC);
 
             size_t nrows = y.nrows();
             size_t ncols = y.ncols();
@@ -116,9 +118,10 @@ namespace tomocam {
         // the const-mag support, centred in the (padded) solver volume; the
         // padding stays outside the support and is left free
         Array<T> solver_mask = embed_mask(mask, recon_dims);
-        // with a mask file (or zero_outside) m is 0 outside the mask: the
-        // solvers restrict the CG to the support and z is 0 there
-        const bool use_support = params.zero_outside || !params.mask_file.empty();
+        // the mask only selects where |m| = M0 is enforced: voxels outside it
+        // are free, and are forced to 0 only if zero_outside is set (a mask
+        // file alone does not zero them)
+        const bool use_support = params.zero_outside;
         const Array<T> no_support;
         const Array<T> &support = use_support ? solver_mask : no_support;
 
@@ -187,12 +190,25 @@ namespace tomocam {
 
         dims_t proj_dims = datasets[0].projs.dims();
         dims_t output_dims = params.recon_dims;
-        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but
-        // the volume in n2/n3 stays at the unpadded projection size: the type-1
-        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
-        // any mode window (mirrors src/gpu/mbir.cu).
-        dims_t recon_dims = {padded_dim(output_dims.n1, padfac), odd_dim(proj_dims.n2),
-                             odd_dim(proj_dims.n3)};
+        // The detector/PolarGrid is padded to P = max(recon n2/n3, sqrt(2) *
+        // detector); the volume is V = max(odd detector, recon n2/n3) <= P
+        // (mirrors src/gpu/mbir.cu).
+        size_t grid_n2 = recon_grid_dim<T>(proj_dims.n2, output_dims.n2, padfac);
+        size_t grid_n3 = recon_grid_dim<T>(proj_dims.n3, output_dims.n3, padfac);
+        dims_t recon_dims = {padded_dim(output_dims.n1, padfac),
+                             recon_vol_dim(proj_dims.n2, output_dims.n2),
+                             recon_vol_dim(proj_dims.n3, output_dims.n3)};
+
+        for (const auto &ds : datasets) {
+            if (ds.projs.nrows() != proj_dims.n2 ||
+                ds.projs.ncols() != proj_dims.n3) {
+                throw std::invalid_argument(
+                    "MBIR: all datasets must have the same projection size");
+            }
+        }
+        logger.log(std::format("volume {}x{}x{}, projection/polar grid {}x{}\n",
+                               recon_dims.n1, recon_dims.n2, recon_dims.n3, grid_n2,
+                               grid_n3));
 
         T proj_max = 0.0;
         for (const auto &ds : datasets) {
@@ -207,7 +223,8 @@ namespace tomocam {
         std::vector<std::array<T, 2>> shifts; // stacked in the same order as y
         bool has_shifts = false;
         for (const auto &ds : datasets) {
-            auto y = pad2d(ds.projs / proj_max, padfac, PadType::SYMMETRIC);
+            auto y =
+                pad2d(ds.projs / proj_max, grid_n2, grid_n3, PadType::SYMMETRIC);
             assert(nrows == 0 || (y.nrows() == nrows && y.ncols() == ncols));
             nrows = y.nrows();
             ncols = y.ncols();
@@ -258,9 +275,10 @@ namespace tomocam {
         // the const-mag support, centred in the (padded) solver volume; the
         // padding stays outside the support and is left free
         Array<T> solver_mask = embed_mask(mask, recon_dims);
-        // with a mask file (or zero_outside) m is 0 outside the mask: the
-        // solvers restrict the CG to the support and z is 0 there
-        const bool use_support = params.zero_outside || !params.mask_file.empty();
+        // the mask only selects where |m| = M0 is enforced: voxels outside it
+        // are free, and are forced to 0 only if zero_outside is set (a mask
+        // file alone does not zero them)
+        const bool use_support = params.zero_outside;
         const Array<T> no_support;
         const Array<T> &support = use_support ? solver_mask : no_support;
 
