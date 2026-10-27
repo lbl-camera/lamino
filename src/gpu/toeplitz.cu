@@ -120,6 +120,7 @@ namespace tomocam::gpu {
         dims_ = {next_fast_dim(2 * recon_dims.n1 - 1),
                  next_fast_dim(2 * recon_dims.n2 - 1),
                  next_fast_dim(2 * recon_dims.n3 - 1)};
+        det_size_ = grid.dims().n2 * grid.dims().n3;
 
         int device = gpu_id;
         if (device < 0) { SAFE_CALL(cudaGetDevice(&device)); }
@@ -133,6 +134,7 @@ namespace tomocam::gpu {
         dims_ = {next_fast_dim(2 * recon_dims.n1 - 1),
                  next_fast_dim(2 * recon_dims.n2 - 1),
                  next_fast_dim(2 * recon_dims.n3 - 1)};
+        det_size_ = grids.at(0).dims().n2 * grids.at(0).dims().n3;
 
         int device = gpu_id;
         if (device < 0) { SAFE_CALL(cudaGetDevice(&device)); }
@@ -275,13 +277,12 @@ namespace tomocam::gpu {
             }
         }
 
-        // match cpu::sysmat's normalization convention (include/toeplitz.h):
-        // forward/adjoint each notionally divide by the volume n1*n2*n3, so
-        // A^T A divides by (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3, plus the padded-
-        // volume factor left unnormalized by the FFT/IFFT round trip.
+        // match cpu::sysmat's normalization convention (include/toeplitz.h and
+        // sysmat_scale in dtypes.h), plus the padded-volume factor left
+        // unnormalized by the FFT/IFFT round trip.
         T fft_norm = static_cast<T>(dims.n1) * static_cast<T>(dims.n2) *
                      static_cast<T>(dims.n3);
-        T scale = static_cast<T>(orig_dims.n1) * static_cast<T>(x[0].size());
+        T scale = sysmat_scale<T>(orig_dims, kernels.detector_size());
 
         // see PointSpreadFunction's backprojection (FINUFFT's CMCL mode
         // ordering) for why the crop starts at dims/2.

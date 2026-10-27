@@ -138,6 +138,7 @@ namespace tomocam::cpu {
       private:
         using complex_t = std::complex<T>;
         dims_t dims_;
+        size_t det_size_ = 0; // nrows*ncols of the detector grid
         std::array<PointSpreadFunction<T>, 6> kernels_;
 
         // packs the 6 unique entries of a symmetric 3x3 tensor into [0, 6)
@@ -148,6 +149,7 @@ namespace tomocam::cpu {
 
       public:
         ToeplitzVectorOp(const PolarGrid<T> &grid, const dims_t &recon_dims) {
+            det_size_ = grid.dims().n2 * grid.dims().n3;
             dims_ = {next_fast_dim(2 * recon_dims.n1 - 1),
                      next_fast_dim(2 * recon_dims.n2 - 1),
                      next_fast_dim(2 * recon_dims.n3 - 1)};
@@ -181,6 +183,9 @@ namespace tomocam::cpu {
         [[nodiscard]] const PointSpreadFunction<T> &get(int i, int j) const {
             return kernels_[idx(i, j)];
         }
+
+        // nrows*ncols of the detector grid the kernels were built from
+        [[nodiscard]] size_t detector_size() const { return det_size_; }
     };
 
     // A^T A x for vector tomography via the Toeplitz/PSF trick:
@@ -216,9 +221,8 @@ namespace tomocam::cpu {
                      static_cast<T>(dims.n3);
 
         // match the normalization convention of the direct/NUFFT sysmat (see
-        // gradient.cpp): forward/adjoint each notionally divide by the volume
-        // n1*n2*n3, so A^T A divides by (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3.
-        T scale = static_cast<T>(orig_dims.n1) * static_cast<T>(x[0].size());
+        // gradient.cpp and sysmat_scale in dtypes.h)
+        T scale = sysmat_scale<T>(orig_dims, kernels.detector_size());
 
         // see PointSpreadFunction::convolve() for why the crop starts at
         // dims/2 (FINUFFT's CMCL mode ordering).

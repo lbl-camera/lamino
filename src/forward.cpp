@@ -26,15 +26,15 @@ int main(int argc, char **argv) {
 
     // sanity check
     if (argc < 2) {
-        std::cerr << "usage: " << argv[0] << " config.toml\n";
+        std::cerr << "usage: " << argv[0] << " config.toml|config.json\n";
         return 1;
     }
     // get input data
     toml::table table;
     try {
-        table = toml::parse_file(argv[1]);
-    } catch (const toml::parse_error &err) {
-        std::cerr << std::format("Parsing failed:\n{}\n", err.description());
+        table = tomocam::read_config_file(argv[1]);
+    } catch (const std::exception &err) {
+        std::cerr << std::format("Parsing failed:\n{}\n", err.what());
         return 1;
     }
 

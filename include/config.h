@@ -27,6 +27,7 @@
 #include <format>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <toml++/toml.h>
@@ -40,11 +41,77 @@
 
 namespace tomocam {
 
-    // Function to read and parse a TOML file
-    inline toml::table read_toml_file(const std::string &filepath) {
+    // Convert a parsed JSON value to the equivalent toml++ node, so that JSON
+    // and TOML configs share one schema and one set of parsers.
+    inline toml::array json_to_toml_array(const nlohmann::json &j);
+
+    inline toml::table json_to_toml_table(const nlohmann::json &j) {
+        toml::table tbl;
+        for (const auto &[key, val] : j.items()) {
+            if (val.is_null()) continue; // no TOML equivalent: treat as unset
+            if (val.is_object()) {
+                tbl.insert_or_assign(key, json_to_toml_table(val));
+            } else if (val.is_array()) {
+                tbl.insert_or_assign(key, json_to_toml_array(val));
+            } else if (val.is_boolean()) {
+                tbl.insert_or_assign(key, val.get<bool>());
+            } else if (val.is_number_integer()) {
+                tbl.insert_or_assign(key, val.get<int64_t>());
+            } else if (val.is_number_float()) {
+                tbl.insert_or_assign(key, val.get<double>());
+            } else if (val.is_string()) {
+                tbl.insert_or_assign(key, val.get<std::string>());
+            }
+        }
+        return tbl;
+    }
+
+    inline toml::array json_to_toml_array(const nlohmann::json &j) {
+        toml::array arr;
+        for (const auto &val : j) {
+            if (val.is_null()) {
+                throw std::runtime_error("null is not allowed in JSON arrays");
+            } else if (val.is_object()) {
+                arr.push_back(json_to_toml_table(val));
+            } else if (val.is_array()) {
+                arr.push_back(json_to_toml_array(val));
+            } else if (val.is_boolean()) {
+                arr.push_back(val.get<bool>());
+            } else if (val.is_number_integer()) {
+                arr.push_back(val.get<int64_t>());
+            } else if (val.is_number_float()) {
+                arr.push_back(val.get<double>());
+            } else if (val.is_string()) {
+                arr.push_back(val.get<std::string>());
+            }
+        }
+        return arr;
+    }
+
+    // Read a configuration file; the format is chosen by extension (.json is
+    // JSON, anything else is TOML).
+    inline toml::table read_config_file(const std::string &filepath) {
         if (!std::filesystem::exists(filepath)) {
             throw std::runtime_error(
-                std::format("TOML file does not exist: {}", filepath));
+                std::format("Config file does not exist: {}", filepath));
+        }
+
+        std::string ext = std::filesystem::path(filepath).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        if (ext == ".json") {
+            try {
+                std::ifstream fin(filepath);
+                auto j = nlohmann::json::parse(fin);
+                if (!j.is_object()) {
+                    throw std::runtime_error("top level must be an object");
+                }
+                return json_to_toml_table(j);
+            } catch (const std::exception &err) {
+                throw std::runtime_error(std::format(
+                    "Failed to parse JSON file '{}': {}", filepath, err.what()));
+            }
         }
 
         try {
@@ -53,6 +120,11 @@ namespace tomocam {
             throw std::runtime_error(std::format(
                 "Failed to parse TOML file '{}': {}", filepath, err.description()));
         }
+    }
+
+    // Kept for existing callers; accepts JSON as well.
+    inline toml::table read_toml_file(const std::string &filepath) {
+        return read_config_file(filepath);
     }
 
     // Angles are taken to be degrees if any |angle| > 2*pi, otherwise radians.

@@ -120,6 +120,7 @@ mu = 10.0                               # Penalty parameter
 - Angles can be in degrees or radians (automatically converted)
 - The angles file should contain one angle per line
 - Run `./build/recon` without arguments to generate a template configuration file (`config.toml`)
+- Configs may also be written as JSON (file extension `.json`) with the same keys: `[[input]]` becomes `"input": [{...}]` and `[recon_params.regularizer]` becomes nested objects. `null` values are treated as unset.
 
 ## Documentation
 
