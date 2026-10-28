@@ -216,6 +216,33 @@ int main() {
         } catch (const std::invalid_argument &) { threw = true; }
         ok &= check(threw, "support_mask rejects a mismatching mask");
 
+        // 3D mask window: centred in all three axes, free (0) outside it
+        {
+            const std::array<size_t, 3> md = {dims.n1 - 2, dims.n2 - 4, dims.n3 - 4};
+            Array<double> m3d(md[0], md[1], md[2]);
+            for (size_t k = 0; k < md[0]; ++k)
+                for (size_t i = 0; i < md[1]; ++i)
+                    for (size_t j = 0; j < md[2]; ++j)
+                        m3d[{k, i, j}] = (k == 0) ? 0.0 : 1.0;
+            auto w = support_mask(m3d, dims, md);
+            bool win = w.dims() == dims;
+            for (size_t k = 0; k < dims.n1; ++k)
+                for (size_t i = 0; i < dims.n2; ++i)
+                    for (size_t j = 0; j < dims.n3; ++j) {
+                        bool in = k >= 1 && k < 1 + md[0] && i >= 2 &&
+                                  i < 2 + md[1] && j >= 2 && j < 2 + md[2];
+                        double expect = (in && k != 1) ? 1.0 : 0.0;
+                        win &= w[{k, i, j}] == expect;
+                    }
+            ok &= check(win, "support_mask centres a 3D mask in all axes");
+
+            auto ones = support_mask(Array<double>(), dims, md);
+            double sum = 0;
+            for (size_t i = 0; i < ones.size(); ++i) sum += ones.begin()[i];
+            ok &= check(sum == double(md[0] * md[1] * md[2]),
+                        "mask_dims without a file gives a centred window of ones");
+        }
+
         // 5x larger magnitude inside the hole; no smoothing, so z = y there
         VecArray y = opt::clone(truth);
         for (size_t k = 0; k < dims.n1; ++k)

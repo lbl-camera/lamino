@@ -125,12 +125,19 @@ Parameters
 **mask** (string, optional)
    TIFF file with a binary support (values > 0.5 are inside) on which the
    constant-magnitude constraint ``|m| = M0`` is enforced by the ``const_mag``
-   and ``combined`` regularizers. The image is ``[height, width]`` of
-   ``recon_dims`` and is applied to every thickness slice; a stack of
-   ``recon_dims[0]`` slices is used slice by slice. Voxels outside the mask
-   (and the internal padding) are unconstrained. By default every voxel of
-   ``recon_dims`` is constrained. Use ``scripts/make_mask.py`` to create a mask
-   from a scalar reconstruction.
+   and ``combined`` regularizers. The file is a 3D array
+   ``[thickness, height, width]`` of ``mask_dims``; a single 2D image
+   (``[1, height, width]``) is applied to every thickness slice. Voxels outside
+   the mask (and the internal padding) are unconstrained. By default every voxel
+   of ``recon_dims`` is constrained. Use ``scripts/make_mask.py`` to create a
+   mask from a scalar reconstruction.
+
+**mask_dims** (array of 3 integers, optional)
+   Size ``[thickness, height, width]`` of the mask. The mask is centred in
+   ``recon_dims`` along all three axes and each entry must not exceed the
+   corresponding ``recon_dims`` entry. Without a ``mask`` file it defines a
+   centred window of ones, so the constraint is also limited along z. Default:
+   ``recon_dims``.
 
 Regularization
 --------------

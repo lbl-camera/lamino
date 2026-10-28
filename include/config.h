@@ -355,19 +355,26 @@ namespace tomocam {
         }
         p.recon_dims = recon_dims;
         p.mask_file = recon["mask"].value_or<std::string>("");
-        p.mask_dims = {recon_dims[1], recon_dims[2]}; // default: recon_dims[1:2]
+        p.mask_dims = recon_dims; // default: recon_dims
         if (const auto *md = recon["mask_dims"].as_array()) {
-            size_t m2 = md->size() == 2 ? (*md)[0].value_or<size_t>(0) : 0;
-            size_t m3 = md->size() == 2 ? (*md)[1].value_or<size_t>(0) : 0;
-            if (m2 == 0 || m3 == 0) {
+            if (md->size() != 3) {
                 throw std::runtime_error("[recon_params] 'mask_dims' must be an "
-                                         "array of two positive integers [n2, n3]");
+                                         "array of three positive integers "
+                                         "[n1, n2, n3]");
             }
-            if (m2 > recon_dims[1] || m3 > recon_dims[2]) {
-                throw std::runtime_error(
-                    "[recon_params] 'mask_dims' must not exceed recon_dims[1:2]");
+            for (size_t i = 0; i < 3; ++i) {
+                size_t m = (*md)[i].value_or<size_t>(0);
+                if (m == 0) {
+                    throw std::runtime_error("[recon_params] 'mask_dims' must be an "
+                                             "array of three positive integers "
+                                             "[n1, n2, n3]");
+                }
+                if (m > recon_dims[i]) {
+                    throw std::runtime_error(
+                        "[recon_params] 'mask_dims' must not exceed recon_dims");
+                }
+                p.mask_dims[i] = m;
             }
-            p.mask_dims = {m2, m3};
         }
         // if reocn dims[0]/dims[2] > 0.15, remind user that since this is
         // laminography, the thickness is expected to be much smaller than the
@@ -549,12 +556,12 @@ namespace tomocam {
         outfile << "recon_dims = [51, 511, 511]\n";
         outfile
             << "# mask = \"mask.tiff\"  # binary support of |m| = M0 (const_mag, "
-               "combined); [1 or n1, n2, n3] of recon_dims, default: all voxels\n";
-        outfile
-            << "# mask_dims = [511, 511]  # in-plane [n2, n3] of the mask file if "
-               "smaller "
-               "than recon_dims (centred; outside it the mask is 0, i.e. "
-               "unconstrained); default: recon_dims[1:2]\n";
+               "combined); 3D [n1, n2, n3] of mask_dims (or 2D [1, n2, n3], applied "
+               "to "
+               "every slice), default: all voxels\n";
+        outfile << "# mask_dims = [51, 511, 511]  # size [n1, n2, n3] of the mask "
+                   "window/file if smaller than recon_dims (centred; outside it "
+                   "the mask is 0, i.e. unconstrained); default: recon_dims\n";
         outfile << "\n";
         outfile << "[recon_params.regularizer]\n";
         outfile << "method = \"split_bregman\"\n";
