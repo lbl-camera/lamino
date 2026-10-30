@@ -68,6 +68,7 @@ def main():
     ap.add_argument("--hole-margin", type=int, default=15,
                     help="px excluded around the truth's holes (|m| < 0.5)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--json", help="write the table as a list of dicts")
     args = ap.parse_args()
     L = args.half_length
 
@@ -122,6 +123,7 @@ def main():
 
     ok = np.all([r["dmz"] > 1.0 for r in res], axis=0)
     print(f"wall points: {len(ok)}, accepted in all entries: {int(ok.sum())}")
+    rows = []
     print(f"{'entry':48s} {'N':>6s} {'rms In':>7s} {'rms It':>7s} {'floor':>6s} "
           f"{'In corr':>8s} {'It corr':>8s} {'f_B':>5s} {'f_B corr':>9s} {'r_xyz vs 1st'}")
     for i, (n, r) in enumerate(zip(names, res)):
@@ -133,8 +135,16 @@ def main():
         fbc = ct**2 / max(ct**2 + cn**2, 1e-12)
         k = nz // 2
         cc = [np.corrcoef(vols[0][c, k][m2], vols[i][c, k][m2])[0, 1] for c in range(3)]
+        rows.append(dict(name=n, n=int(ok.sum()), rms_in=float(rn), rms_it=float(rt), floor=float(fl),
+                         in_corr=float(cn), it_corr=float(ct), f_b=float(fb), f_b_corr=float(fbc),
+                         r_x=float(cc[0]), r_y=float(cc[1]), r_z=float(cc[2])))
         print(f"{n[-48:]:48s} {int(ok.sum()):6d} {rn:7.2f} {rt:7.2f} {fl:6.2f} {cn:8.2f} "
               f"{ct:8.2f} {fb:5.2f} {fbc:9.2f}  " + " ".join(f"{c:+.2f}" for c in cc))
+    if args.json:
+        import json
+
+        with open(args.json, "w") as f:
+            json.dump(rows, f, indent=1)
 
 
 if __name__ == "__main__":
