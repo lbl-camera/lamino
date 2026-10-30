@@ -7,6 +7,9 @@
 #   grid  lambda_tv x lambda_l2 at n = 500 (35 runs)
 #   conv  corners and the current 0.05/0.1 at n = 2000 (convergence check)
 # Env: GPUS="0 1 2 3 4 5 6 7"  TV_LIST, L2_LIST, ITERS override the grid.
+#      MASK_T=N  limit the magnitude support to N central slices (mask_dims = [N, 399, 399] with
+#      the 399 x 399 box of recons/emma/665/mask_tv.tiff, fiducial holes cut out); runs go to
+#      recons/emma/665/sweep_mask_t<N>/. The emma sample is 8-9 px thick; recon_dims[0] is 21.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
@@ -15,6 +18,18 @@ cmake --build build/release
 mode="${1:-grid}"
 template="recons/emma/665/config_tv_constmag.toml"
 basedir="recons/emma/665/sweep"
+mask_sed=()
+if [ -n "${MASK_T:-}" ]; then
+    basedir="recons/emma/665/sweep_mask_t${MASK_T}"
+    maskfile="recons/emma/665/mask_tv_399.tiff"
+    if [ ! -f "$maskfile" ]; then
+        "$HOME/.venvs/lamino/bin/python" -c "
+import tifffile
+m = tifffile.imread('recons/emma/665/mask_tv.tiff')
+tifffile.imwrite('$maskfile', m[57:456, 57:456])"
+    fi
+    mask_sed=(-e "/^recon_dims/a mask = \"$maskfile\"" -e "/^recon_dims/a mask_dims = [${MASK_T}, 399, 399]")
+fi
 gpus=(${GPUS:-0 1 2 3 4 5 6 7})
 
 case "$mode" in
@@ -52,7 +67,7 @@ for tv in $tvs; do
         sed -e "s#^filename = \"recons/.*#filename = \"$dir/recon.tiff\"#" \
             -e "s#^max_iters = .*#max_iters = ${iters}#" \
             -e "s#^lambda_tv = .*#lambda_tv = ${tv}#" \
-            -e "s#^lambda_l2 = .*#lambda_l2 = ${l2}#" "$template" > "$cfg"
+            -e "s#^lambda_l2 = .*#lambda_l2 = ${l2}#" "${mask_sed[@]}" "$template" > "$cfg"
         if ! python3 scripts/check_config.py "$cfg" >/dev/null 2>&1; then
             echo "sanity check failed: $cfg" >&2
             exit 1
