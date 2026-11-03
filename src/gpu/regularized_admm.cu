@@ -191,7 +191,7 @@ namespace tomocam::gpu::opt {
         return rv;
     }
 
-    /// Constant magnitude + L2 smoothing, mirrors src/regularized_admm.cpp
+    /// Constant magnitude, mirrors src/regularized_admm.cpp
     template <typename T>
     VecArray<T> project_sphere(const VecArray<T> &v, T Ms, const VecArray<T> &z_prev,
                                T eps) {
@@ -203,11 +203,10 @@ namespace tomocam::gpu::opt {
     }
 
     template <typename T>
-    VecArray<T> constmag_l2(const gpuFunction<T> &A, const VecArray<T> &yT,
-                            const VecArray<T> &x0, T lambda_l2, T mu,
-                            size_t outer_max, size_t inner_max, T tol, T xtol,
-                            const DeviceArray<T> &mask, Logger *logger,
-                            bool zero_outside) {
+    VecArray<T> constmag(const gpuFunction<T> &A, const VecArray<T> &yT,
+                         const VecArray<T> &x0, T mu, size_t outer_max,
+                         size_t inner_max, T tol, T xtol, const DeviceArray<T> &mask,
+                         Logger *logger, bool zero_outside) {
 
         auto dims = x0[0].dims();
         if (!(dims == yT[0].dims())) {
@@ -234,14 +233,10 @@ namespace tomocam::gpu::opt {
         VecArray<T> b{DeviceArray<T>(dims), DeviceArray<T>(dims),
                       DeviceArray<T>(dims)};
 
-        // Ap = (A^TA + lambda_l2 ∇^T∇ + mu I) u
-        gpuFunction<T> Ap = [&A, lambda_l2, mu](const VecArray<T> &u) {
+        // Ap = (A^TA + mu I) u
+        gpuFunction<T> Ap = [&A, mu](const VecArray<T> &u) {
             auto Au = A(u);
-            for (size_t i = 0; i < 3; ++i) {
-                auto lap_u = neg_laplacian(u[i]);
-                array::xpay(Au[i], lap_u, lambda_l2);
-                array::xpay(Au[i], u[i], mu);
-            }
+            for (size_t i = 0; i < 3; ++i) { array::xpay(Au[i], u[i], mu); }
             return Au;
         };
 
@@ -289,7 +284,7 @@ namespace tomocam::gpu::opt {
         return z;
     }
 
-    /// Combined constant magnitude / TV / L2, mirrors src/regularized_admm.cpp
+    /// Combined constant magnitude / TV, mirrors src/regularized_admm.cpp
     template <typename T>
     VecArray<T> regularized_admm(const gpuFunction<T> &A, const VecArray<T> &yT,
                                  const VecArray<T> &x0, const RegWeights<T> &w, T mu,
@@ -303,9 +298,9 @@ namespace tomocam::gpu::opt {
                 "yT is not the raw data, but backprojected data, so it should have "
                 "the same dimensions as x0");
         }
-        if (!w.const_mag && !w.tv() && !w.l2()) {
+        if (!w.const_mag && !w.tv()) {
             throw std::invalid_argument(
-                "regularized_admm: enable at least one of const_mag, TV or L2");
+                "regularized_admm: enable at least one of const_mag or TV");
         }
         if (mag.rho < T(0) || mag.rho_growth < T(1) || mag.rho_max < T(0)) {
             throw std::invalid_argument("regularized_admm: rho must be >= 0, "
@@ -356,18 +351,14 @@ namespace tomocam::gpu::opt {
             }
         }
 
-        // Ap = (A^TA + (lambda_l2 + mu [tv]) ∇^T∇ + rho [mag] I) u
-        const T lap_weight = w.lambda_l2 + (use_tv ? mu : T(0));
-        const bool use_lap = use_tv || w.l2();
-        // beta only enters the system matrix, never the right-hand side. rho is
-        // captured by reference: it may grow between outer iterations.
-        gpuFunction<T> Ap = [&A, lap_weight, use_lap, use_mag,
-                             &rho](const VecArray<T> &u) {
+        // Ap = (A^TA + mu [tv] ∇^T∇ + rho [mag] I) u
+        // rho is captured by reference: it may grow between outer iterations.
+        gpuFunction<T> Ap = [&A, mu, use_tv, use_mag, &rho](const VecArray<T> &u) {
             auto Au = A(u);
             for (size_t i = 0; i < 3; ++i) {
-                if (use_lap) {
+                if (use_tv) {
                     auto lap_u = neg_laplacian(u[i]);
-                    array::xpay(Au[i], lap_u, lap_weight);
+                    array::xpay(Au[i], lap_u, mu);
                 }
                 if (use_mag) { array::xpay(Au[i], u[i], rho); }
             }
@@ -485,16 +476,17 @@ namespace tomocam::gpu::opt {
     template double mean_magnitude(const VecArray<double> &);
     template VecArray<float> project_magnitude(const VecArray<float> &, float);
     template VecArray<double> project_magnitude(const VecArray<double> &, double);
-    template VecArray<float>
-    constmag_l2(const gpuFunction<float> &A, const VecArray<float> &yT,
-                const VecArray<float> &x0, float lambda_l2, float mu,
-                size_t outer_max, size_t inner_max, float tol, float xtol,
-                const DeviceArray<float> &mask, Logger *logger, bool zero_outside);
+    template VecArray<float> constmag(const gpuFunction<float> &A,
+                                      const VecArray<float> &yT,
+                                      const VecArray<float> &x0, float mu,
+                                      size_t outer_max, size_t inner_max, float tol,
+                                      float xtol, const DeviceArray<float> &mask,
+                                      Logger *logger, bool zero_outside);
     template VecArray<double>
-    constmag_l2(const gpuFunction<double> &A, const VecArray<double> &yT,
-                const VecArray<double> &x0, double lambda_l2, double mu,
-                size_t outer_max, size_t inner_max, double tol, double xtol,
-                const DeviceArray<double> &mask, Logger *logger, bool zero_outside);
+    constmag(const gpuFunction<double> &A, const VecArray<double> &yT,
+             const VecArray<double> &x0, double mu, size_t outer_max,
+             size_t inner_max, double tol, double xtol,
+             const DeviceArray<double> &mask, Logger *logger, bool zero_outside);
     template VecArray<float>
     regularized_admm(const gpuFunction<float> &, const VecArray<float> &,
                      const VecArray<float> &, const RegWeights<float> &, float,
