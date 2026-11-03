@@ -79,10 +79,10 @@ namespace tomocam::gpu::opt {
                               Logger *logger = nullptr);
 
     /**
-     * @brief GPU constant-magnitude reconstruction with L2 (Tikhonov) smoothing,
+     * @brief GPU constant-magnitude reconstruction,
      * solved by ADMM / scaled Bregman splitting (mirrors
-     * tomocam::opt::constmag_l2):
-     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_l2/2 ||grad x||^2
+     * tomocam::opt::constmag):
+     *   min_{x, M0} 0.5||Ax - y||^2
      *   s.t. |x(r)| = M0 for r in the mask
      * The magnitude M0 is uniform but unknown: it is initialised to the mean
      * voxel magnitude of x0 and re-estimated in every z-update. The constraint
@@ -92,7 +92,6 @@ namespace tomocam::gpu::opt {
      * @param A         GPU operator (Compostion of RadonAdjoint and Radon)
      * @param yT        Backprojection of the measured data: GPU array
      * @param x0        Initial guess (also used to initialise M0)
-     * @param lambda_l2 Weight of the L2 smoothness term
      * @param mu        Penalty weight of the constraint splitting
      * @param outer_max Maximum number of outer iterations
      * @param inner_max Maximum number of CG iterations per outer iteration
@@ -103,21 +102,18 @@ namespace tomocam::gpu::opt {
      * @return          Solution z on the GPU (|z| = M0 inside the mask)
      */
     template <typename T>
-    VecArray<T> constmag_l2(const gpuFunction<T> &A, const VecArray<T> &yT,
-                            const VecArray<T> &x0, T lambda_l2, T mu,
-                            size_t outer_max, size_t inner_max, T tol, T xtol,
-                            const DeviceArray<T> &mask, Logger *logger = nullptr,
-                            bool zero_outside = false);
+    VecArray<T> constmag(const gpuFunction<T> &A, const VecArray<T> &yT,
+                         const VecArray<T> &x0, T mu, size_t outer_max,
+                         size_t inner_max, T tol, T xtol, const DeviceArray<T> &mask,
+                         Logger *logger = nullptr, bool zero_outside = false);
 
     /// Switchable terms of regularized_admm (see tomocam::opt::RegWeights)
     template <typename T>
     struct RegWeights {
         bool const_mag = false;
         T lambda_tv = 0; ///< > 0 enables TV
-        T lambda_l2 = 0; ///< > 0 enables the L2 smoothness term
 
         bool tv() const { return lambda_tv > T(0); }
-        bool l2() const { return lambda_l2 > T(0); }
     };
 
     /// Options of the magnitude constraint (see tomocam::opt::MagOptions)
@@ -150,9 +146,9 @@ namespace tomocam::gpu::opt {
     };
 
     /**
-     * @brief GPU combined constant-magnitude / TV / L2 reconstruction (mirrors
+     * @brief GPU combined constant-magnitude / TV reconstruction (mirrors
      * tomocam::opt::regularized_admm):
-     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_tv TV(x) + lambda_l2/2 ||grad x||^2
+     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_tv TV(x)
      *   s.t. |x(r)| = M0 for r in the mask (only if const_mag)
      * Terms that are switched off allocate nothing and cost no work.
      * @return z (|z| = M0 inside the mask) if const_mag, otherwise x

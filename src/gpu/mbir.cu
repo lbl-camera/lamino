@@ -208,22 +208,20 @@ namespace tomocam::gpu {
                     break;
                 }
                 case Regularizer::CONST_MAG: {
-                    std::cout << "Starting constant magnitude + L2 reconstruction "
+                    std::cout << "Starting constant magnitude reconstruction "
                                  "on GPU ...\n";
                     // constrain only the block that survives the crop below;
                     // the padding stays free to absorb out-of-view
                     // contributions
-                    recon = opt::constmag_l2<T>(
-                        A, yT, x0, params.lambda_l2, params.mu, params.maxIters,
-                        params.innerIters, params.tol, params.xtol, solver_mask,
-                        &logger, use_support);
+                    recon = opt::constmag<T>(
+                        A, yT, x0, params.mu, params.maxIters, params.innerIters,
+                        params.tol, params.xtol, solver_mask, &logger, use_support);
                     break;
                 }
                 case Regularizer::COMBINED: {
-                    std::cout << "Starting combined constant magnitude / TV / L2 "
+                    std::cout << "Starting combined constant magnitude / TV "
                                  "reconstruction on GPU ...\n";
-                    opt::RegWeights<T> w{params.const_mag, params.lambda,
-                                         params.lambda_l2};
+                    opt::RegWeights<T> w{params.const_mag, params.lambda};
                     opt::MagOptions<T> mag;
                     mag.rho = params.rho;
                     mag.rho_growth = params.rho_growth;
