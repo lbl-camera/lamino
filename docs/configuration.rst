@@ -120,9 +120,9 @@ Parameters
    ``const_mag = true``). The constraint ``|m| = M0`` makes the ADMM non-convex.
    Started from the raw backprojection, a large ``rho`` pins it to a poor first
    projection and the unconstrained voxels outside the support absorb the data.
-   Starting from a data-fit CG solution avoids this; 50 iterations is typical.
-   Default: 0 (off, start from the backprojection). Ignored by the other
-   regularizers.
+   Starting from a data-fit CG solution avoids this. Default: 50. Set 0 to
+   start from the backprojection instead (the behaviour before this option
+   existed). Ignored by the other regularizers.
 
 **recon_dims** (array of 3 integers, required)
    Reconstruction volume dimensions ``[thickness, height, width]``.

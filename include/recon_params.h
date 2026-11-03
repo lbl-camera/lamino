@@ -56,7 +56,7 @@ namespace tomocam {
         size_t innerIters = 1;
         // CONST_MAG / COMBINED(const_mag): number of CG iterations used to
         // initialise the non-convex ADMM instead of the raw backprojection (0: off)
-        size_t warm_start_iters = 0;
+        size_t warm_start_iters = 50;
         float lambda = 0.1f;
         float mu = 10.0f;
         float lambda_l2 = 0.1f; // Tikhonov (L2 smoothing) weight, CONST_MAG/COMBINED
@@ -91,8 +91,10 @@ namespace tomocam {
                                   mask_dims[1], mask_dims[2]);
             os << "  tol: " << tol << "\n";
             os << "  xtol: " << xtol << "\n";
-            if (warm_start_iters > 0)
-                os << "  warm_start_iters: " << warm_start_iters << "\n";
+            if (regularizer == Regularizer::CONST_MAG ||
+                (regularizer == Regularizer::COMBINED && const_mag))
+                os << "  warm_start_iters: " << warm_start_iters
+                   << (warm_start_iters > 0 ? "" : " (off)") << "\n";
             os << "  regularizer: " << reg_str << "\n";
             if (regularizer == Regularizer::SPLIT_BREGMAN) {
                 os << "    inner_iters: " << innerIters << "\n";
