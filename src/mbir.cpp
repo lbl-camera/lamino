@@ -125,6 +125,17 @@ namespace tomocam {
         const Array<T> no_support;
         const Array<T> &support = use_support ? solver_mask : no_support;
 
+        // The constant-magnitude ADMM is non-convex: started from the raw
+        // backprojection, a large rho pins it to a poor first projection and the
+        // free voxels outside the support absorb the data. Optionally start from
+        // a few CG iterations (a data-fit solution) instead.
+        if (params.warm_start_iters > 0 &&
+            (params.regularizer == Regularizer::CONST_MAG ||
+             (params.regularizer == Regularizer::COMBINED && params.const_mag))) {
+            x0 = opt::cgsolver<T>(A, yT, x0, params.warm_start_iters, params.tol,
+                                  params.xtol, support, T(0), &logger);
+        }
+
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
@@ -281,6 +292,17 @@ namespace tomocam {
         const bool use_support = params.zero_outside;
         const Array<T> no_support;
         const Array<T> &support = use_support ? solver_mask : no_support;
+
+        // The constant-magnitude ADMM is non-convex: started from the raw
+        // backprojection, a large rho pins it to a poor first projection and the
+        // free voxels outside the support absorb the data. Optionally start from
+        // a few CG iterations (a data-fit solution) instead.
+        if (params.warm_start_iters > 0 &&
+            (params.regularizer == Regularizer::CONST_MAG ||
+             (params.regularizer == Regularizer::COMBINED && params.const_mag))) {
+            x0 = opt::cgsolver<T>(A, yT, x0, params.warm_start_iters, params.tol,
+                                  params.xtol, support, T(0), &logger);
+        }
 
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {

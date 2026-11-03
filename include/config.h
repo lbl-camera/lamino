@@ -331,6 +331,8 @@ namespace tomocam {
         }
         // read max_outer_iters
         p.maxIters = recon["max_iters"].value_or<size_t>(100);
+        // read warm_start_iters (CG initialisation of the const_mag solvers)
+        p.warm_start_iters = recon["warm_start_iters"].value_or<size_t>(0);
 
         // read recon_dims
         std::array<size_t, 3> recon_dims;
@@ -553,6 +555,9 @@ namespace tomocam {
         outfile << "max_outer_iters = 50\n";
         outfile << "tol = 1e-5\n";
         outfile << "xtol = 1e-5\n";
+        outfile << "# warm_start_iters = 50  # const_mag/combined: initialise from "
+                   "this many CG iterations (a data-fit solution) instead of the "
+                   "backprojection; default: 0 (off)\n";
         outfile << "recon_dims = [51, 511, 511]\n";
         outfile
             << "# mask = \"mask.tiff\"  # binary support of |m| = M0 (const_mag, "
