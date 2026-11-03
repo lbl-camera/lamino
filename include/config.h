@@ -331,6 +331,8 @@ namespace tomocam {
         }
         // read max_outer_iters
         p.maxIters = recon["max_iters"].value_or<size_t>(100);
+        // read warm_start_iters (CG initialisation of the const_mag solvers)
+        p.warm_start_iters = recon["warm_start_iters"].value_or<size_t>(50);
 
         // read recon_dims
         std::array<size_t, 3> recon_dims;
@@ -418,7 +420,6 @@ namespace tomocam {
                         "in config file");
                 }
                 p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
-                p.lambda_l2 = (*params)["lambda_l2"].value_or<float>(0.1f);
                 p.mu = (*params)["mu"].value_or<float>(10.0f);
                 p.zero_outside = (*params)["zero_outside"].value_or<bool>(false);
             } else if (reg_str == "combined") {
@@ -433,9 +434,6 @@ namespace tomocam {
                 p.const_mag = (*params)["const_mag"].value_or<bool>(true);
                 // 0 switches a term off
                 p.lambda = (*params)["lambda_tv"].value_or<float>(0.0f);
-                // beta is the name used in the theory docs for lambda_l2
-                p.lambda_l2 = (*params)["lambda_l2"].value_or<float>(
-                    (*params)["beta"].value_or<float>(0.0f));
                 p.mu = (*params)["mu"].value_or<float>(10.0f);
                 p.rho = (*params)["rho"].value_or<float>(0.0f);
                 p.rho_growth = (*params)["rho_growth"].value_or<float>(1.0f);
@@ -453,10 +451,10 @@ namespace tomocam {
                         "[recon_params.regularizer.combined] estimate_Ms = false "
                         "needs Ms > 0");
                 }
-                if (!p.const_mag && p.lambda <= 0.0f && p.lambda_l2 <= 0.0f) {
+                if (!p.const_mag && p.lambda <= 0.0f) {
                     throw std::runtime_error(
                         "[recon_params.regularizer.combined] needs at least one "
-                        "of const_mag = true, lambda_tv > 0 or lambda_l2 > 0");
+                        "of const_mag = true or lambda_tv > 0");
                 }
             } else {
                 throw std::runtime_error(
@@ -554,6 +552,9 @@ namespace tomocam {
         outfile << "max_outer_iters = 50\n";
         outfile << "tol = 1e-5\n";
         outfile << "xtol = 1e-5\n";
+        outfile << "# warm_start_iters = 50  # const_mag/combined: initialise from "
+                   "this many CG iterations (a data-fit solution); 0 starts from "
+                   "the backprojection; default: 50\n";
         outfile << "recon_dims = [51, 511, 511]\n";
         outfile
             << "# mask = \"mask.tiff\"  # binary support of |m| = M0 (const_mag, "
@@ -571,23 +572,21 @@ namespace tomocam {
         outfile << "lambda = 0.1\n";
         outfile << "mu = 10.0\n";
         outfile << "\n";
-        outfile << "# alternatively, constant magnitude + L2 smoothing:\n";
+        outfile << "# alternatively, constant magnitude:\n";
         outfile << "# [recon_params.regularizer]\n";
         outfile << "# method = \"const_mag\"\n";
         outfile << "# [recon_params.regularizer.const_mag]\n";
-        outfile << "# lambda_l2 = 0.1\n";
         outfile << "# mu = 10.0\n";
         outfile << "# inner_iters = 5\n";
         outfile << "# zero_outside = false # true: m = 0 outside the mask\n";
         outfile << "\n";
-        outfile << "# or any combination of constant magnitude, TV and L2 "
-                   "(set a weight to 0 to switch it off):\n";
+        outfile << "# or constant magnitude combined with TV "
+                   "(set lambda_tv to 0 to switch TV off):\n";
         outfile << "# [recon_params.regularizer]\n";
         outfile << "# method = \"combined\"\n";
         outfile << "# [recon_params.regularizer.combined]\n";
         outfile << "# const_mag = true\n";
         outfile << "# lambda_tv = 0.1\n";
-        outfile << "# lambda_l2 = 0.0   # Tikhonov weight (beta)\n";
         outfile << "# mu = 10.0\n";
         outfile << "# inner_iters = 5\n";
         outfile << "# rho = 0.0          # magnitude penalty, 0 means rho = mu\n";

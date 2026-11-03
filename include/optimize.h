@@ -117,9 +117,9 @@ namespace tomocam::opt {
                               const Array<T> &mask, Logger *logger = nullptr);
 
     /**
-     * @brief Constant-magnitude reconstruction with L2 (Tikhonov) smoothing,
+     * @brief Constant-magnitude reconstruction,
      * solved by ADMM / scaled Bregman splitting:
-     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_l2/2 ||grad x||^2
+     *   min_{x, M0} 0.5||Ax - y||^2
      *   s.t. |x(r)| = M0 for r in the mask
      * with splitting variable z = x and dual b. The magnitude M0 is uniform but
      * unknown: it is initialised to the mean voxel magnitude of x0 and
@@ -129,7 +129,6 @@ namespace tomocam::opt {
      * @param A Function representing R^T R
      * @param yT Backprojected data R^T y
      * @param x0 Initial guess (also used to initialise M0)
-     * @param lambda_l2 Weight of the L2 smoothness term
      * @param mu Penalty weight of the constraint splitting
      * @param outer_max Maximum number of outer iterations
      * @param inner_max Maximum number of CG iterations per outer iteration
@@ -142,25 +141,21 @@ namespace tomocam::opt {
      * @return Solution z (|z| = M0 inside the mask)
      */
     template <typename T>
-    VecArray<T> constmag_l2(const Function<T> &A, const VecArray<T> &yT,
-                            const VecArray<T> &x0, T lambda_l2, T mu,
-                            size_t outer_max, size_t inner_max, T tol, T xtol,
-                            const Array<T> &mask, Logger *logger = nullptr,
-                            bool zero_outside = false);
+    VecArray<T> constmag(const Function<T> &A, const VecArray<T> &yT,
+                         const VecArray<T> &x0, T mu, size_t outer_max,
+                         size_t inner_max, T tol, T xtol, const Array<T> &mask,
+                         Logger *logger = nullptr, bool zero_outside = false);
 
     /**
      * @brief Switchable regularization terms of regularized_admm. Each term is
-     * independent: const_mag enables |x| = M0, lambda_tv > 0 enables TV and
-     * lambda_l2 > 0 enables the L2 smoothness term.
+     * independent: const_mag enables |x| = M0 and lambda_tv > 0 enables TV.
      */
     template <typename T>
     struct RegWeights {
         bool const_mag = false;
         T lambda_tv = 0;
-        T lambda_l2 = 0;
 
         [[nodiscard]] bool tv() const { return lambda_tv > T(0); }
-        [[nodiscard]] bool l2() const { return lambda_l2 > T(0); }
     };
 
     /**
@@ -188,7 +183,7 @@ namespace tomocam::opt {
     struct AdmmIter {
         size_t iter = 0;
         T primal_tv = 0, dual_tv = 0, primal_mag = 0, dual_mag = 0;
-        T data_shifted = 0, tv = 0, l2 = 0;
+        T data_shifted = 0, tv = 0;
         T rho = 0, Ms = 0;
     };
 
@@ -202,14 +197,14 @@ namespace tomocam::opt {
     };
 
     /**
-     * @brief Combined constant-magnitude / TV / L2 reconstruction, solved by
+     * @brief Combined constant-magnitude / TV reconstruction, solved by
      * ADMM / scaled Bregman splitting:
-     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_tv TV(x) + lambda_l2/2 ||grad x||^2
+     *   min_{x, M0} 0.5||Ax - y||^2 + lambda_tv TV(x)
      *   s.t. |x(r)| = M0 for r in the mask (only if const_mag)
      * with splitting variables z = x (magnitude, penalty rho) and d = grad x
      * (TV, penalty mu). Terms that are switched off cost no memory and no work;
-     * TV only reproduces split_bregman and const_mag + L2 reproduces
-     * constmag_l2. The sphere constraint is non-convex: only a stationary point
+     * TV only reproduces split_bregman and const_mag alone reproduces
+     * constmag. The sphere constraint is non-convex: only a stationary point
      * is reached, so warm-start from the unconstrained solution and use rho
      * continuation (mag.rho_growth > 1).
      * @param w Which terms are active and their weights

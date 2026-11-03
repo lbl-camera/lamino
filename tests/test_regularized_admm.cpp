@@ -104,7 +104,7 @@ int main() {
             "mean_magnitude of projected field = M0 (one zero voxel)");
     }
 
-    // 2. constant magnitude + L2 on a denoising problem (A = identity); the
+    // 2. constant magnitude on a denoising problem (A = identity); the
     // magnitude is not given, it has to be recovered from the data
     {
         const double M_true = 2.0;
@@ -119,8 +119,8 @@ int main() {
         opt::Function<double> A = [](const VecArray &u) { return opt::clone(u); };
         auto x0 = opt::clone(y);
 
-        auto z = opt::constmag_l2<double>(A, y, x0, 0.05, 1.0, 200, 50, 1e-10, 1e-8,
-                                          all_mask);
+        auto z =
+            opt::constmag<double>(A, y, x0, 1.0, 200, 50, 1e-10, 1e-8, all_mask);
 
         // uniform magnitude at every voxel
         double M0 = opt::mean_magnitude(z);
@@ -138,7 +138,7 @@ int main() {
         double err_rec = rms_error(z, clean);
         std::cout << "  rms error noisy = " << err_noisy
                   << ", const-mag = " << err_rec << ", M0 = " << M0 << "\n";
-        ok &= check(err_rec < err_noisy, "const-mag + L2 beats noisy data");
+        ok &= check(err_rec < err_noisy, "const-mag beats noisy data");
     }
 
     // 3. constraint restricted to a centred block: the padding stays free
@@ -161,9 +161,9 @@ int main() {
         opt::Function<double> A = [](const VecArray &u) { return opt::clone(u); };
         auto x0 = opt::clone(y);
 
-        // no smoothing: the solution is y itself in the padding
-        auto z = opt::constmag_l2<double>(A, y, x0, 0.0, 1.0, 500, 50, 1e-12, 1e-10,
-                                          block_mask(dims, roi));
+        // the solution is y itself in the padding
+        auto z = opt::constmag<double>(A, y, x0, 1.0, 500, 50, 1e-12, 1e-10,
+                                       block_mask(dims, roi));
 
         double sum_in = 0.0, max_dev_in = 0.0, max_err_out = 0.0;
         std::vector<double> mags;
@@ -251,8 +251,7 @@ int main() {
                     if (mask[{k, i, j}] < 0.5)
                         for (size_t c = 0; c < 3; ++c) y[c][{k, i, j}] *= 5.0;
         opt::Function<double> A = [](const VecArray &u) { return opt::clone(u); };
-        auto z =
-            opt::constmag_l2<double>(A, y, y, 0.0, 1.0, 500, 50, 1e-12, 1e-10, mask);
+        auto z = opt::constmag<double>(A, y, y, 1.0, 500, 50, 1e-12, 1e-10, mask);
         double sum = 0.0, cnt = 0.0, err_out = 0.0;
         for (size_t p = 0; p < n; ++p) {
             double a = z[0].begin()[p], b = z[1].begin()[p], c = z[2].begin()[p];
@@ -288,13 +287,13 @@ int main() {
         opt::Function<double> A = [](const VecArray &u) { return opt::clone(u); };
         auto x0 = opt::clone(truth);
 
-        opt::RegWeights<double> w{true, 0.0, 0.05};
+        opt::RegWeights<double> w{true, 0.0};
         opt::MagOptions<double> mo;
         mo.zero_outside = true;
         auto z = opt::regularized_admm<double>(A, truth, x0, w, 1.0, 20, 20, 1e-12,
                                                0.0, mask, nullptr, mo);
-        auto zl = opt::constmag_l2<double>(A, truth, x0, 0.05, 1.0, 20, 20, 1e-12,
-                                           0.0, mask, nullptr, true);
+        auto zl = opt::constmag<double>(A, truth, x0, 1.0, 20, 20, 1e-12, 0.0, mask,
+                                        nullptr, true);
         double out = 0.0, in = 0.0;
         for (size_t c = 0; c < 3; ++c)
             for (size_t p = 0; p < n; ++p) {
@@ -327,7 +326,7 @@ int main() {
         ok &= check(dev < 1e-10, "masked CG solves the restricted system");
     }
 
-    // 4. L2 operator is SPD: <u, (lambda ∇^T∇) u> >= 0
+    // 4. Laplacian operator is SPD: <u, (∇^T∇) u> >= 0
     {
         double q = 0.0;
         for (size_t c = 0; c < 3; ++c) {
@@ -369,24 +368,24 @@ int main() {
         opt::Function<double> A = [](const VecArray &u) { return opt::clone(u); };
         auto x0 = opt::clone(y);
 
-        // mag + L2 reproduces constmag_l2
-        auto ref = opt::constmag_l2<double>(A, y, x0, 0.05, 1.0, 20, 20, 1e-10, 0.0,
-                                            all_mask);
-        opt::RegWeights<double> w_ml{true, 0.0, 0.05};
+        // mag only reproduces constmag
+        auto ref =
+            opt::constmag<double>(A, y, x0, 1.0, 20, 20, 1e-10, 0.0, all_mask);
+        opt::RegWeights<double> w_ml{true, 0.0};
         auto z_ml = opt::regularized_admm<double>(A, y, x0, w_ml, 1.0, 20, 20, 1e-10,
                                                   0.0, all_mask);
-        ok &= check(rms_error(ref, z_ml) < 1e-10, "mag + L2 matches constmag_l2");
+        ok &= check(rms_error(ref, z_ml) < 1e-10, "mag only matches constmag");
 
         // TV only reproduces split_bregman
         auto sb = opt::split_bregman<double>(A, y, x0, 0.1, 1.0, 20, 20, 1e-10, 0.0,
                                              Array<double>());
-        opt::RegWeights<double> w_tv{false, 0.1, 0.0};
+        opt::RegWeights<double> w_tv{false, 0.1};
         auto x_tv = opt::regularized_admm<double>(A, y, x0, w_tv, 1.0, 20, 20, 1e-10,
                                                   0.0, all_mask);
         ok &= check(rms_error(sb, x_tv) < 1e-8, "TV only matches split_bregman");
 
-        // all three on: uniform magnitude, closer to truth than the data
-        opt::RegWeights<double> w_all{true, 0.05, 0.02};
+        // both on: uniform magnitude, closer to truth than the data
+        opt::RegWeights<double> w_all{true, 0.05};
         auto z_all = opt::regularized_admm<double>(A, y, x0, w_all, 1.0, 100, 20,
                                                    1e-10, 1e-8, all_mask);
         double M0 = opt::mean_magnitude(z_all);
@@ -397,16 +396,9 @@ int main() {
             max_dev =
                 std::max(max_dev, std::abs(std::sqrt(a * a + b * b + c * c) - M0));
         }
-        ok &= check(max_dev < 1e-8 * M0, "mag + TV + L2 has uniform |z|");
+        ok &= check(max_dev < 1e-8 * M0, "mag + TV has uniform |z|");
         ok &= check(rms_error(z_all, clean) < rms_error(y, clean),
-                    "mag + TV + L2 beats noisy data");
-
-        // L2 only is a plain Tikhonov solve (no constraint): runs and reduces error
-        opt::RegWeights<double> w_l2{false, 0.0, 0.5};
-        auto x_l2 = opt::regularized_admm<double>(A, y, x0, w_l2, 1.0, 5, 50, 1e-10,
-                                                  1e-8, all_mask);
-        ok &= check(rms_error(x_l2, clean) < rms_error(y, clean),
-                    "L2 only beats noisy data");
+                    "mag + TV beats noisy data");
 
         // nothing enabled is an error
         bool threw = false;
@@ -443,7 +435,7 @@ int main() {
                     "project_sphere keeps previous z at a zero vector");
 
         // continuation: rho only grows, |z| = Ms, magnitude residuals shrink
-        opt::RegWeights<double> w{true, 0.0, 0.05};
+        opt::RegWeights<double> w{true, 0.05};
         opt::MagOptions<double> mo;
         mo.rho = 1.0;
         mo.rho_growth = 1.05;
@@ -509,15 +501,16 @@ int main() {
         // initialisation sensitivity (report); warm start must not be worse
         // than the best random start. Objective is evaluated at z with A = I.
         auto objective = [&](const VecArray &zv) {
-            double data = 0.0, g2 = 0.0;
             auto r = opt::operator-(zv, y);
-            data = 0.5 * opt::dot(r, r);
+            double data = 0.5 * opt::dot(r, r);
+            auto s = Array<double>::zeros(zv[0].dims());
             for (size_t c = 0; c < 3; ++c) {
                 auto g = opt::grad_u(zv[c]);
-                for (auto &gi : g)
-                    for (auto e = gi.begin(); e != gi.end(); ++e) g2 += *e * *e;
+                for (auto &gi : g) s += gi * gi;
             }
-            return data + 0.5 * w.lambda_l2 * g2;
+            double tv = 0.0;
+            for (auto e = s.begin(); e != s.end(); ++e) tv += std::sqrt(*e);
+            return data + w.lambda_tv * tv;
         };
         opt::MagOptions<double> mc = mo;
         auto run = [&](const VecArray &start) {
@@ -537,7 +530,7 @@ int main() {
             std::cout << "  random start " << seed << ": objective " << f
                       << ", rms error " << rms_error(zr, clean) << "\n";
         }
-        opt::RegWeights<double> w_unc{false, 0.0, w.lambda_l2};
+        opt::RegWeights<double> w_unc{false, w.lambda_tv};
         auto warm0 = opt::regularized_admm<double>(A, y, y, w_unc, 1.0, 20, 50,
                                                    1e-12, 0.0, all_mask);
         auto zw = run(warm0);

@@ -114,6 +114,16 @@ Parameters
    Reconstruction stops when relative change in x < xtol.
    Typical values: 1e-5 to 1e-3.
 
+**warm_start_iters** (integer, optional)
+   Number of conjugate-gradient iterations used to initialise the
+   constant-magnitude solvers (``const_mag``, or ``combined`` with
+   ``const_mag = true``). The constraint ``|m| = M0`` makes the ADMM non-convex.
+   Started from the raw backprojection, a large ``rho`` pins it to a poor first
+   projection and the unconstrained voxels outside the support absorb the data.
+   Starting from a data-fit CG solution avoids this. Default: 50. Set 0 to
+   start from the backprojection instead (the behaviour before this option
+   existed). Ignored by the other regularizers.
+
 **recon_dims** (array of 3 integers, required)
    Reconstruction volume dimensions ``[thickness, height, width]``.
    Tomocam-lamino will truncate even dimensions by 1.
@@ -172,13 +182,12 @@ Parameters:
 **inner_iters** (int)
   Split-Bregman runs a CG for data-fidelity part
 
-Combined Constant Magnitude / TV / L2
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Combined Constant Magnitude / TV
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Any combination of a constant-magnitude constraint (:math:`|m| = M_0`, with
-unknown :math:`M_0`), total variation and L2 smoothing, solved with one ADMM
-solver. Each term can be switched on or off independently; at least one must
-be active.
+A constant-magnitude constraint (:math:`|m| = M_0`, with unknown :math:`M_0`)
+combined with total variation, solved with one ADMM solver. Each term can be
+switched on or off independently; at least one must be active.
 
 .. code-block:: toml
 
@@ -188,7 +197,6 @@ be active.
    [recon_params.regularizer.combined]
    const_mag = true
    lambda_tv = 0.1
-   lambda_l2 = 0.0
    mu = 10.0
    inner_iters = 5
 
@@ -199,12 +207,6 @@ Parameters:
 
 **lambda_tv** (float)
    TV weight; 0 disables TV. Default: 0.
-
-**lambda_l2** (float)
-   L2 (Tikhonov) smoothness weight; 0 disables it. Default: 0.
-
-**beta** (float)
-   Alias of ``lambda_l2``.
 
 **mu**, **inner_iters**
    As for split Bregman. ``mu`` is the TV penalty.
@@ -235,13 +237,10 @@ Parameters:
    point that depends on the initialization. Suggested workflow (starting
    points are heuristics, not established results):
 
-   1. Run TV (and/or L2) without ``const_mag`` to get a baseline.
+   1. Run TV without ``const_mag`` to get a baseline.
    2. Run with ``const_mag = true`` and ``rho_growth`` about 1.01 - 1.05 up to
       ``rho_max`` about 10 - 50 times ``rho``; start ``rho`` at the order of
       ``mu``.
-   3. Keep ``lambda_l2`` small relative to ``mu``; choose it with the
-      discrepancy principle (data misfit about
-      :math:`\tfrac12 N_\text{meas}\sigma^2`) rather than by eye.
 
 QGGMRF Regularization
 ~~~~~~~~~~~~~~~~~~~~~

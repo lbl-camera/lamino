@@ -145,10 +145,10 @@ namespace tomocam::opt {
     }
 
     template <typename T>
-    VecArray<T>
-    constmag_l2(const Function<T> &A, const VecArray<T> &yT, const VecArray<T> &x0,
-                T lambda_l2, T mu, size_t outer_max, size_t inner_max, T tol, T xtol,
-                const Array<T> &mask, Logger *logger, bool zero_outside) {
+    VecArray<T> constmag(const Function<T> &A, const VecArray<T> &yT,
+                         const VecArray<T> &x0, T mu, size_t outer_max,
+                         size_t inner_max, T tol, T xtol, const Array<T> &mask,
+                         Logger *logger, bool zero_outside) {
 
         if (x0[0].dims() != yT[0].dims()) {
             throw std::invalid_argument(
@@ -172,13 +172,10 @@ namespace tomocam::opt {
         VecArray<T> b = {Array<T>::zeros(dims), Array<T>::zeros(dims),
                          Array<T>::zeros(dims)};
 
-        // Ap = (A^TA + lambda_l2 ∇^T∇ + mu I) u
+        // Ap = (A^TA + mu I) u
         Function<T> Ap = [&](const VecArray<T> &u) {
             auto du = A(u);
             for (size_t i = 0; i < 3; ++i) {
-                auto lap = laplacian<T>(u[i]);
-                lap *= lambda_l2;
-                du[i] += lap;
                 auto ui = u[i].clone();
                 ui *= mu;
                 du[i] += ui;
@@ -247,9 +244,9 @@ namespace tomocam::opt {
                 "yT is not the raw data, but backprojected data, so it should have "
                 "the same dimensions as x0");
         }
-        if (!w.const_mag && !w.tv() && !w.l2()) {
+        if (!w.const_mag && !w.tv()) {
             throw std::invalid_argument(
-                "regularized_admm: enable at least one of const_mag, TV or L2");
+                "regularized_admm: enable at least one of const_mag or TV");
         }
         if (mag.rho < T(0) || mag.rho_growth < T(1) || mag.rho_max < T(0)) {
             throw std::invalid_argument("regularized_admm: rho must be >= 0, "
@@ -300,17 +297,14 @@ namespace tomocam::opt {
             }
         }
 
-        // Ap = (A^TA + (lambda_l2 + mu [tv]) ∇^T∇ + rho [mag] I) u
-        // beta only enters the system matrix, never the right-hand side. rho is
-        // captured by reference: it may grow between outer iterations.
-        const T lap_weight = w.lambda_l2 + (use_tv ? mu : T(0));
-        const bool use_lap = use_tv || w.l2();
+        // Ap = (A^TA + mu [tv] ∇^T∇ + rho [mag] I) u
+        // rho is captured by reference: it may grow between outer iterations.
         Function<T> Ap = [&](const VecArray<T> &u) {
             auto du = A(u);
             for (size_t i = 0; i < 3; ++i) {
-                if (use_lap) {
+                if (use_tv) {
                     auto lap = laplacian<T>(u[i]);
-                    lap *= lap_weight;
+                    lap *= mu;
                     du[i] += lap;
                 }
                 if (use_mag) {
@@ -452,11 +446,10 @@ namespace tomocam::opt {
                 h.dual_mag = dual_mag;
                 h.rho = rho;
                 h.Ms = M0;
-                // objective terms at x: 0.5<x,A^TAx> - <x,A^Ty>, TV,
-                // lambda_l2/2|grad x|^2
+                // objective terms at x: 0.5<x,A^TAx> - <x,A^Ty>, TV
                 auto Ax = A(x);
                 h.data_shifted = T(0.5) * dot(x, Ax) - dot(x, yT);
-                T tv = 0, g2 = 0;
+                T tv = 0;
                 if (!use_tv) {
                     for (size_t i = 0; i < 3; ++i) { grad_x[i] = grad_u(x[i]); }
                 }
@@ -467,11 +460,9 @@ namespace tomocam::opt {
                     }
                 }
                 for (auto it = s.begin(); it != s.end(); ++it) {
-                    g2 += *it;
                     tv += std::sqrt(*it);
                 }
                 h.tv = w.lambda_tv * tv;
-                h.l2 = T(0.5) * w.lambda_l2 * g2;
                 history->iters.push_back(h);
             }
 
@@ -522,15 +513,16 @@ namespace tomocam::opt {
     template double mean_magnitude(const VecArray<double> &);
     template VecArray<float> project_magnitude(const VecArray<float> &, float);
     template VecArray<double> project_magnitude(const VecArray<double> &, double);
-    template VecArray<float>
-    constmag_l2(const Function<float> &A, const VecArray<float> &yT,
-                const VecArray<float> &x0, float lambda_l2, float mu,
-                size_t outer_max, size_t inner_max, float tol, float xtol,
-                const Array<float> &mask, Logger *logger, bool zero_outside);
+    template VecArray<float> constmag(const Function<float> &A,
+                                      const VecArray<float> &yT,
+                                      const VecArray<float> &x0, float mu,
+                                      size_t outer_max, size_t inner_max, float tol,
+                                      float xtol, const Array<float> &mask,
+                                      Logger *logger, bool zero_outside);
     template VecArray<double>
-    constmag_l2(const Function<double> &A, const VecArray<double> &yT,
-                const VecArray<double> &x0, double lambda_l2, double mu,
-                size_t outer_max, size_t inner_max, double tol, double xtol,
-                const Array<double> &mask, Logger *logger, bool zero_outside);
+    constmag(const Function<double> &A, const VecArray<double> &yT,
+             const VecArray<double> &x0, double mu, size_t outer_max,
+             size_t inner_max, double tol, double xtol, const Array<double> &mask,
+             Logger *logger, bool zero_outside);
 
 } // namespace tomocam::opt

@@ -153,11 +153,11 @@ int main() {
                         for (size_t c = 0; c < 3; ++c) exact[c][{k, i, j}] *= s;
                     }
 
-        auto z_cpu = opt::constmag_l2<double>(A_cpu, y, y, 0.0, 1.0, 500, 50, 1e-12,
-                                              1e-10, block_mask(dims, roi));
+        auto z_cpu = opt::constmag<double>(A_cpu, y, y, 1.0, 500, 50, 1e-12, 1e-10,
+                                           block_mask(dims, roi));
         auto y_dev = to_device(y);
-        auto z_gpu = to_host(gpu::opt::constmag_l2<double>(
-            A_gpu, y_dev, y_dev, 0.0, 1.0, 500, 50, 1e-12, 1e-10,
+        auto z_gpu = to_host(gpu::opt::constmag<double>(
+            A_gpu, y_dev, y_dev, 1.0, 500, 50, 1e-12, 1e-10,
             gpu::DeviceArray<double>(block_mask(dims, roi))));
 
         double d_cpu = max_abs_diff(z_gpu, z_cpu);
@@ -165,16 +165,16 @@ int main() {
         std::cout << "  roi = " << roi.n1 << "x" << roi.n2 << "x" << roi.n3
                   << ": M0 = " << M0 << ", |gpu - cpu| = " << d_cpu
                   << ", |gpu - exact| = " << d_exact << "\n";
-        ok &= check(d_cpu < 1e-8, "GPU matches CPU (lambda_l2 = 0)");
-        ok &= check(d_exact < 1e-8, "GPU matches closed form (lambda_l2 = 0)");
+        ok &= check(d_cpu < 1e-8, "GPU matches CPU");
+        ok &= check(d_exact < 1e-8, "GPU matches closed form");
     }
 
-    // 3. with smoothing: uniform magnitude recovered from the data
+    // 3. full mask: uniform magnitude recovered from the data
     {
         auto y_dev = to_device(y);
-        auto z_dev = gpu::opt::constmag_l2<double>(
-            A_gpu, y_dev, y_dev, 0.05, 1.0, 200, 50, 1e-10, 1e-8,
-            gpu::DeviceArray<double>::ones(dims));
+        auto z_dev =
+            gpu::opt::constmag<double>(A_gpu, y_dev, y_dev, 1.0, 200, 50, 1e-10,
+                                       1e-8, gpu::DeviceArray<double>::ones(dims));
         double M0 = gpu::opt::mean_magnitude(z_dev);
         auto z = to_host(z_dev);
         double max_dev = 0.0;
@@ -190,7 +190,7 @@ int main() {
         double err_rec = rms_error(z, truth);
         std::cout << "  rms error noisy = " << err_noisy
                   << ", const-mag = " << err_rec << ", M0 = " << M0 << "\n";
-        ok &= check(err_rec < err_noisy, "const-mag + L2 beats noisy data");
+        ok &= check(err_rec < err_noisy, "const-mag beats noisy data");
     }
 
     // 4a. finite-difference operators: CPU and GPU use the same forward
@@ -238,13 +238,11 @@ int main() {
         struct Case {
             const char *name;
             bool mag;
-            double tv, l2;
+            double tv;
         };
-        for (Case c :
-             {Case{"mag + L2", true, 0.0, 0.05}, Case{"TV only", false, 0.1, 0.0},
-              Case{"L2 only", false, 0.0, 0.5}, Case{"mag + TV", true, 0.05, 0.0},
-              Case{"mag + TV + L2", true, 0.05, 0.02}}) {
-            gpu::opt::RegWeights<double> wg{c.mag, c.tv, c.l2};
+        for (Case c : {Case{"mag only", true, 0.0}, Case{"TV only", false, 0.1},
+                       Case{"mag + TV", true, 0.05}}) {
+            gpu::opt::RegWeights<double> wg{c.mag, c.tv};
             auto y_dev = to_device(y);
             auto z_dev = gpu::opt::regularized_admm<double>(
                 A_gpu, y_dev, y_dev, wg, 1.0, 50, 20, 1e-10, 1e-8,
@@ -289,8 +287,8 @@ int main() {
              {Case{"separate rho", dims, false, 3.0, 1.0, 0.0},
               Case{"rho continuation", dims, false, 1.0, 1.1, 20.0},
               Case{"zero_outside + roi", {2, 8, 8}, true, 2.0, 1.05, 0.0}}) {
-            opt::RegWeights<double> wc{true, 0.05, 0.02};
-            gpu::opt::RegWeights<double> wg{true, 0.05, 0.02};
+            opt::RegWeights<double> wc{true, 0.05};
+            gpu::opt::RegWeights<double> wg{true, 0.05};
             opt::MagOptions<double> mc;
             gpu::opt::MagOptions<double> mg;
             mc.rho = mg.rho = c.rho;

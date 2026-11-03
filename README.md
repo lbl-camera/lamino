@@ -102,14 +102,13 @@ method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMR
 lambda = 0.5                            # Regularization parameter
 mu = 10.0                               # Penalty parameter
 
-# Alternatively, combine constant magnitude, TV and L2 smoothing; each term is
-# independent (set a weight to 0 / const_mag to false to switch it off)
+# Alternatively, combine constant magnitude and TV; each term is
+# independent (set lambda_tv to 0 / const_mag to false to switch it off)
 # [recon_params.regularizer]
 # method = "combined"
 # [recon_params.regularizer.combined]
 # const_mag = true                      # enforce |m| = M0 (M0 estimated)
 # lambda_tv = 0.1                       # TV weight (0 = off)
-# lambda_l2 = 0.0                       # L2 smoothness weight (0 = off)
 # mu = 10.0
 # inner_iters = 5
 

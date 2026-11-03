@@ -125,6 +125,17 @@ namespace tomocam {
         const Array<T> no_support;
         const Array<T> &support = use_support ? solver_mask : no_support;
 
+        // The constant-magnitude ADMM is non-convex: started from the raw
+        // backprojection, a large rho pins it to a poor first projection and the
+        // free voxels outside the support absorb the data. Optionally start from
+        // a few CG iterations (a data-fit solution) instead.
+        if (params.warm_start_iters > 0 &&
+            (params.regularizer == Regularizer::CONST_MAG ||
+             (params.regularizer == Regularizer::COMBINED && params.const_mag))) {
+            x0 = opt::cgsolver<T>(A, yT, x0, params.warm_start_iters, params.tol,
+                                  params.xtol, support, T(0), &logger);
+        }
+
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
@@ -133,14 +144,12 @@ namespace tomocam {
                     params.innerIters, params.tol, params.xtol, support, &logger);
                 break;
             case Regularizer::CONST_MAG:
-                recon_m = opt::constmag_l2<T>(A, yT, x0, params.lambda_l2, params.mu,
-                                              params.maxIters, params.innerIters,
-                                              params.tol, params.xtol, solver_mask,
-                                              &logger, use_support);
+                recon_m = opt::constmag<T>(
+                    A, yT, x0, params.mu, params.maxIters, params.innerIters,
+                    params.tol, params.xtol, solver_mask, &logger, use_support);
                 break;
             case Regularizer::COMBINED: {
-                opt::RegWeights<T> w{params.const_mag, params.lambda,
-                                     params.lambda_l2};
+                opt::RegWeights<T> w{params.const_mag, params.lambda};
                 opt::MagOptions<T> mag;
                 mag.rho = params.rho;
                 mag.rho_growth = params.rho_growth;
@@ -282,6 +291,17 @@ namespace tomocam {
         const Array<T> no_support;
         const Array<T> &support = use_support ? solver_mask : no_support;
 
+        // The constant-magnitude ADMM is non-convex: started from the raw
+        // backprojection, a large rho pins it to a poor first projection and the
+        // free voxels outside the support absorb the data. Optionally start from
+        // a few CG iterations (a data-fit solution) instead.
+        if (params.warm_start_iters > 0 &&
+            (params.regularizer == Regularizer::CONST_MAG ||
+             (params.regularizer == Regularizer::COMBINED && params.const_mag))) {
+            x0 = opt::cgsolver<T>(A, yT, x0, params.warm_start_iters, params.tol,
+                                  params.xtol, support, T(0), &logger);
+        }
+
         std::array<Array<T>, 3> recon_m;
         switch (params.regularizer) {
             case Regularizer::SPLIT_BREGMAN:
@@ -292,14 +312,12 @@ namespace tomocam {
             case Regularizer::CONST_MAG:
                 // constrain only the block that survives the crop below; the
                 // padding stays free to absorb out-of-view contributions
-                recon_m = opt::constmag_l2<T>(A, yT, x0, params.lambda_l2, params.mu,
-                                              params.maxIters, params.innerIters,
-                                              params.tol, params.xtol, solver_mask,
-                                              &logger, use_support);
+                recon_m = opt::constmag<T>(
+                    A, yT, x0, params.mu, params.maxIters, params.innerIters,
+                    params.tol, params.xtol, solver_mask, &logger, use_support);
                 break;
             case Regularizer::COMBINED: {
-                opt::RegWeights<T> w{params.const_mag, params.lambda,
-                                     params.lambda_l2};
+                opt::RegWeights<T> w{params.const_mag, params.lambda};
                 opt::MagOptions<T> mag;
                 mag.rho = params.rho;
                 mag.rho_growth = params.rho_growth;
