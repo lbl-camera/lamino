@@ -36,11 +36,11 @@ namespace tomocam {
                                    const PolarGrid<T> &grid, T gamma, T beta) {
 
         using complex_t = std::complex<T>;
-        // sysmat = R^T R; forward/adjoint each divide by n1*n2*n3 (volume), but
-        // the FFT2(IFFT2) round-trip in forward/adjoint is unnormalized and adds a
-        // factor of n2*n3, so sysmat must divide by (n1*n2*n3)^2/(n2*n3) =
-        // n1^2*n2*n3.
-        T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
+        // sysmat = R^T R; forward/adjoint each divide by the volume N = n1*n2*n3,
+        // but the FFT2(IFFT2) round-trip in forward/adjoint is unnormalized and
+        // adds a factor of the (padded) detector size nrows*ncols, so sysmat
+        // must divide by N^2/(nrows*ncols).
+        T scale = sysmat_scale<T>(x[0].dims(), grid.dims());
 
         std::array<Array<complex_t>, 3> c_components;
         for (size_t i = 0; i < 3; ++i) {
@@ -102,7 +102,7 @@ namespace tomocam {
                                    const PolarGrid<T> &grid) {
         using complex_t = std::complex<T>;
 
-        T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
+        T scale = sysmat_scale<T>(x[0].dims(), grid.dims());
 
         std::array<Array<complex_t>, 3> c_components;
         for (size_t i = 0; i < 3; ++i) {

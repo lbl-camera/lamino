@@ -44,12 +44,14 @@ namespace tomocam::gpu {
      * @param dataset  Dataset containing projections, angles, and gamma reference.
      * @param params   Reconstruction parameters (e.g. number of iterations,
      * regularization weight, etc.).
+     * @param mask     Binary support (dims = params.recon_dims) for the
+     *                 const_mag regularizers, see support_mask() in mask.h
      * @return         Reconstructed vector components
      * similar).
      */
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                 const ReconParams &params);
+                                 const ReconParams &params, const Array<T> &mask);
 
 } // namespace tomocam::gpu
 

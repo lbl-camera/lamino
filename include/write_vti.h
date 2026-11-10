@@ -50,10 +50,11 @@ namespace tomocam::vti {
         size_t nx = vectors[0].ncols();
         const size_t npoints = nx * ny * nz;
 
-        // define origin at the center of the volume
-        double ox = 0.5 * static_cast<double>(nx - 1);
-        double oy = 0.5 * static_cast<double>(ny - 1);
-        double oz = 0.5 * static_cast<double>(nz - 1);
+        // origin at the center of the volume: the center voxel (n-1)/2 maps to
+        // world coordinate 0, consistent with the reconstruction convention
+        double ox = -0.5 * static_cast<double>(nx - 1);
+        double oy = -0.5 * static_cast<double>(ny - 1);
+        double oz = -0.5 * static_cast<double>(nz - 1);
 
         // define spacing as 1.0
         double dx = 1.0;

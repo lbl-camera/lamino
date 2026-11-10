@@ -1,3 +1,6 @@
 .cache/
 debug/
 release/
+__pycache__/
+recons/
+cpu/

@@ -37,12 +37,9 @@ namespace tomocam::gpu {
 
         VecArray<T> Ax;
         // match CPU sysmat's normalization convention (src/gradient.cpp):
-        // divide by n1^2*n2*n3 of the recon volume dims, not the detector
-        // dims -- sysmat = R^T R, and forward/adjoint each notionally divide
-        // by the volume n1*n2*n3, so A^T A divides by
-        // (n1*n2*n3)^2/(n2*n3) = n1^2*n2*n3 (the FFT2/IFFT2 round-trip
-        // implicit in forward/adjoint is unnormalized and adds n2*n3 back).
-        T scale = static_cast<T>(x[0].dims().n1) * static_cast<T>(x[0].size());
+        // A^T A divides by N^2/(nrows*ncols), N = volume size (see
+        // sysmat_scale in dtypes.h).
+        T scale = sysmat_scale<T>(x[0].dims(), grid.dims());
 
         // Uniform -> Polar (nufft3d2 output is complex)
         auto w_cmplx = gpu::array::to_complex(grid.w);

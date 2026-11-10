@@ -40,18 +40,20 @@ namespace tomocam {
      *   3). Orientation angle (gamma), rotation around the beam axis
      * @param recon_dims The dimensions of the reconstructed volume as a dims_t
      * object.
+     * @param mask Binary support (dims = params.recon_dims) where |m| = M0 is
+     * enforced by the const_mag regularizers; see support_mask() in mask.h
      * @param params Reconstruction parameters including regularization type, and
      * optimization parameters.
      * @return A array of three components representing the reconstructed 3D vector
      * field, cropped to the specified dimensions.
      */
     template <typename T>
-    std::array<Array<T>, 3>
-    MBIR(const std::vector<Dataset_t<T>> &datasets, const ReconParams &params);
+    std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
+                                 const ReconParams &params, const Array<T> &mask);
 
     template <typename T>
-    std::array<Array<T>, 3>
-    MBIR2(const std::vector<Dataset_t<T>> &datasets, const ReconParams &params);
+    std::array<Array<T>, 3> MBIR2(const std::vector<Dataset_t<T>> &datasets,
+                                  const ReconParams &params, const Array<T> &mask);
 
 } // namespace tomocam
 

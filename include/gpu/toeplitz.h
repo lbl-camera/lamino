@@ -21,6 +21,7 @@
 #define TOMOCAM_GPU_TOEPLITZ_H
 
 #include <array>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -106,6 +107,12 @@ namespace tomocam::gpu {
             kernel_hat_ += rhs.kernel_hat_;
             return *this;
         }
+
+        // Internal: upload a Fourier-domain kernel built on the host (the
+        // low-memory fallback, see ToeplitzVectorOp::add_grid).
+        static PointSpreadFunction<T>
+        from_host_kernel(dims_t dims, const Array<std::complex<T>> &kernel);
+
         [[nodiscard]] bool empty() const { return kernel_hat_.size() == 0; }
     };
 
@@ -119,6 +126,7 @@ namespace tomocam::gpu {
     class ToeplitzVectorOp {
       private:
         dims_t dims_;
+        size_t det_size_ = 0; // nrows*ncols of the detector grid
         std::array<PointSpreadFunction<T>, 6> kernels_;
 
         // packs the 6 unique entries of a symmetric 3x3 tensor into [0, 6)
@@ -131,8 +139,11 @@ namespace tomocam::gpu {
             return i == 0 ? j : (i == 1 ? j + 2 : 5);
         }
 
-        // builds the 6 kernels of `grid` and adds them into kernels_
-        void add_grid(const PolarGrid<T> &grid, ToeplitzMode mode, int device);
+        // builds the 6 kernels of `grid` and adds them into kernels_. If the
+        // device runs out of memory (cufinufft's fine grid dominates), the
+        // kernels are rebuilt on the host with FINUFFT and uploaded instead.
+        void add_grid(const PolarGrid<T> &grid, const dims_t &recon_dims,
+                      ToeplitzMode mode, int device);
 
       public:
         // gpu_id: scaffolding for future multi-GPU dataset placement. It is
@@ -157,6 +168,9 @@ namespace tomocam::gpu {
         [[nodiscard]] const PointSpreadFunction<T> &get(int i, int j) const {
             return kernels_[idx(i, j)];
         }
+
+        // nrows*ncols of the detector grid the kernels were built from
+        [[nodiscard]] size_t detector_size() const { return det_size_; }
     };
 
     // A^T A x for vector tomography via the Toeplitz/PSF trick:

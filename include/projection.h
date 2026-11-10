@@ -60,8 +60,17 @@ namespace tomocam {
      * Arrays.
      * @param pg The polar grid defining the projection geometry.
      * @param gamma orientation of the polar grid.
+     * @param beta out-of-plane tilt.
+     * @param shifts optional per-projection [dx, dy] (pixels) applied to the
+     * projections as a phase ramp; empty for none.
      * @return The projected data as an Array.
      */
+    template <typename T>
+    Array<T> forward(const std::array<Array<T>, 3> &magnetization,
+                     const PolarGrid<T> &pg, T gamma, T beta,
+                     const std::vector<std::array<T, 2>> &shifts);
+
+    // no shifts
     template <typename T>
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
                      const PolarGrid<T> &pg, T gamma, T beta);

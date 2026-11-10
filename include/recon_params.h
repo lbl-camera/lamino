@@ -43,15 +43,31 @@ namespace tomocam {
         std::vector<std::array<T, 2>> shifts;
     };
 
-    enum class Regularizer { SPLIT_BREGMAN, UNCONSTRAINED };
+    enum class Regularizer { SPLIT_BREGMAN, UNCONSTRAINED, CONST_MAG, COMBINED };
 
     struct ReconParams {
         Regularizer regularizer = Regularizer::UNCONSTRAINED;
         std::array<size_t, 3> recon_dims = {0, 0, 0};
+        std::string mask_file = ""; // binary support for const_mag; "" = all voxels
+        // size {n1, n2, n3} of the centred mask window; parse_recon_params defaults
+        // it to recon_dims ({0, 0, 0} is also treated as recon_dims)
+        std::array<size_t, 3> mask_dims = {0, 0, 0};
         size_t maxIters = 100;
         size_t innerIters = 1;
+        // CONST_MAG / COMBINED(const_mag): number of CG iterations used to
+        // initialise the non-convex ADMM instead of the raw backprojection (0: off)
+        size_t warm_start_iters = 50;
         float lambda = 0.1f;
         float mu = 10.0f;
+        bool const_mag = false; // COMBINED only: enforce |m| = M0
+        // magnitude-constraint options (COMBINED); defaults keep rho = mu, no
+        // continuation, Ms estimated every iteration, padding left free
+        float rho = 0.0f; // 0: use mu
+        float rho_growth = 1.0f;
+        float rho_max = 0.0f; // 0: unbounded
+        float Ms = 0.0f;
+        bool estimate_Ms = true;
+        bool zero_outside = false;
         float tol = 1e-5f;
         float xtol = 1e-5f;
         float PAD_FACTOR = DEFAULT_PAD_FACTOR;
@@ -59,20 +75,52 @@ namespace tomocam {
         std::string logfile = "";
 
         void print(std::ostream &os) const {
-            std::string reg_str = (regularizer == Regularizer::SPLIT_BREGMAN)
-                                      ? "Split-Bregman"
-                                      : "Unconstrained";
+            std::string reg_str = "Unconstrained";
+            if (regularizer == Regularizer::SPLIT_BREGMAN) reg_str = "Split-Bregman";
+            if (regularizer == Regularizer::CONST_MAG)
+                reg_str = "Constant magnitude + L2";
+            if (regularizer == Regularizer::COMBINED) reg_str = "Combined";
             os << "Reconstruction Parameters:\n";
             os << "  max_outer_iters: " << maxIters << "\n";
             os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
                               recon_dims[1], recon_dims[2]);
+            if (!mask_file.empty()) os << "  mask: " << mask_file << "\n";
+            if (mask_dims != recon_dims)
+                os << std::format("  mask_dims: [{}, {}, {}]\n", mask_dims[0],
+                                  mask_dims[1], mask_dims[2]);
             os << "  tol: " << tol << "\n";
             os << "  xtol: " << xtol << "\n";
+            if (regularizer == Regularizer::CONST_MAG ||
+                (regularizer == Regularizer::COMBINED && const_mag))
+                os << "  warm_start_iters: " << warm_start_iters
+                   << (warm_start_iters > 0 ? "" : " (off)") << "\n";
             os << "  regularizer: " << reg_str << "\n";
             if (regularizer == Regularizer::SPLIT_BREGMAN) {
                 os << "    inner_iters: " << innerIters << "\n";
                 os << "    lambda: " << lambda << "\n";
                 os << "    mu: " << mu << "\n";
+            }
+            if (regularizer == Regularizer::CONST_MAG) {
+                os << "    inner_iters: " << innerIters << "\n";
+                os << "    mu: " << mu << "\n";
+            }
+            if (regularizer == Regularizer::COMBINED) {
+                os << "    inner_iters: " << innerIters << "\n";
+                os << "    const_mag: " << (const_mag ? "on" : "off") << "\n";
+                os << "    lambda_tv: " << lambda << (lambda > 0 ? "" : " (off)")
+                   << "\n";
+                os << "    mu: " << mu << "\n";
+                if (const_mag) {
+                    os << "    rho: " << rho << (rho > 0 ? "" : " (= mu)") << "\n";
+                    os << "    rho_growth: " << rho_growth << "\n";
+                    os << "    rho_max: " << rho_max
+                       << (rho_max > 0 ? "" : " (none)") << "\n";
+                    os << "    estimate_Ms: " << (estimate_Ms ? "on" : "off");
+                    if (!estimate_Ms) os << " (Ms = " << Ms << ")";
+                    os << "\n";
+                    os << "    zero_outside: " << (zero_outside ? "on" : "off")
+                       << "\n";
+                }
             }
         }
     };

@@ -33,7 +33,7 @@ namespace tomocam::gpu::opt {
      *        used in the split-Bregman TV shrinkage step.
      */
     template <typename T>
-    DeviceArray<T> compute_sk(const std::array<std::array<DeviceArray<T>, 3>, 3> &dx,
+    DeviceArray<T> compute_sk(const std::array<VecArray<T>, 3> &dx,
                               const std::array<VecArray<T>, 3> &b);
 
     /**

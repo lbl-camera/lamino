@@ -27,6 +27,7 @@ endif()
 
 set(SRC
     src/bregman.cpp
+    src/regularized_admm.cpp
     src/finitediff.cpp
     src/conjgrad.cpp
     src/projection.cpp
@@ -45,6 +46,7 @@ if (USE_CUDA)
         src/gpu/polar_grid.cu
         src/gpu/array_ops.cu
         src/gpu/bregman.cu
+        src/gpu/regularized_admm.cu
         src/gpu/conjgrad.cu
         src/gpu/fftshift.cu
         src/gpu/finitediff.cu
@@ -52,6 +54,7 @@ if (USE_CUDA)
         src/gpu/xmcdprojs.cu
         src/gpu/phase_shift.cu
         src/gpu/toeplitz.cu
+        src/gpu/toeplitz_host.cpp
     )
     include_directories(${CMAKE_SOURCE_DIR}/src/cuda)
 endif()
@@ -70,6 +73,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tomlplusplus)
 include_directories(${tomlplusplus_SOURCE_DIR}/include)
+
+# nlohmann_json (JSON config files)
+find_package(nlohmann_json 3.11 QUIET)
+if (NOT nlohmann_json_FOUND)
+    FetchContent_Declare(
+      json
+      URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    )
+    FetchContent_MakeAvailable(json)
+endif()
 
 if (USE_CUDA)
     find_package(CUDAToolkit REQUIRED)
@@ -112,6 +125,7 @@ if (USE_CUDA AND TARGET finufft::cufinufft)
 endif()
 target_link_libraries(tomocam PUBLIC TBB::tbb)
 target_link_libraries(tomocam PUBLIC TIFF::TIFF)
+target_link_libraries(tomocam PUBLIC nlohmann_json::nlohmann_json)
 if (USE_CUDA)
     target_link_libraries(tomocam PUBLIC CUDA::cufft)
     target_link_libraries(tomocam PUBLIC CUDA::cudart)

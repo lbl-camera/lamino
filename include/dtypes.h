@@ -82,6 +82,25 @@ namespace tomocam {
         bool operator!=(const dims_t &v) const { return !(*this == v); }
     };
 
+    // Divisor for A^T A, where A = forward and A^T = adjoint each notionally
+    // divide by the volume N = n1*n2*n3. The unnormalized FFT2/IFFT2 round trip
+    // between them multiplies by the detector size, so A^T A = T * det / N^2,
+    // with T the NUFFT type-1 / type-2 pair. `det_size` is nrows*ncols of the
+    // (padded) detector, which differs from n2*n3 of the volume when the two
+    // are padded independently.
+    template <typename T>
+    T sysmat_scale(const dims_t &vol, size_t det_size) {
+        T N =
+            static_cast<T>(vol.n1) * static_cast<T>(vol.n2) * static_cast<T>(vol.n3);
+        return N * N / static_cast<T>(det_size);
+    }
+
+    // overload taking the polar grid dims {nprojs, nrows, ncols}
+    template <typename T>
+    T sysmat_scale(const dims_t &vol, const dims_t &grid_dims) {
+        return sysmat_scale<T>(vol, grid_dims.n2 * grid_dims.n3);
+    }
+
     inline std::ostream &operator<<(std::ostream &outs, dims_t d) {
         outs << "dims_t(" << d.x() << ", " << d.y() << ", " << d.z() << ")";
         return outs;

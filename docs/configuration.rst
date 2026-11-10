@@ -114,6 +114,16 @@ Parameters
    Reconstruction stops when relative change in x < xtol.
    Typical values: 1e-5 to 1e-3.
 
+**warm_start_iters** (integer, optional)
+   Number of conjugate-gradient iterations used to initialise the
+   constant-magnitude solvers (``const_mag``, or ``combined`` with
+   ``const_mag = true``). The constraint ``|m| = M0`` makes the ADMM non-convex.
+   Started from the raw backprojection, a large ``rho`` pins it to a poor first
+   projection and the unconstrained voxels outside the support absorb the data.
+   Starting from a data-fit CG solution avoids this. Default: 50. Set 0 to
+   start from the backprojection instead (the behaviour before this option
+   existed). Ignored by the other regularizers.
+
 **recon_dims** (array of 3 integers, required)
    Reconstruction volume dimensions ``[thickness, height, width]``.
    Tomocam-lamino will truncate even dimensions by 1.
@@ -121,6 +131,23 @@ Parameters
    * First dimension (small compared to x- and y-axis): Sample thickness (z-axis)
    * Second dimension: Height (y-axis)
    * Third dimension: Width (x-axis)
+
+**mask** (string, optional)
+   TIFF file with a binary support (values > 0.5 are inside) on which the
+   constant-magnitude constraint ``|m| = M0`` is enforced by the ``const_mag``
+   and ``combined`` regularizers. The file is a 3D array
+   ``[thickness, height, width]`` of ``mask_dims``; a single 2D image
+   (``[1, height, width]``) is applied to every thickness slice. Voxels outside
+   the mask (and the internal padding) are unconstrained. By default every voxel
+   of ``recon_dims`` is constrained. Use ``scripts/make_mask.py`` to create a
+   mask from a scalar reconstruction.
+
+**mask_dims** (array of 3 integers, optional)
+   Size ``[thickness, height, width]`` of the mask. The mask is centred in
+   ``recon_dims`` along all three axes and each entry must not exceed the
+   corresponding ``recon_dims`` entry. Without a ``mask`` file it defines a
+   centred window of ones, so the constraint is also limited along z. Default:
+   ``recon_dims``.
 
 Regularization
 --------------
@@ -154,6 +181,66 @@ Parameters:
 
 **inner_iters** (int)
   Split-Bregman runs a CG for data-fidelity part
+
+Combined Constant Magnitude / TV
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A constant-magnitude constraint (:math:`|m| = M_0`, with unknown :math:`M_0`)
+combined with total variation, solved with one ADMM solver. Each term can be
+switched on or off independently; at least one must be active.
+
+.. code-block:: toml
+
+   [recon_params.regularizer]
+   method = "combined"
+
+   [recon_params.regularizer.combined]
+   const_mag = true
+   lambda_tv = 0.1
+   mu = 10.0
+   inner_iters = 5
+
+Parameters:
+
+**const_mag** (bool)
+   Enforce uniform magnitude inside the reconstructed region. Default: true.
+
+**lambda_tv** (float)
+   TV weight; 0 disables TV. Default: 0.
+
+**mu**, **inner_iters**
+   As for split Bregman. ``mu`` is the TV penalty.
+
+**rho** (float)
+   Penalty of the magnitude split :math:`z = m`. 0 (default) means
+   :math:`\rho = \mu`.
+
+**rho_growth** (float), **rho_max** (float)
+   Continuation: after each outer iteration
+   :math:`\rho \leftarrow \min(\rho \cdot \text{rho\_growth}, \text{rho\_max})`
+   and the multiplier is rescaled so that :math:`\rho b_z` is unchanged.
+   ``rho_growth`` must be >= 1 (rho never decreases); ``rho_max = 0`` means
+   unbounded. Default: no continuation.
+
+**estimate_Ms** (bool), **Ms** (float)
+   By default :math:`M_s` is re-estimated every iteration as the mean of
+   :math:`|m + b_z|` over the region. Set ``estimate_Ms = false`` and ``Ms > 0``
+   to hold it fixed.
+
+**zero_outside** (bool)
+   Set :math:`z = 0` outside the reconstructed region instead of leaving the
+   padding free. Default: false.
+
+.. note::
+
+   The sphere constraint is nonconvex, so the solver converges to a stationary
+   point that depends on the initialization. Suggested workflow (starting
+   points are heuristics, not established results):
+
+   1. Run TV without ``const_mag`` to get a baseline.
+   2. Run with ``const_mag = true`` and ``rho_growth`` about 1.01 - 1.05 up to
+      ``rho_max`` about 10 - 50 times ``rho``; start ``rho`` at the order of
+      ``mu``.
 
 QGGMRF Regularization
 ~~~~~~~~~~~~~~~~~~~~~

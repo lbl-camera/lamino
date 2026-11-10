@@ -29,6 +29,7 @@
 #include "array.h"
 #include "array_ops.h"
 #include "logger.h"
+#include "mask.h"
 
 #include "gpu/cufft_plan_cache.h"
 #include "gpu/cufinufft_plan_cache.h"
@@ -46,7 +47,7 @@ namespace tomocam::gpu {
 
     template <typename T>
     std::array<Array<T>, 3> MBIR(const std::vector<Dataset_t<T>> &datasets,
-                                 const ReconParams &params) {
+                                 const ReconParams &params, const Array<T> &mask) {
 
         // create logger
         Logger logger(params.logMode, params.logfile);
@@ -63,13 +64,27 @@ namespace tomocam::gpu {
         // extend recon dimensions: n1 padded by PAD_FACTOR (prevents NUFFT
         // z-aliasing), n2/n3 derived from padded projection dimensions
         dims_t proj_dims = datasets[0].projs.dims();
-        // The detector/PolarGrid stays padded (avoids 2D FFT aliasing), but the
-        // volume in n2/n3 stays at the unpadded projection size: the type-1
-        // NUFFT evaluates the backprojection and the Toeplitz PSF exactly on
-        // any mode window, so the PSF grid is 2*n-1 of the unpadded size
-        // instead of 2*(padfac*n)-1 (~2x fewer voxels, less cufinufft memory).
-        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac), proj_dims.n2,
-                           proj_dims.n3};
+        // The detector/PolarGrid is padded (avoids 2D FFT aliasing) to
+        // P = max(recon n2/n3, sqrt(2) * detector), so recon_dims may exceed the
+        // detector. The volume in n2/n3 is V = max(odd detector, recon n2/n3),
+        // V <= P: the type-1 NUFFT evaluates the backprojection and the
+        // Toeplitz PSF exactly on any mode window, so the PSF grid is 2*V-1
+        // instead of 2*P-1 (less cufinufft memory).
+        for (const auto &ds : datasets) {
+            if (ds.projs.nrows() != proj_dims.n2 ||
+                ds.projs.ncols() != proj_dims.n3) {
+                throw std::invalid_argument(
+                    "MBIR: all datasets must have the same projection size");
+            }
+        }
+        size_t grid_n2 = recon_grid_dim<T>(proj_dims.n2, recon_dims.n2, padfac);
+        size_t grid_n3 = recon_grid_dim<T>(proj_dims.n3, recon_dims.n3, padfac);
+        dims_t out_dims = {padded_dim<T>(recon_dims.n1, padfac),
+                           recon_vol_dim(proj_dims.n2, recon_dims.n2),
+                           recon_vol_dim(proj_dims.n3, recon_dims.n3)};
+        logger.log(std::format("volume {}x{}x{}, projection/polar grid {}x{}\n",
+                               out_dims.n1, out_dims.n2, out_dims.n3, grid_n2,
+                               grid_n3));
 
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()
@@ -100,8 +115,8 @@ namespace tomocam::gpu {
                 DeviceArray<T> y(ds.projs);
                 y /= proj_max;
 
-                // zero-pad projections by sqrt(2) to avoid aliasing
-                y = pad2d(y, padfac, PadType::SYMMETRIC);
+                // zero-pad projections to the polar grid size to avoid aliasing
+                y = pad2d(y, grid_n2, grid_n3, PadType::SYMMETRIC);
 
                 if (i == 0) {
                     nrows = y.nrows();
@@ -151,13 +166,35 @@ namespace tomocam::gpu {
             // initialize solution with backprojection of yT
             VecArray<T> x0 = yT.clone();
 
+            // const-mag support, centred in the padded volume; the padding
+            // stays outside the support and is left free
+            DeviceArray<T> solver_mask(embed_mask(mask, out_dims));
+            // the mask only selects where |m| = M0 is enforced: voxels outside it
+            // are free, and are forced to 0 only if zero_outside is set (a mask
+            // file alone does not zero them)
+            const bool use_support = params.zero_outside;
+            const DeviceArray<T> no_support;
+            const DeviceArray<T> &support = use_support ? solver_mask : no_support;
+
+            // The constant-magnitude ADMM is non-convex: started from the raw
+            // backprojection, a large rho pins it to a poor first projection and
+            // the free voxels outside the support absorb the data. Optionally
+            // start from a few CG iterations (a data-fit solution) instead.
+            if (params.warm_start_iters > 0 &&
+                (params.regularizer == Regularizer::CONST_MAG ||
+                 (params.regularizer == Regularizer::COMBINED &&
+                  params.const_mag))) {
+                x0 = opt::cgsolver<T>(A, yT, x0, params.warm_start_iters, params.tol,
+                                      params.xtol, support, T(0), &logger);
+            }
+
             VecArray<T> recon;
             switch (params.regularizer) {
                 case Regularizer::UNCONSTRAINED: {
                     std::cout << "Starting unconstrained reconstruction with CG on "
                                  "GPU ...\n";
                     recon = opt::cgsolver<T>(A, yT, x0, params.maxIters, params.tol,
-                                             params.xtol, out_dims, T(0), &logger);
+                                             params.xtol, support, T(0), &logger);
                     break;
                 }
                 case Regularizer::SPLIT_BREGMAN: {
@@ -166,8 +203,35 @@ namespace tomocam::gpu {
                     recon = opt::split_bregman<T>(A, yT, x0, params.lambda,
                                                   params.mu, params.maxIters,
                                                   params.innerIters, params.tol,
-                                                  params.xtol, out_dims, &logger);
+                                                  params.xtol, support, &logger);
 
+                    break;
+                }
+                case Regularizer::CONST_MAG: {
+                    std::cout << "Starting constant magnitude reconstruction "
+                                 "on GPU ...\n";
+                    // constrain only the block that survives the crop below;
+                    // the padding stays free to absorb out-of-view
+                    // contributions
+                    recon = opt::constmag<T>(
+                        A, yT, x0, params.mu, params.maxIters, params.innerIters,
+                        params.tol, params.xtol, solver_mask, &logger, use_support);
+                    break;
+                }
+                case Regularizer::COMBINED: {
+                    std::cout << "Starting combined constant magnitude / TV "
+                                 "reconstruction on GPU ...\n";
+                    opt::RegWeights<T> w{params.const_mag, params.lambda};
+                    opt::MagOptions<T> mag;
+                    mag.rho = params.rho;
+                    mag.rho_growth = params.rho_growth;
+                    mag.rho_max = params.rho_max;
+                    mag.Ms = params.Ms;
+                    mag.estimate_Ms = params.estimate_Ms;
+                    mag.zero_outside = use_support;
+                    recon = opt::regularized_admm<T>(
+                        A, yT, x0, w, params.mu, params.maxIters, params.innerIters,
+                        params.tol, params.xtol, solver_mask, &logger, mag);
                     break;
                 }
                 default: throw std::invalid_argument("Unsupported optimizer type");
@@ -191,8 +255,10 @@ namespace tomocam::gpu {
 
     // explicit template instantiation
     template std::array<Array<float>, 3>
-    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<float>> &datasets, const ReconParams &params,
+         const Array<float> &mask);
     template std::array<Array<double>, 3>
-    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params);
+    MBIR(const std::vector<Dataset_t<double>> &datasets, const ReconParams &params,
+         const Array<double> &mask);
 
 } // namespace tomocam::gpu

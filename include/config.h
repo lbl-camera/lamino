@@ -27,6 +27,7 @@
 #include <format>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <toml++/toml.h>
@@ -40,11 +41,77 @@
 
 namespace tomocam {
 
-    // Function to read and parse a TOML file
-    inline toml::table read_toml_file(const std::string &filepath) {
+    // Convert a parsed JSON value to the equivalent toml++ node, so that JSON
+    // and TOML configs share one schema and one set of parsers.
+    inline toml::array json_to_toml_array(const nlohmann::json &j);
+
+    inline toml::table json_to_toml_table(const nlohmann::json &j) {
+        toml::table tbl;
+        for (const auto &[key, val] : j.items()) {
+            if (val.is_null()) continue; // no TOML equivalent: treat as unset
+            if (val.is_object()) {
+                tbl.insert_or_assign(key, json_to_toml_table(val));
+            } else if (val.is_array()) {
+                tbl.insert_or_assign(key, json_to_toml_array(val));
+            } else if (val.is_boolean()) {
+                tbl.insert_or_assign(key, val.get<bool>());
+            } else if (val.is_number_integer()) {
+                tbl.insert_or_assign(key, val.get<int64_t>());
+            } else if (val.is_number_float()) {
+                tbl.insert_or_assign(key, val.get<double>());
+            } else if (val.is_string()) {
+                tbl.insert_or_assign(key, val.get<std::string>());
+            }
+        }
+        return tbl;
+    }
+
+    inline toml::array json_to_toml_array(const nlohmann::json &j) {
+        toml::array arr;
+        for (const auto &val : j) {
+            if (val.is_null()) {
+                throw std::runtime_error("null is not allowed in JSON arrays");
+            } else if (val.is_object()) {
+                arr.push_back(json_to_toml_table(val));
+            } else if (val.is_array()) {
+                arr.push_back(json_to_toml_array(val));
+            } else if (val.is_boolean()) {
+                arr.push_back(val.get<bool>());
+            } else if (val.is_number_integer()) {
+                arr.push_back(val.get<int64_t>());
+            } else if (val.is_number_float()) {
+                arr.push_back(val.get<double>());
+            } else if (val.is_string()) {
+                arr.push_back(val.get<std::string>());
+            }
+        }
+        return arr;
+    }
+
+    // Read a configuration file; the format is chosen by extension (.json is
+    // JSON, anything else is TOML).
+    inline toml::table read_config_file(const std::string &filepath) {
         if (!std::filesystem::exists(filepath)) {
             throw std::runtime_error(
-                std::format("TOML file does not exist: {}", filepath));
+                std::format("Config file does not exist: {}", filepath));
+        }
+
+        std::string ext = std::filesystem::path(filepath).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        if (ext == ".json") {
+            try {
+                std::ifstream fin(filepath);
+                auto j = nlohmann::json::parse(fin);
+                if (!j.is_object()) {
+                    throw std::runtime_error("top level must be an object");
+                }
+                return json_to_toml_table(j);
+            } catch (const std::exception &err) {
+                throw std::runtime_error(std::format(
+                    "Failed to parse JSON file '{}': {}", filepath, err.what()));
+            }
         }
 
         try {
@@ -53,6 +120,11 @@ namespace tomocam {
             throw std::runtime_error(std::format(
                 "Failed to parse TOML file '{}': {}", filepath, err.description()));
         }
+    }
+
+    // Kept for existing callers; accepts JSON as well.
+    inline toml::table read_toml_file(const std::string &filepath) {
+        return read_config_file(filepath);
     }
 
     // Angles are taken to be degrees if any |angle| > 2*pi, otherwise radians.
@@ -259,6 +331,8 @@ namespace tomocam {
         }
         // read max_outer_iters
         p.maxIters = recon["max_iters"].value_or<size_t>(100);
+        // read warm_start_iters (CG initialisation of the const_mag solvers)
+        p.warm_start_iters = recon["warm_start_iters"].value_or<size_t>(50);
 
         // read recon_dims
         std::array<size_t, 3> recon_dims;
@@ -282,6 +356,28 @@ namespace tomocam {
                                      "array of three integers");
         }
         p.recon_dims = recon_dims;
+        p.mask_file = recon["mask"].value_or<std::string>("");
+        p.mask_dims = recon_dims; // default: recon_dims
+        if (const auto *md = recon["mask_dims"].as_array()) {
+            if (md->size() != 3) {
+                throw std::runtime_error("[recon_params] 'mask_dims' must be an "
+                                         "array of three positive integers "
+                                         "[n1, n2, n3]");
+            }
+            for (size_t i = 0; i < 3; ++i) {
+                size_t m = (*md)[i].value_or<size_t>(0);
+                if (m == 0) {
+                    throw std::runtime_error("[recon_params] 'mask_dims' must be an "
+                                             "array of three positive integers "
+                                             "[n1, n2, n3]");
+                }
+                if (m > recon_dims[i]) {
+                    throw std::runtime_error(
+                        "[recon_params] 'mask_dims' must not exceed recon_dims");
+                }
+                p.mask_dims[i] = m;
+            }
+        }
         // if reocn dims[0]/dims[2] > 0.15, remind user that since this is
         // laminography, the thickness is expected to be much smaller than the
         // in-plane dimensions, and this may lead to increased memory usage
@@ -315,9 +411,55 @@ namespace tomocam {
                 p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
                 p.lambda = (*params)["lambda"].value_or<float>(0.1f);
                 p.mu = (*params)["mu"].value_or<float>(10.0f);
+            } else if (reg_str == "const_mag") {
+                p.regularizer = Regularizer::CONST_MAG;
+                auto params = (*reg)["const_mag"].as_table();
+                if (!params) {
+                    throw std::runtime_error(
+                        "Missing [recon_params.regularizer.const_mag] section "
+                        "in config file");
+                }
+                p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
+                p.mu = (*params)["mu"].value_or<float>(10.0f);
+                p.zero_outside = (*params)["zero_outside"].value_or<bool>(false);
+            } else if (reg_str == "combined") {
+                p.regularizer = Regularizer::COMBINED;
+                auto params = (*reg)["combined"].as_table();
+                if (!params) {
+                    throw std::runtime_error(
+                        "Missing [recon_params.regularizer.combined] section "
+                        "in config file");
+                }
+                p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
+                p.const_mag = (*params)["const_mag"].value_or<bool>(true);
+                // 0 switches a term off
+                p.lambda = (*params)["lambda_tv"].value_or<float>(0.0f);
+                p.mu = (*params)["mu"].value_or<float>(10.0f);
+                p.rho = (*params)["rho"].value_or<float>(0.0f);
+                p.rho_growth = (*params)["rho_growth"].value_or<float>(1.0f);
+                p.rho_max = (*params)["rho_max"].value_or<float>(0.0f);
+                p.Ms = (*params)["Ms"].value_or<float>(0.0f);
+                p.estimate_Ms = (*params)["estimate_Ms"].value_or<bool>(true);
+                p.zero_outside = (*params)["zero_outside"].value_or<bool>(false);
+                if (p.rho < 0.0f || p.rho_growth < 1.0f || p.rho_max < 0.0f) {
+                    throw std::runtime_error(
+                        "[recon_params.regularizer.combined] needs rho >= 0, "
+                        "rho_max >= 0 and rho_growth >= 1 (rho never decreases)");
+                }
+                if (p.const_mag && !p.estimate_Ms && p.Ms <= 0.0f) {
+                    throw std::runtime_error(
+                        "[recon_params.regularizer.combined] estimate_Ms = false "
+                        "needs Ms > 0");
+                }
+                if (!p.const_mag && p.lambda <= 0.0f) {
+                    throw std::runtime_error(
+                        "[recon_params.regularizer.combined] needs at least one "
+                        "of const_mag = true or lambda_tv > 0");
+                }
             } else {
-                throw std::runtime_error("[recon_params] 'regularizer' must be "
-                                         "either 'qGGMRF' or 'split_bregman'");
+                throw std::runtime_error(
+                    "[recon_params] 'regularizer' must be 'split_bregman', "
+                    "'const_mag' or 'combined'");
             }
         }
         return p;
@@ -410,7 +552,18 @@ namespace tomocam {
         outfile << "max_outer_iters = 50\n";
         outfile << "tol = 1e-5\n";
         outfile << "xtol = 1e-5\n";
+        outfile << "# warm_start_iters = 50  # const_mag/combined: initialise from "
+                   "this many CG iterations (a data-fit solution); 0 starts from "
+                   "the backprojection; default: 50\n";
         outfile << "recon_dims = [51, 511, 511]\n";
+        outfile
+            << "# mask = \"mask.tiff\"  # binary support of |m| = M0 (const_mag, "
+               "combined); 3D [n1, n2, n3] of mask_dims (or 2D [1, n2, n3], applied "
+               "to "
+               "every slice), default: all voxels\n";
+        outfile << "# mask_dims = [51, 511, 511]  # size [n1, n2, n3] of the mask "
+                   "window/file if smaller than recon_dims (centred; outside it "
+                   "the mask is 0, i.e. unconstrained); default: recon_dims\n";
         outfile << "\n";
         outfile << "[recon_params.regularizer]\n";
         outfile << "method = \"split_bregman\"\n";
@@ -419,12 +572,30 @@ namespace tomocam {
         outfile << "lambda = 0.1\n";
         outfile << "mu = 10.0\n";
         outfile << "\n";
-        outfile << "# alternatively, for qGGMRF regularization:\n";
+        outfile << "# alternatively, constant magnitude:\n";
         outfile << "# [recon_params.regularizer]\n";
-        outfile << "# method = \"qGGMRF\"\n";
-        outfile << "# [recon_params.regularizer.qGGMRF]\n";
-        outfile << "# sigma = 1000.0\n";
-        outfile << "# p = 1.2\n";
+        outfile << "# method = \"const_mag\"\n";
+        outfile << "# [recon_params.regularizer.const_mag]\n";
+        outfile << "# mu = 10.0\n";
+        outfile << "# inner_iters = 5\n";
+        outfile << "# zero_outside = false # true: m = 0 outside the mask\n";
+        outfile << "\n";
+        outfile << "# or constant magnitude combined with TV "
+                   "(set lambda_tv to 0 to switch TV off):\n";
+        outfile << "# [recon_params.regularizer]\n";
+        outfile << "# method = \"combined\"\n";
+        outfile << "# [recon_params.regularizer.combined]\n";
+        outfile << "# const_mag = true\n";
+        outfile << "# lambda_tv = 0.1\n";
+        outfile << "# mu = 10.0\n";
+        outfile << "# inner_iters = 5\n";
+        outfile << "# rho = 0.0          # magnitude penalty, 0 means rho = mu\n";
+        outfile << "# rho_growth = 1.0   # >1: rho <- min(rho*growth, rho_max)\n";
+        outfile << "# rho_max = 0.0      # 0 means unbounded\n";
+        outfile << "# estimate_Ms = true # false: hold |m| = Ms\n";
+        outfile << "# Ms = 0.0\n";
+        outfile
+            << "# zero_outside = false # true: m = 0 outside the output region\n";
         outfile.close();
     }
 } // namespace tomocam

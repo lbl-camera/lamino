@@ -26,109 +26,47 @@
 
 namespace tomocam::gpu::opt {
 
-    template <typename T, bool update = false>
-    __global__ void grad_ux_kernel(DevicePtr<const T> u, DevicePtr<T> du_x) {
-
-        // Allocate shared memory for the current block
-        dim3 dims = blockDim;
-        dims.z += 2;
-        SharedMemory<T> shared_u(dims);
-
-        auto idx = Index3D();
-        if (idx < u.dims()) {
-            // calculate chunk size
-
-            // Load data into shared memory
-            for (unsigned i = 0; i < 3; ++i) {
-                unsigned z_idx = idx.z - 1 + i;
-                if (z_idx < u.dims().n3) {
-                    shared_u(threadIdx.x, threadIdx.y, threadIdx.z + i) =
-                        u(idx.x, idx.y, z_idx);
-                } else {
-                    shared_u(threadIdx.x, threadIdx.y, threadIdx.z + i) = 0;
-                }
-            }
-            __syncthreads();
-
-            // calculate gradients using central differences
-            if (update) {
-                du_x[idx] +=
-                    0.5 * (shared_u(threadIdx.x, threadIdx.y, threadIdx.z + 2) -
-                           shared_u(threadIdx.x, threadIdx.y, threadIdx.z));
-            } else {
-                du_x[idx] =
-                    0.5 * (shared_u(threadIdx.x, threadIdx.y, threadIdx.z + 2) -
-                           shared_u(threadIdx.x, threadIdx.y, threadIdx.z));
-            }
-        }
-    }
-
-    template <typename T, bool update = false>
-    __global__ void grad_uy_kernel(DevicePtr<const T> u, DevicePtr<T> du_y) {
-
-        // Allocate shared memory for the current block
-        dim3 dims = blockDim;
-        dims.y += 2;
-        SharedMemory<T> shared_u(dims);
+    // Forward differences with a zero (Neumann) difference at the last index of
+    // each axis:
+    //   (D u)[i] = u[i + 1] - u[i]  for i < n - 1,  (D u)[n - 1] = 0.
+    // Its exact adjoint is D^T p = -(backward difference):
+    //   (D^T p)[i] = p[i - 1] - p[i], with p[-1] = p[n - 1] = 0.
+    // grad() applies D, and divergence() returns -D^T (backward differences), so
+    // neg_divergence() = D^T and neg_laplacian() = D^T D (positive semidefinite).
+    //
+    // axis 0, 1, 2 differentiate along the fastest-varying n3, n2 and n1 index
+    // respectively. `adjoint` selects D (false) or -D^T (true); `update` adds into
+    // the output instead of overwriting it.
+    template <typename T, int axis, bool adjoint, bool update>
+    __global__ void diff_kernel(DevicePtr<const T> u, DevicePtr<T> out) {
 
         auto idx = Index3D();
         if (idx < u.dims()) {
-            // Load data into shared memory
-            for (unsigned i = 0; i < 3; ++i) {
-                unsigned y_idx = idx.y - 1 + i;
-                if (y_idx < u.dims().n2) {
-                    shared_u(threadIdx.x, threadIdx.y + i, threadIdx.z) =
-                        u(idx.x, y_idx, idx.z);
-                } else {
-                    shared_u(threadIdx.x, threadIdx.y + i, threadIdx.z) = 0;
-                }
-            }
-            __syncthreads();
+            const unsigned n = (axis == 0)   ? u.dims().n3
+                               : (axis == 1) ? u.dims().n2
+                                             : u.dims().n1;
+            const unsigned c = (axis == 0) ? idx.z : (axis == 1) ? idx.y : idx.x;
 
-            // calculate gradients using central differences
-            if (update) {
-                du_y[idx] +=
-                    0.5 * (shared_u(threadIdx.x, threadIdx.y + 2, threadIdx.z) -
-                           shared_u(threadIdx.x, threadIdx.y, threadIdx.z));
+            // value of u shifted by `off` along the differentiated axis
+            auto at = [&](int off) -> T {
+                unsigned k = c + off;
+                if (axis == 0) return u(idx.x, idx.y, k);
+                if (axis == 1) return u(idx.x, k, idx.z);
+                return u(k, idx.y, idx.z);
+            };
+
+            T val;
+            if (!adjoint) {
+                val = (c + 1 < n) ? at(1) - at(0) : T(0);
             } else {
-                du_y[idx] =
-                    0.5 * (shared_u(threadIdx.x, threadIdx.y + 2, threadIdx.z) -
-                           shared_u(threadIdx.x, threadIdx.y, threadIdx.z));
+                T cur = (c + 1 < n) ? at(0) : T(0);
+                T prev = (c > 0) ? at(-1) : T(0);
+                val = cur - prev;
             }
-        }
-    }
-
-    template <typename T, bool update = false>
-    __global__ void grad_uz_kernel(DevicePtr<const T> u, DevicePtr<T> du_z) {
-
-        // Allocate shared memory for the current block
-        dim3 dims = blockDim;
-        dims.x += 2;
-        SharedMemory<T> shared_u(dims);
-
-        auto idx = Index3D();
-        if (idx < u.dims()) {
-            // Load data into shared memory
-            for (unsigned i = 0; i < 3; ++i) {
-                unsigned x_idx = idx.x + i - 1;
-                if (x_idx < u.dims().n1) {
-                    shared_u(threadIdx.x + i, threadIdx.y, threadIdx.z) =
-                        u(x_idx, idx.y, idx.z);
-                } else {
-                    shared_u(threadIdx.x + i, threadIdx.y, threadIdx.z) = 0;
-                }
-            }
-            __syncthreads();
-
-            // calculate gradients using central differences
             if (update) {
-                du_z[idx] +=
-                    0.5 * (shared_u(threadIdx.x + 2, threadIdx.y, threadIdx.z) -
-                           shared_u(threadIdx.x, threadIdx.y, threadIdx.z));
+                out[idx] += val;
             } else {
-                du_z[idx] =
-                    0.5 * (shared_u(threadIdx.x + 2, threadIdx.y, threadIdx.z) -
-                           shared_u(threadIdx.x, threadIdx.y, threadIdx.z));
+                out[idx] = val;
             }
         }
     }
@@ -141,30 +79,13 @@ namespace tomocam::gpu::opt {
 
         dim3 blockSize(1, 8, 32);
         dim3 gridSize = make_grid(u.dims(), blockSize);
-        size_t smemSizeX = blockSize.x * blockSize.y * (blockSize.z + 2) * sizeof(T);
-        size_t smemSizeY = blockSize.x * (blockSize.y + 2) * blockSize.z * sizeof(T);
-        size_t smemSizeZ = (blockSize.x + 2) * blockSize.y * blockSize.z * sizeof(T);
 
-        cudaStream_t sx, sy, sz;
-        SAFE_CALL(cudaStreamCreate(&sx));
-        SAFE_CALL(cudaStreamCreate(&sy));
-        SAFE_CALL(cudaStreamCreate(&sz));
-
-        // du/dx
-        grad_ux_kernel<T, false><<<gridSize, blockSize, smemSizeX, sx>>>(u, du_x);
-        // du/dy
-        grad_uy_kernel<T, false><<<gridSize, blockSize, smemSizeY, sy>>>(u, du_y);
-        // du/dz
-        grad_uz_kernel<T, false><<<gridSize, blockSize, smemSizeZ, sz>>>(u, du_z);
+        diff_kernel<T, 0, false, false><<<gridSize, blockSize>>>(u, du_x);
+        diff_kernel<T, 1, false, false><<<gridSize, blockSize>>>(u, du_y);
+        diff_kernel<T, 2, false, false><<<gridSize, blockSize>>>(u, du_z);
         SAFE_CALL(cudaGetLastError());
+        SAFE_CALL(cudaDeviceSynchronize());
 
-        SAFE_CALL(cudaStreamSynchronize(sx));
-        SAFE_CALL(cudaStreamSynchronize(sy));
-        SAFE_CALL(cudaStreamSynchronize(sz));
-
-        SAFE_CALL(cudaStreamDestroy(sx));
-        SAFE_CALL(cudaStreamDestroy(sy));
-        SAFE_CALL(cudaStreamDestroy(sz));
         VecArray<T> du;
         du[0] = std::move(du_x);
         du[1] = std::move(du_y);
@@ -175,30 +96,19 @@ namespace tomocam::gpu::opt {
     template VecArray<float> grad(const DeviceArray<float> &u);
     template VecArray<double> grad(const DeviceArray<double> &u);
 
-    // divergence
+    // divergence := -D^T (backward differences)
     template <typename T>
     DeviceArray<T> divergence(const VecArray<T> &u) {
 
         auto dims = u[0].dims();
-        // output array for divergence
         DeviceArray<T> div_u(dims);
 
         dim3 blockSize(1, 8, 32);
         dim3 gridSize = make_grid(dims, blockSize);
 
-        //  du[0]/dx
-        size_t smemSize = blockSize.x * blockSize.y * (blockSize.z + 2) * sizeof(T);
-        grad_ux_kernel<T, false><<<gridSize, blockSize, smemSize>>>(u[0], div_u);
-        SAFE_CALL(cudaGetLastError());
-
-        // du[1]/dy
-        smemSize = blockSize.x * (blockSize.y + 2) * blockSize.z * sizeof(T);
-        grad_uy_kernel<T, true><<<gridSize, blockSize, smemSize>>>(u[1], div_u);
-        SAFE_CALL(cudaGetLastError());
-
-        // du[2]/dz
-        smemSize = (blockSize.x + 2) * blockSize.y * blockSize.z * sizeof(T);
-        grad_uz_kernel<T, true><<<gridSize, blockSize, smemSize>>>(u[2], div_u);
+        diff_kernel<T, 0, true, false><<<gridSize, blockSize>>>(u[0], div_u);
+        diff_kernel<T, 1, true, true><<<gridSize, blockSize>>>(u[1], div_u);
+        diff_kernel<T, 2, true, true><<<gridSize, blockSize>>>(u[2], div_u);
         SAFE_CALL(cudaGetLastError());
         return div_u;
     }
@@ -206,18 +116,11 @@ namespace tomocam::gpu::opt {
     template DeviceArray<float> divergence(const VecArray<float> &u);
     template DeviceArray<double> divergence(const VecArray<double> &u);
 
-    // laplacian
+    // laplacian := divergence(grad(u)) = -D^T D (negative semidefinite)
     template <typename T>
     DeviceArray<T> laplacian(const DeviceArray<T> &u) {
-
-        // output array for laplacian
-        auto dims = u.dims();
-
-        // compute gradient
         auto temp = grad(u);
-        // compute divergence of the gradient
-        auto lap_u = divergence(temp);
-        return lap_u;
+        return divergence(temp);
     }
     // Explicit template instantiations
     template DeviceArray<float> laplacian(const DeviceArray<float> &u);

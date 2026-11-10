@@ -29,6 +29,7 @@
 #include "gpu/fft.h"
 #include "gpu/fftshift.h"
 #include "gpu/nufft.h"
+#include "gpu/padding.h"
 #include "gpu/phase_shift.h"
 #include "gpu/polar_grid.h"
 #include "gpu/utils.h"
@@ -50,7 +51,7 @@ namespace tomocam::gpu {
         // detector-plane dims.
         auto vol_dims = m[0].dims();
         T scale = static_cast<T>(vol_dims.n1) * static_cast<T>(vol_dims.n2) *
-                 static_cast<T>(vol_dims.n3);
+                  static_cast<T>(vol_dims.n3);
         auto proj = DeviceArray<complex<T>>(dims);
         auto w_cmplx = array::to_complex(pg.w);
 
@@ -92,10 +93,11 @@ namespace tomocam::gpu {
 
         // declare output array
         VecArray<T> m;
+        dims_t nufft_dims{recon_dims.n1, pg.dims().n2, pg.dims().n3};
         // match CPU adjoint's normalization convention: divide by the full
         // recon volume, not the detector-plane dims.
         T scale = static_cast<T>(recon_dims.n1) * static_cast<T>(recon_dims.n2) *
-                 static_cast<T>(recon_dims.n3);
+                  static_cast<T>(recon_dims.n3);
 
         // cast to complex
         auto C = array::to_complex(proj);
@@ -117,9 +119,11 @@ namespace tomocam::gpu {
             ccmplx *= w_cmplx;
 
             gpu::project_component(ccmplx, pg, i);
-            DeviceArray<complex<T>> fcmplx(recon_dims);
+            // evaluate on the polar grid's n2, n3 dims, then crop to recon_dims
+            DeviceArray<complex<T>> fcmplx(nufft_dims);
             nufft::nufft3d1(ccmplx, fcmplx, pg);
-            m[i] = array::to_real(fcmplx) / scale;
+            m[i] = gpu::crop3d(array::to_real(fcmplx) / scale, recon_dims,
+                               PadType::SYMMETRIC);
         }
         return m;
     }

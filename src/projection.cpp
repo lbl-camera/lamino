@@ -42,7 +42,8 @@ namespace tomocam {
 
     template <typename T>
     Array<T> forward(const std::array<Array<T>, 3> &magnetization,
-                     const PolarGrid<T> &pg, T gamma, T beta) {
+                     const PolarGrid<T> &pg, T gamma, T beta,
+                     const std::vector<std::array<T, 2>> &shifts) {
 
         auto dims = magnetization[0].dims();
         T scale = static_cast<T>(dims.n1 * dims.n2 * dims.n3);
@@ -56,8 +57,8 @@ namespace tomocam {
             nufft::nufft3d2<T>(c_cmplx, m_cmplx, pg);
 
             // discard aliased points (outside [-pi,pi]) before ifft2
-            std::transform(std::execution::par_unseq, c_cmplx.begin(),
-                           c_cmplx.end(), pg.w.begin(), c_cmplx.begin(),
+            std::transform(std::execution::par_unseq, c_cmplx.begin(), c_cmplx.end(),
+                           pg.w.begin(), c_cmplx.begin(),
                            [](complex_t c, T m) { return c * m; });
 
             for (size_t j = 0; j < pg.nprojs(); ++j) {
@@ -69,10 +70,27 @@ namespace tomocam {
             proj += c_cmplx;
         }
 
+        if (!shifts.empty()) fft::phase_shift2d(proj, shifts);
+
         proj = fft::fftshift2(proj);
         proj = fft::ifft2(proj);
         proj = fft::ifftshift2(proj);
         return array::to_real<T>(proj) / scale;
+    }
+    template Array<float>
+    forward<float>(const std::array<Array<float>, 3> &magnetization,
+                   const PolarGrid<float> &pg, float gamma, float beta,
+                   const std::vector<std::array<float, 2>> &shifts);
+    template Array<double>
+    forward<double>(const std::array<Array<double>, 3> &magnetization,
+                    const PolarGrid<double> &pg, double gamma, double beta,
+                    const std::vector<std::array<double, 2>> &shifts);
+
+    template <typename T>
+    Array<T> forward(const std::array<Array<T>, 3> &magnetization,
+                     const PolarGrid<T> &pg, T gamma, T beta) {
+        return forward(magnetization, pg, gamma, beta,
+                       std::vector<std::array<T, 2>>{});
     }
     template Array<float>
     forward<float>(const std::array<Array<float>, 3> &magnetization,
@@ -101,6 +119,7 @@ namespace tomocam {
                        [](std::complex<T> c, T m) { return c * m; });
 
         std::array<Array<T>, 3> m_components;
+        dims_t nufft_dims{recon_dims.n1, pg.dims().n2, pg.dims().n3};
         using complex_t = std::complex<T>;
 
         for (size_t i = 0; i < 3; ++i) {
@@ -112,9 +131,11 @@ namespace tomocam {
                 std::for_each(std::execution::par_unseq, slice.begin(), slice.end(),
                               [coeff](complex_t &val) { val *= coeff; });
             }
-            Array<complex_t> m_cmplx(recon_dims);
+            // evaluate on the polar grid's n2, n3 dims, then crop to recon_dims
+            Array<complex_t> m_cmplx(nufft_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = array::to_real<T>(m_cmplx) / scale;
+            m_components[i] = crop3d(array::to_real<T>(m_cmplx) / scale, recon_dims,
+                                     PadType::SYMMETRIC);
         }
         return m_components;
     }
@@ -150,6 +171,7 @@ namespace tomocam {
                        [](std::complex<T> c, T m) { return c * m; });
 
         std::array<Array<T>, 3> m_components;
+        dims_t nufft_dims{recon_dims.n1, pg.dims().n2, pg.dims().n3};
         using complex_t = std::complex<T>;
 
         for (size_t i = 0; i < 3; ++i) {
@@ -162,9 +184,11 @@ namespace tomocam {
                               [coeff](complex_t &val) { val *= coeff; });
             }
 
-            Array<complex_t> m_cmplx(recon_dims);
+            // evaluate on the polar grid's n2, n3 dims, then crop to recon_dims
+            Array<complex_t> m_cmplx(nufft_dims);
             nufft::nufft3d1<T>(c_cmplx_copy, m_cmplx, pg);
-            m_components[i] = array::to_real<T>(m_cmplx) / scale;
+            m_components[i] = crop3d(array::to_real<T>(m_cmplx) / scale, recon_dims,
+                                     PadType::SYMMETRIC);
         }
 
         return m_components;

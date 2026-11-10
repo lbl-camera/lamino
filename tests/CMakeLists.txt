@@ -35,6 +35,10 @@ add_executable(test_toeplitz test_toeplitz.cpp)
 target_link_libraries(test_toeplitz PUBLIC tomocam)
 add_test(NAME test_toeplitz COMMAND test_toeplitz)
 
+add_executable(test_regularized_admm test_regularized_admm.cpp)
+target_link_libraries(test_regularized_admm PUBLIC tomocam)
+add_test(NAME test_regularized_admm COMMAND test_regularized_admm)
+
 if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_conjgrad test_gpu_conjgrad.cu)
     target_link_libraries(test_gpu_conjgrad PUBLIC tomocam)
@@ -51,6 +55,10 @@ if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_toeplitz test_gpu_toeplitz.cu)
     target_link_libraries(test_gpu_toeplitz PUBLIC tomocam)
     add_test(NAME test_gpu_toeplitz COMMAND test_gpu_toeplitz)
+
+    add_executable(test_gpu_regularized_admm test_gpu_regularized_admm.cu)
+    target_link_libraries(test_gpu_regularized_admm PUBLIC tomocam)
+    add_test(NAME test_gpu_regularized_admm COMMAND test_gpu_regularized_admm)
 endif()
 
 

@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    auto config = toml::parse_file(argv[1]);
+    auto config = tomocam::read_config_file(argv[1]);
     auto params = tomocam::ReconParams(config);
     auto output = tomocam::OutputParams(config);
     params.print(std::cout);
