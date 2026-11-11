@@ -421,6 +421,7 @@ namespace tomocam {
                 }
                 p.innerIters = (*params)["inner_iters"].value_or<size_t>(1);
                 p.mu = (*params)["mu"].value_or<float>(10.0f);
+                p.zero_outside = (*params)["zero_outside"].value_or<bool>(false);
             } else if (reg_str == "combined") {
                 p.regularizer = Regularizer::COMBINED;
                 auto params = (*reg)["combined"].as_table();
@@ -577,6 +578,7 @@ namespace tomocam {
         outfile << "# [recon_params.regularizer.const_mag]\n";
         outfile << "# mu = 10.0\n";
         outfile << "# inner_iters = 5\n";
+        outfile << "# zero_outside = false # true: m = 0 outside the mask\n";
         outfile << "\n";
         outfile << "# or constant magnitude combined with TV "
                    "(set lambda_tv to 0 to switch TV off):\n";
