@@ -257,26 +257,45 @@ int main(int argc, char **argv) {
     std::cerr << "Data dimensions: [" << m_float[0].nslices() << ", "
               << m_float[0].nrows() << ", " << m_float[0].ncols() << "]\n";
 
-    // convert to double and pad the sample
+    // convert to double. The volume is not padded: the NUFFT takes its mode count
+    // from the volume and evaluates at the polar grid's q points, so the volume
+    // may be larger than the detector.
     t0.start();
     std::array<tomocam::Array<double>, 3> m_data;
     for (int i = 0; i < 3; ++i) {
-        m_data[i] =
-            tomocam::pad3d<double>(tomocam::array::cast<float, double>(m_float[i]),
-                                   PADDING, tomocam::PadType::SYMMETRIC);
+        m_data[i] = tomocam::array::cast<float, double>(m_float[i]);
     }
     t0.stop();
-    std::cerr << "Time to pad data: " << t0.seconds() << "(s)\n";
-    std::cerr << "Padded data dimensions: [" << m_data[0].nslices() << ", "
-              << m_data[0].nrows() << ", " << m_data[0].ncols() << "]\n";
+    std::cerr << "Time to convert data: " << t0.seconds() << "(s)\n";
 
-    // same (odd) padded size as the volume and as recon's padded projections
-    size_t nrows = tomocam::padded_dim(static_cast<size_t>(output_dims[0]), PADDING);
-    size_t ncols = tomocam::padded_dim(static_cast<size_t>(output_dims[1]), PADDING);
-    if (nrows != m_data[0].nrows() || ncols != m_data[0].ncols()) {
-        std::cerr << "Warning: output dims differ from the volume's in-plane "
-                     "dims; projections will be offset from the volume center\n";
+    // NUFFT mode window must be centred on the same origin as the polar grid
+    size_t vol_n1 = m_data[0].nslices();
+    size_t vol_n2 = m_data[0].nrows();
+    size_t vol_n3 = m_data[0].ncols();
+    if (vol_n2 % 2 == 0 || vol_n3 % 2 == 0) {
+        std::cerr << "Error: volume n2, n3 must be odd (got " << vol_n2 << ", "
+                  << vol_n3 << ")\n";
+        return 1;
     }
+
+    // The polar grid size sets the real-space period of the projection (ifft2),
+    // so it is sized from the volume (with sqrt(2) padding for the rotated
+    // footprint) and never smaller than the requested detector. The projection is
+    // then cropped to output_dims, which may be smaller than the volume.
+    size_t vol_inplane = std::max(vol_n2, vol_n3);
+    size_t nrows = tomocam::padded_dim(
+        std::max(vol_inplane, static_cast<size_t>(output_dims[0])), PADDING);
+    size_t ncols = tomocam::padded_dim(
+        std::max(vol_inplane, static_cast<size_t>(output_dims[1])), PADDING);
+    std::cerr << "Polar grid dimensions: [" << nrows << ", " << ncols << "]\n";
+
+    // forward() divides by the voxel count of the volume it is given. Rescale so
+    // the output keeps the convention of the earlier (padded-volume) tool, i.e.
+    // projection sum / padded_dim(n1).
+    const double vol_voxels = static_cast<double>(vol_n1 * vol_n2 * vol_n3);
+    const double legacy_scale =
+        static_cast<double>(nrows) * static_cast<double>(ncols) *
+        static_cast<double>(tomocam::padded_dim(vol_n1, PADDING)) / vol_voxels;
 
     // loop over projections
     for (size_t k = 0; k < projections.size(); ++k) {
@@ -299,6 +318,7 @@ int main(int argc, char **argv) {
         // do the forward projection
         t0.start();
         auto proj = tomocam::forward(m_data, grid, gamma_rad, beta_rad, shifts);
+        proj = proj / legacy_scale;
         t0.stop();
         std::cerr << "Time to do forward projection: " << t0.seconds() << "(s)\n";
 

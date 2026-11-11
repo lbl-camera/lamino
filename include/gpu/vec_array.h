@@ -22,6 +22,9 @@
 #define VEC_ARRAY_H
 
 #include <array>
+#include <cmath>
+#include <cstddef>
+#include <utility>
 
 #include "gpu/device_array.h"
 #include "gpu/device_array_ops.h"
@@ -48,8 +51,8 @@ namespace tomocam::gpu {
             return VecArray{data_[0].clone(), data_[1].clone(), data_[2].clone()};
         }
         static VecArray zeros(dims_t dims) {
-            return {DeviceArray<T>::zeros(dims), DeviceArray<T>::zeros(dims),
-                    DeviceArray<T>::zeros(dims)};
+            return VecArray{DeviceArray<T>::zeros(dims), DeviceArray<T>::zeros(dims),
+                            DeviceArray<T>::zeros(dims)};
         }
 
         T dot(const VecArray &b) const {
@@ -57,7 +60,7 @@ namespace tomocam::gpu {
                    array::dot(data_[2], b[2]);
         }
 
-        T norm2() const { return sqrt(dot(*this)); }
+        T norm2() const { return std::sqrt(dot(*this)); }
 
         VecArray operator+(const VecArray &b) const {
             return VecArray{data_[0] + b[0], data_[1] + b[1], data_[2] + b[2]};
@@ -82,7 +85,7 @@ namespace tomocam::gpu {
         }
 
         VecArray operator*(T s) const {
-            return {data_[0] * s, data_[1] * s, data_[2] * s};
+            return VecArray{data_[0] * s, data_[1] * s, data_[2] * s};
         }
 
         VecArray &operator*=(T s) {

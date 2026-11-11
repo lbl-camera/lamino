@@ -78,7 +78,7 @@ namespace tomocam {
             std::string reg_str = "Unconstrained";
             if (regularizer == Regularizer::SPLIT_BREGMAN) reg_str = "Split-Bregman";
             if (regularizer == Regularizer::CONST_MAG)
-                reg_str = "Constant magnitude + L2";
+                reg_str = "Constant magnitude";
             if (regularizer == Regularizer::COMBINED) reg_str = "Combined";
             os << "Reconstruction Parameters:\n";
             os << "  max_outer_iters: " << maxIters << "\n";
