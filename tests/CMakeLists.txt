@@ -27,6 +27,10 @@ add_executable(test_grad test_grad.cpp)
 target_link_libraries(test_grad PUBLIC tomocam)
 add_test(NAME test_grad COMMAND test_grad)
 
+add_executable(test_rotation_convention test_rotation_convention.cpp)
+target_link_libraries(test_rotation_convention PUBLIC tomocam)
+add_test(NAME test_rotation_convention COMMAND test_rotation_convention)
+
 add_executable(test_adjoint test_adjoint.cpp)
 target_link_libraries(test_adjoint PUBLIC tomocam)
 add_test(NAME test_adjoint COMMAND test_adjoint)

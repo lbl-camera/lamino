@@ -25,7 +25,11 @@
 
 namespace tomocam {
 
-    // Returns transpose( Rx(theta) * Ry(beta) * Rz(gamma) )
+    // Returns transpose( Rx(theta) * Ry(beta) * Rz(gamma) ).
+    // Convention (shared with alignlsq/geometry.py, checked by
+    // tests/test_rotation_convention.cpp): Rx, Ry and Rz are all active and
+    // counter-clockwise (right-handed) positive, so theta, beta and gamma from
+    // alignlsq's *_alignment.toml can be used here without any sign change.
     template <typename T>
     std::array<std::array<T, 3>, 3> RotationTranspose(T theta, T gamma, T beta) {
         using std::cos;

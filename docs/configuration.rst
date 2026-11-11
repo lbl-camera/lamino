@@ -37,6 +37,18 @@ Parameters
 **gamma** (number, required)
    Orientation angle in degrees for this dataset.
 
+**beta** (number, optional, default 0)
+   Tilt of the rotation axis in degrees.
+
+.. note::
+   **Angle convention.** The projection rotation is
+   ``R = Rx(angle) * Ry(beta) * Rz(gamma)``, where ``Rx``, ``Ry`` and ``Rz`` are all
+   active, counter-clockwise (right-handed) positive rotations. This is the same
+   convention as ``alignlsq``, so the ``corrected_angles_deg``, ``beta_deg`` and
+   ``gamma_deg`` it writes can be used here without any sign change. ``gamma`` is
+   only defined relative to the other datasets in the same reconstruction. The
+   convention is checked by ``tests/test_rotation_convention.cpp``.
+
 Multiple Inputs
 ~~~~~~~~~~~~~~~
 

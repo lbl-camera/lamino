@@ -131,10 +131,11 @@ int main(int argc, char **argv) {
                         std::cerr << *align_opt << ": bad 'shifts_px' entry\n";
                         return 1;
                     }
-                    // recon shifts the data by +d to align it; the model goes the
-                    // other way into the raw data frame
-                    p.shifts.push_back({-(*pair)[0].value<double>().value(),
-                                        -(*pair)[1].value<double>().value()});
+                    // same shifts as recon (the ones that align the data);
+                    // tomocam::forward() applies the inverse ramp internally to
+                    // produce the unaligned data
+                    p.shifts.push_back({(*pair)[0].value<double>().value(),
+                                        (*pair)[1].value<double>().value()});
                 }
                 if (p.shifts.size() != p.angles.size()) {
                     std::cerr << *align_opt

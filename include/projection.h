@@ -61,8 +61,10 @@ namespace tomocam {
      * @param pg The polar grid defining the projection geometry.
      * @param gamma orientation of the polar grid.
      * @param beta out-of-plane tilt.
-     * @param shifts optional per-projection [dx, dy] (pixels) applied to the
-     * projections as a phase ramp; empty for none.
+     * @param shifts optional per-projection [dx, dy] (pixels): the shifts that align
+     * each projection (the same values passed to adjoint()). forward() produces
+     * the unaligned data, so it applies the inverse (-dx, -dy) ramp; empty for
+     * none.
      * @return The projected data as an Array.
      */
     template <typename T>

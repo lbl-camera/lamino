@@ -70,7 +70,18 @@ namespace tomocam {
             proj += c_cmplx;
         }
 
-        if (!shifts.empty()) fft::phase_shift2d(proj, shifts);
+        // shifts[j] is the shift that aligns projection j (as in alignlsq's
+        // shifts_px and the adjoint, which applies it to the data). The forward
+        // model produces the unaligned data, so it applies the inverse ramp, which
+        // keeps forward(shifts) and adjoint(shifts) consistent (no double shift).
+        if (!shifts.empty()) {
+            std::vector<std::array<T, 2>> inverse(shifts.size());
+            std::transform(shifts.begin(), shifts.end(), inverse.begin(),
+                           [](const std::array<T, 2> &d) {
+                               return std::array<T, 2>{-d[0], -d[1]};
+                           });
+            fft::phase_shift2d(proj, inverse);
+        }
 
         proj = fft::fftshift2(proj);
         proj = fft::ifft2(proj);
