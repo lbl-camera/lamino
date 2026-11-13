@@ -21,6 +21,7 @@ The library is optimized for performance using:
 
 - **Forward/Backward Projection**: NUFFT based projection operators
 - **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, and Nesterov accelerated gradient methods
+- **Double precision on GPU**: optional `recon_double = true` runs the whole CUDA reconstruction in double precision
 - **TIFF I/O**: Read and write reconstruction data
 - **Paraview**: Plot magnetization vectors in paraview
 
@@ -93,6 +94,7 @@ max_outer_iters = 50                    # Maximum outer iterations
 tol = 1e-5                              # Convergence tolerance
 xtol = 1e-5                             # X-tolerance for convergence
 recon_dims = [51, 511, 511]            # Reconstruction dimensions [thickness, height, width]
+# recon_double = true                   # CUDA build: run in double precision (default: false)
 
 [recon_params.regularizer]
 method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMRF"
@@ -118,6 +120,7 @@ mu = 10.0                               # Penalty parameter
 - Use multiple `[[input]]` sections to specify datasets at different gamma angles for vector field reconstruction
 - Angles can be in degrees or radians (automatically converted)
 - The angles file should contain one angle per line
+- `recon_double = true` (CUDA builds) runs projections, NUFFTs, FFTs and the solver in double precision, needing about twice the device memory. Use it for long unregularized CG runs on ill-conditioned problems, where single-precision rounding noise makes CG diverge after a few hundred iterations. Inputs are read in single precision and the saved volume is written as float
 - Run `./build/recon` without arguments to generate a template configuration file (`config.toml`)
 - Configs may also be written as JSON (file extension `.json`) with the same keys: `[[input]]` becomes `"input": [{...}]` and `[recon_params.regularizer]` becomes nested objects. `null` values are treated as unset.
 
