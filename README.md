@@ -99,7 +99,7 @@ recon_dims = [9, 319, 319]                  # [thickness, height, width]
 
 # Constant magnitude: enforce |m| = M0 (M0 is estimated)
 [recon_params.regularizer]
-method = "const_mag"                        # "const_mag", "combined" or "split_bregman"; omit the section for plain CG
+method = "const_mag"                        # "const_mag", "combined"; omit the section for plain CG
 
 [recon_params.regularizer.const_mag]
 inner_iters = 5                             # CG iterations per data-fidelity update
@@ -113,13 +113,13 @@ inner_iters = 5                             # CG iterations per data-fidelity up
 # method = "combined"
 #
 # [recon_params.regularizer.combined]
-# const_mag = true                          # enforce |m| = M0
-# lambda_tv = 0.2                           # TV weight (0 = off)
-# mu = 10.0
 # inner_iters = 5
+# const_mag = true                          # enforce |m| = M0
+# lambda_tv = 0.1                           
+# mu = 10.0
 # rho = 10.0                                # magnitude penalty (0: rho = mu)
-# rho_growth = 1.05                         # >1: rho grows every outer iteration ...
 # rho_max = 200.0                           # ... up to rho_max (0: unbounded)
+# rho_growth = 1.01                         # >1: rho grows every outer iteration ...
 ```
 
 **Notes:**
