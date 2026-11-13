@@ -136,6 +136,14 @@ Parameters
    start from the backprojection instead (the behaviour before this option
    existed). Ignored by the other regularizers.
 
+**recon_double** (bool, optional)
+   Run the whole GPU reconstruction (projections, NUFFTs, FFTs and the solver)
+   in double precision. Default: false (single precision). Single-precision CG
+   on ill-conditioned problems (e.g. thin volumes with a wide detector)
+   stagnates and then diverges after a few hundred iterations because rounding
+   noise in the operator is amplified by its smallest eigenvalues; double
+   precision converges monotonically. It needs about twice the device memory.
+
 **recon_dims** (array of 3 integers, required)
    Reconstruction volume dimensions ``[thickness, height, width]``.
    Tomocam-lamino will truncate even dimensions by 1.

@@ -37,6 +37,25 @@
 #include "gpu/tomocam.h"
 #endif
 
+// convert float datasets (projections, angles, shifts) to double
+static std::vector<tomocam::Dataset_t<double>>
+to_double(const std::vector<tomocam::Dataset_t<float>> &in) {
+    std::vector<tomocam::Dataset_t<double>> out;
+    out.reserve(in.size());
+    for (const auto &d : in) {
+        tomocam::Dataset_t<double> dd;
+        dd.projs = tomocam::array::cast<float, double>(d.projs);
+        dd.angles = std::vector<double>(d.angles.begin(), d.angles.end());
+        dd.gamma = static_cast<double>(d.gamma);
+        dd.beta = static_cast<double>(d.beta);
+        for (const auto &s : d.shifts)
+            dd.shifts.push_back(
+                {static_cast<double>(s[0]), static_cast<double>(s[1])});
+        out.push_back(std::move(dd));
+    }
+    return out;
+}
+
 int main(int argc, char **argv) {
 
     // check for input file (toml)
@@ -88,7 +107,16 @@ int main(int argc, char **argv) {
     tomocam::Timer t0;
     t0.start();
 #ifdef USE_CUDA
-    auto recon = tomocam::gpu::MBIR<float>(float_datasets, params, mask);
+    std::array<tomocam::Array<float>, 3> recon;
+    if (params.recon_double) {
+        auto double_datasets = to_double(float_datasets);
+        auto recon_d = tomocam::gpu::MBIR<double>(
+            double_datasets, params, tomocam::array::cast<float, double>(mask));
+        for (size_t i = 0; i < 3; ++i)
+            recon[i] = tomocam::array::cast<double, float>(recon_d[i]);
+    } else {
+        recon = tomocam::gpu::MBIR<float>(float_datasets, params, mask);
+    }
 #else
     // convert inputs to double
     std::vector<tomocam::Dataset_t<double>> double_datasets;

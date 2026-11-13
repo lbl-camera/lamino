@@ -333,6 +333,7 @@ namespace tomocam {
         p.maxIters = recon["max_iters"].value_or<size_t>(100);
         // read warm_start_iters (CG initialisation of the const_mag solvers)
         p.warm_start_iters = recon["warm_start_iters"].value_or<size_t>(50);
+        p.recon_double = recon["recon_double"].value_or<bool>(false);
 
         // read recon_dims
         std::array<size_t, 3> recon_dims;
@@ -552,6 +553,7 @@ namespace tomocam {
         outfile << "max_outer_iters = 50\n";
         outfile << "tol = 1e-5\n";
         outfile << "xtol = 1e-5\n";
+        outfile << "# recon_double = false  # true: run the GPU reconstruction in double precision\n";
         outfile << "# warm_start_iters = 50  # const_mag/combined: initialise from "
                    "this many CG iterations (a data-fit solution); 0 starts from "
                    "the backprojection; default: 50\n";
