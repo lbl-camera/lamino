@@ -90,19 +90,23 @@ filename = "output.tiff"                # Output filename for reconstruction
 formats = ["tiff", "vti"]              # Available: "tiff", "vti"
 
 [recon_params]
-max_iters = 50                          # Maximum solver iterations
+max_iters = 500                         # Maximum solver iterations
 tol = 1e-5                              # Convergence tolerance
 xtol = 1e-5                             # X-tolerance for convergence
 recon_dims = [51, 511, 511]            # Reconstruction dimensions [thickness, height, width]
 # recon_double = true                   # CUDA build: run in double precision (default: false)
 
 [recon_params.regularizer]
-method = "split_bregman"                # "split_bregman", "const_mag" or "combined"; omit the section for plain CG
+method = "const_mag"                    # "const_mag", "combined" or "split_bregman"; omit the section for plain CG
 
-# Parameters for split_bregman method
-[recon_params.regularizer.split_bregman]
-lambda = 0.5                            # Regularization parameter
+# Constant magnitude: enforce |m| = M0 (M0 estimated)
+[recon_params.regularizer.const_mag]
 mu = 10.0                               # Penalty parameter
+inner_iters = 5                         # CG iterations per data-fidelity update
+# zero_outside = false                  # true: m = 0 outside the mask
+
+# The non-convex solver starts from a CG data-fit solution
+# warm_start_iters = 50                 # in [recon_params]; 0 starts from the backprojection
 
 # Alternatively, combine constant magnitude and TV; each term is
 # independent (set lambda_tv to 0 / const_mag to false to switch it off)
@@ -113,6 +117,9 @@ mu = 10.0                               # Penalty parameter
 # lambda_tv = 0.1                       # TV weight (0 = off)
 # mu = 10.0
 # inner_iters = 5
+# rho = 10.0                            # magnitude penalty (0: rho = mu)
+# rho_growth = 1.05                     # >1: rho grows each outer iteration ...
+# rho_max = 200.0                       # ... up to rho_max (0: unbounded)
 
 ```
 
