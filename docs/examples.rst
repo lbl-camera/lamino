@@ -37,7 +37,7 @@ Configuration File
    formats = ["tiff", "vti"]
 
    [recon_params]
-   max_outer_iters = 100
+   max_iters = 100
    tol = 1e-5
    xtol = 1e-5
    recon_dims = [21, 511, 511]
@@ -78,7 +78,7 @@ Configuration File
    formats = ["tiff", "vti"]
 
    [recon_params]
-   max_outer_iters = 100
+   max_iters = 100
    tol = 1e-6
    xtol = 1e-6
    recon_dims = [21, 511, 511]
@@ -136,7 +136,7 @@ Batch Script
    formats = ["tiff"]
 
    [recon_params]
-   max_outer_iters = 50
+   max_iters = 50
    tol = 1e-5
    xtol = 1e-5
    recon_dims = [32, 256, 256]

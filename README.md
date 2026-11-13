@@ -90,14 +90,14 @@ filename = "output.tiff"                # Output filename for reconstruction
 formats = ["tiff", "vti"]              # Available: "tiff", "vti"
 
 [recon_params]
-max_outer_iters = 50                    # Maximum outer iterations
+max_iters = 50                          # Maximum solver iterations
 tol = 1e-5                              # Convergence tolerance
 xtol = 1e-5                             # X-tolerance for convergence
 recon_dims = [51, 511, 511]            # Reconstruction dimensions [thickness, height, width]
 # recon_double = true                   # CUDA build: run in double precision (default: false)
 
 [recon_params.regularizer]
-method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMRF"
+method = "split_bregman"                # "split_bregman", "const_mag" or "combined"; omit the section for plain CG
 
 # Parameters for split_bregman method
 [recon_params.regularizer.split_bregman]

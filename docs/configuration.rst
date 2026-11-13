@@ -104,7 +104,7 @@ Main reconstruction settings:
 .. code-block:: toml
 
    [recon_params]
-   max_outer_iters = 100
+   max_iters = 100
    tol = 1e-5
    xtol = 1e-5
    recon_dims = [21, 511, 511]
@@ -112,7 +112,7 @@ Main reconstruction settings:
 Parameters
 ~~~~~~~~~~
 
-**max_outer_iters** (integer, required)
+**max_iters** (integer, required)
    Maximum number of outer iterations. Range: 1-1000.
    Typical values: 20-100.
 
@@ -321,7 +321,7 @@ Full configuration file example:
 
    # Reconstruction parameters
    [recon_params]
-   max_outer_iters = 100
+   max_iters = 100
    tol = 1e-5
    xtol = 1e-5
    recon_dims = [21, 511, 511]
@@ -372,7 +372,7 @@ Choosing Regularization Parameters
 Convergence Parameters
 ~~~~~~~~~~~~~~~~~~~~~~
 
-* Set ``max_outer_iters`` high enough (50-100) for convergence
+* Set ``max_iters`` high enough (50-100) for convergence
 * Use ``tol`` and ``xtol`` around 1e-5 for good quality
 * Monitor convergence in output logs
 * Reduce tolerances if reconstruction quality is insufficient
@@ -396,7 +396,7 @@ Troubleshooting
    Decrease regularization
 
 **Slow convergence**
-   * Increase max_outer_iters
+   * Increase max_iters
    * Adjust mu (split Bregman)
    * Check input data quality
 

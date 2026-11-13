@@ -240,7 +240,7 @@ Performance Tips
 ----------------
 
 * Use appropriate ``recon_dims`` - larger dimensions require more memory/time
-* Adjust ``max_outer_iters`` based on convergence monitoring
+* Adjust ``max_iters`` based on convergence monitoring
 * Use ``tol`` and ``xtol`` to control when reconstruction stops
 * Enable GPU acceleration for large problems (if available)
 * Use multiple CPU cores (automatically done with OpenMP)
@@ -257,7 +257,7 @@ Reduce reconstruction dimensions or process on a machine with more RAM.
 
 **Slow Convergence**
 
-* Increase ``max_outer_iters``
+* Increase ``max_iters``
 * Adjust regularization parameters
 * Check input data quality
 

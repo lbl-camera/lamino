@@ -329,7 +329,7 @@ namespace tomocam {
             throw std::runtime_error(
                 "Missing [recon_params] section in config file");
         }
-        // read max_outer_iters
+        // read max_iters
         p.maxIters = recon["max_iters"].value_or<size_t>(100);
         // read warm_start_iters (CG initialisation of the const_mag solvers)
         p.warm_start_iters = recon["warm_start_iters"].value_or<size_t>(50);
@@ -550,10 +550,11 @@ namespace tomocam {
         outfile << "formats = [\"tiff\", \"vti\"]  # available: \"tiff\", \"vti\"\n";
         outfile << "\n";
         outfile << "[recon_params]\n";
-        outfile << "max_outer_iters = 50\n";
+        outfile << "max_iters = 50\n";
         outfile << "tol = 1e-5\n";
         outfile << "xtol = 1e-5\n";
-        outfile << "# recon_double = false  # true: run the GPU reconstruction in double precision\n";
+        outfile << "# recon_double = false  # true: run the GPU reconstruction in "
+                   "double precision\n";
         outfile << "# warm_start_iters = 50  # const_mag/combined: initialise from "
                    "this many CG iterations (a data-fit solution); 0 starts from "
                    "the backprojection; default: 50\n";
