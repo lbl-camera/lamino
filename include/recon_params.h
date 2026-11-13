@@ -84,7 +84,7 @@ namespace tomocam {
                 reg_str = "Constant magnitude";
             if (regularizer == Regularizer::COMBINED) reg_str = "Combined";
             os << "Reconstruction Parameters:\n";
-            os << "  max_outer_iters: " << maxIters << "\n";
+            os << "  max_iters: " << maxIters << "\n";
             os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
                               recon_dims[1], recon_dims[2]);
             if (!mask_file.empty()) os << "  mask: " << mask_file << "\n";

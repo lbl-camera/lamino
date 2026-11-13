@@ -18,16 +18,9 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
-    'breathe',  # For Doxygen C++ documentation
     'myst_parser',  # For Markdown support
     'sphinx_copybutton',  # Copy button for code blocks
 ]
-
-# Breathe configuration for Doxygen integration
-breathe_projects = {
-    "Tomocam": "./doxygen/xml"
-}
-breathe_default_project = "Tomocam"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

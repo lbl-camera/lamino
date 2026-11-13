@@ -20,7 +20,7 @@ The library is optimized for performance using:
 ## Features
 
 - **Forward/Backward Projection**: NUFFT based projection operators
-- **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, and Nesterov accelerated gradient methods
+- **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, constant-magnitude, and combined constant-magnitude/TV methods
 - **Double precision on GPU**: optional `recon_double = true` runs the whole CUDA reconstruction in double precision
 - **TIFF I/O**: Read and write reconstruction data
 - **Paraview**: Plot magnetization vectors in paraview

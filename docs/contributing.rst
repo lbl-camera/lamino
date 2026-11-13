@@ -34,9 +34,9 @@ Build with Tests
 
 .. code-block:: bash
 
-   cmake --preset arch -DENABLE_TESTS=ON
-   cmake --build --preset arch
-   ctest --preset arch
+   cmake --preset linux -DENABLE_TESTS=ON
+   cmake --build --preset linux
+   ctest --test-dir build/release
 
 Code Style
 ----------
@@ -145,13 +145,13 @@ Running Tests
 .. code-block:: bash
 
    # Run all tests
-   ctest --preset arch
+   ctest --test-dir build/release
 
    # Run specific test
    ./build/tests/test_projection
 
    # Run with verbose output
-   ctest --preset arch --verbose
+   ctest --test-dir build/release --verbose
 
 Pull Request Process
 --------------------

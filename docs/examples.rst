@@ -3,10 +3,7 @@ Examples
 
 Practical examples for common reconstruction tasks.
 
-Example 1: Basic Scalar Reconstruction
----------------------------------------
-
-Example: Vector Field Reconstruction
+Example 1: Vector Field Reconstruction
 ---------------------------------------
 
 Reconstruct three magnetic field components using multiple gamma orientations.
@@ -57,38 +54,50 @@ Run Reconstruction
    export OMP_NUM_THREADS=16  # Use 16 CPU cores
    ./build/recon vector_recon.toml
 
-Example 3: High-Resolution with qGGMRF
----------------------------------------
+Example 2: Constant Magnitude with TV
+--------------------------------------
 
-Large reconstruction with edge-preserving regularization.
+Vector reconstruction of a sample with uniform magnetization magnitude, started
+from a CG data-fit solution.
 
 Configuration File
 ~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
 
-   # high_res_qggmrf.toml
+   # constmag_tv.toml
    [[input]]
-   filename = "data/highres_projections.tiff"
-   angles = "data/highres_angles.txt"
+   filename = "data/gamma0.tiff"
+   angles = "data/angles.txt"
    gamma = 0
 
+   [[input]]
+   filename = "data/gamma45.tiff"
+   angles = "data/angles.txt"
+   gamma = 45
+
    [output]
-   filename = "output/highres_recon.tiff"
+   filename = "output/constmag_tv.tiff"
    formats = ["tiff", "vti"]
 
    [recon_params]
-   max_iters = 100
-   tol = 1e-6
-   xtol = 1e-6
-   recon_dims = [21, 511, 511]
+   max_iters = 500
+   tol = 1e-5
+   xtol = 1e-5
+   recon_dims = [9, 319, 319]
+   warm_start_iters = 50      # CG initialisation (default)
 
    [recon_params.regularizer]
-   method = "qGGMRF"
+   method = "combined"
 
-   [recon_params.regularizer.qGGMRF]
-   sigma = 1000.0
-   p = 1.1  # Sharper edges
+   [recon_params.regularizer.combined]
+   const_mag = true
+   lambda_tv = 0.2
+   mu = 10.0
+   rho = 10.0
+   rho_growth = 1.05
+   rho_max = 200.0
+   inner_iters = 5
 
 Run Reconstruction
 ~~~~~~~~~~~~~~~~~~
@@ -96,12 +105,11 @@ Run Reconstruction
 .. code-block:: bash
 
    # Estimate memory requirements first
-   python estimate_memory.py --dims 25 1023 1023
+   python scripts/estimate_memory.py --help
 
-   # Run with all available cores
-   ./build/recon high_res_qggmrf.toml
+   ./build/recon constmag_tv.toml
 
-Example 4: Batch Processing
+Example 3: Batch Processing
 ----------------------------
 
 Process multiple samples with a script.
@@ -168,71 +176,65 @@ Run Batch
    chmod +x batch_recon.sh
    ./batch_recon.sh
 
-Example 5: Forward Projection (Simulation)
+Example 4: Forward Projection (Simulation)
 -------------------------------------------
 
-Generate synthetic projection data from a known volume.
+Generate synthetic projection data from a known magnetization volume (mumax3
+``.ovf`` files, one per component) with the ``forward`` tool, then reconstruct
+them.
 
-Create Synthetic Volume
-~~~~~~~~~~~~~~~~~~~~~~~~
+Forward Configuration
+~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. code-block:: toml
 
-   # create_phantom.py
-   import numpy as np
-   import tifffile
+   # forward.toml
+   [input]
+   data_path = "/path/to/sim"          # directory with the .ovf files
+   component_1 = "m000000.ovf"         # vector OVF (or one file per component)
+   component_2 = ""
+   component_3 = ""
 
-   # Create a 3D phantom with magnetic features
-   dims = (32, 256, 256)
-   phantom = np.zeros(dims, dtype=np.float32)
+   [angles]                            # [begin, end) in degrees, num_projs steps
+   begin = -70
+   end = 71
+   num_projs = 141
 
-   # Add sphere
-   center = np.array([16, 128, 128])
-   radius = 40
-   for z in range(dims[0]):
-       for y in range(dims[1]):
-           for x in range(dims[2]):
-               if np.linalg.norm([z-center[0], y-center[1], x-center[2]]) < radius:
-                   phantom[z, y, x] = 1.0
+   [output]
+   basedir = "/path/to/projections"
+   dims = [451, 451]                   # detector size (rows, columns)
 
-   # Save phantom
-   tifffile.imwrite('phantom.tiff', phantom)
-   print("Phantom created: phantom.tiff")
+   [[projections]]
+   gamma = 0
+   filename = "gamma0.tiff"
 
-Create Angles File
-~~~~~~~~~~~~~~~~~~
+   [[projections]]
+   gamma = 45
+   filename = "gamma45.tiff"
 
-.. code-block:: python
-
-   # create_angles.py
-   import numpy as np
-
-   # Create evenly spaced angles from 0 to 180 degrees
-   angles = np.linspace(0, 180, 120, endpoint=False)
-   np.savetxt('angles.txt', angles, fmt='%.6f')
-   print(f"Created {len(angles)} angles")
+Instead of ``begin``/``end``/``num_projs``, ``[angles]`` may give
+``filename = "angles.txt"``. Each ``[[projections]]`` entry also accepts
+``beta`` and ``alignment`` (an ``alignlsq`` TOML that overrides the angles,
+``gamma``, ``beta`` and shifts).
 
 Generate Projections
 ~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   # Create phantom and angles
-   python create_phantom.py
-   python create_angles.py
-
-   # Generate forward projections
-   ./build/forward phantom.tiff projections.tiff angles.txt
+   ./build/forward forward.toml
 
 Reconstruct
 ~~~~~~~~~~~
 
+Point the ``[[input]]`` entries of a ``recon`` configuration at the generated
+TIFF stacks (one angles file with the same angles for each), then:
+
 .. code-block:: bash
 
-   # Now reconstruct from projections
-   ./build/recon simulation_config.toml
+   ./build/recon recon.toml
 
-Example 6: Python Integration
+Example 5: Python Integration
 ------------------------------
 
 Use Tomocam output in Python analysis.
@@ -248,7 +250,7 @@ Load and Visualize
    from mpl_toolkits.mplot3d import Axes3D
 
    # Load reconstruction
-   recon = tifffile.imread('output/reconstruction.tiff')
+   recon = tifffile.imread('output/reconstruction0.tiff')  # component 0
    print(f"Reconstruction shape: {recon.shape}")
    print(f"Value range: [{recon.min():.3f}, {recon.max():.3f}]")
 
@@ -282,7 +284,7 @@ Compute Statistics
    import numpy as np
    import tifffile
 
-   recon = tifffile.imread('output/reconstruction.tiff')
+   recon = tifffile.imread('output/reconstruction0.tiff')  # component 0
 
    # Basic statistics
    print(f"Mean: {np.mean(recon):.6f}")
@@ -301,7 +303,7 @@ Compute Statistics
    volume_fraction = np.sum(domains) / domains.size
    print(f"Volume fraction above threshold: {volume_fraction:.2%}")
 
-Example 7: ParaView Visualization
+Example 6: ParaView Visualization
 ----------------------------------
 
 Visualize VTI output in ParaView.
@@ -352,5 +354,4 @@ Next Steps
 
 * Adapt these examples for your specific datasets
 * Experiment with different :doc:`configuration parameters <configuration>`
-* Explore the :doc:`API documentation <api/index>` for custom applications
 * Review :doc:`usage guide <usage>` for more details

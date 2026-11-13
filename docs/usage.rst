@@ -273,4 +273,3 @@ Next Steps
 
 * Learn about :doc:`configuration options <configuration>` in detail
 * Explore :doc:`examples` for specific use cases
-* Check the :doc:`API documentation <api/index>` for library usage

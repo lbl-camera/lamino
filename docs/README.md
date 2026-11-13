@@ -8,7 +8,6 @@ This directory contains the documentation for Tomocam, built with Sphinx and hos
 
 ```bash
 pip install -r requirements.txt
-sudo apt-get install doxygen graphviz  # On Ubuntu/Debian
 ```
 
 ### Build HTML Documentation
@@ -36,11 +35,9 @@ The PDF will be generated in `_build/latex/Tomocam.pdf`.
 - `usage.rst` - Usage guide
 - `configuration.rst` - Configuration reference
 - `examples.rst` - Practical examples
-- `api/` - API documentation
 - `contributing.rst` - Contribution guidelines
 - `license.rst` - License information
 - `conf.py` - Sphinx configuration
-- `Doxyfile` - Doxygen configuration for C++ API
 - `requirements.txt` - Python dependencies
 
 ## ReadTheDocs Configuration
@@ -48,10 +45,8 @@ The PDF will be generated in `_build/latex/Tomocam.pdf`.
 The repository includes `.readthedocs.yaml` at the root, which configures ReadTheDocs to:
 
 1. Install Python dependencies from `docs/requirements.txt`
-2. Install Doxygen for C++ API documentation
-3. Run Doxygen to generate XML output
-4. Build Sphinx documentation with Breathe integration
-5. Generate PDF, EPUB, and HTML formats
+2. Build the Sphinx documentation
+3. Generate PDF, EPUB, and HTML formats
 
 ## Automatic Builds
 
@@ -73,23 +68,10 @@ Then open http://localhost:8000 in your browser.
 ## Updating Documentation
 
 1. Edit `.rst` files in this directory
-2. For C++ API changes, update comments in header files
-3. Rebuild with `make html` to preview
-4. Commit and push changes to trigger ReadTheDocs rebuild
+2. Rebuild with `make html` to preview
+3. Commit and push changes to trigger ReadTheDocs rebuild
 
 ## Troubleshooting
-
-**Doxygen not found:**
-```bash
-sudo apt-get install doxygen graphviz
-```
-
-**Breathe errors:**
-Ensure Doxygen XML is generated:
-```bash
-make doxygen
-ls doxygen/xml/  # Should contain index.xml
-```
 
 **Missing dependencies:**
 ```bash
