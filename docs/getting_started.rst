@@ -58,4 +58,3 @@ Next Steps
 
 * Learn about :doc:`configuration options <configuration>`
 * Explore :doc:`usage examples <examples>`
-* Read the :doc:`API documentation <api/index>`

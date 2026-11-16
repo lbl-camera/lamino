@@ -57,6 +57,9 @@ namespace tomocam {
         // CONST_MAG / COMBINED(const_mag): number of CG iterations used to
         // initialise the non-convex ADMM instead of the raw backprojection (0: off)
         size_t warm_start_iters = 50;
+        // run the whole GPU reconstruction (operators and solver) in double
+        // precision; the projections are read in float and converted
+        bool recon_double = false;
         float lambda = 0.1f;
         float mu = 10.0f;
         bool const_mag = false; // COMBINED only: enforce |m| = M0
@@ -78,16 +81,17 @@ namespace tomocam {
             std::string reg_str = "Unconstrained";
             if (regularizer == Regularizer::SPLIT_BREGMAN) reg_str = "Split-Bregman";
             if (regularizer == Regularizer::CONST_MAG)
-                reg_str = "Constant magnitude + L2";
+                reg_str = "Constant magnitude";
             if (regularizer == Regularizer::COMBINED) reg_str = "Combined";
             os << "Reconstruction Parameters:\n";
-            os << "  max_outer_iters: " << maxIters << "\n";
+            os << "  max_iters: " << maxIters << "\n";
             os << std::format("  recon_dims: [{}, {}, {}]\n", recon_dims[0],
                               recon_dims[1], recon_dims[2]);
             if (!mask_file.empty()) os << "  mask: " << mask_file << "\n";
             if (mask_dims != recon_dims)
                 os << std::format("  mask_dims: [{}, {}, {}]\n", mask_dims[0],
                                   mask_dims[1], mask_dims[2]);
+            os << "  precision: " << (recon_double ? "double" : "float") << "\n";
             os << "  tol: " << tol << "\n";
             os << "  xtol: " << xtol << "\n";
             if (regularizer == Regularizer::CONST_MAG ||

@@ -27,6 +27,10 @@ add_executable(test_grad test_grad.cpp)
 target_link_libraries(test_grad PUBLIC tomocam)
 add_test(NAME test_grad COMMAND test_grad)
 
+add_executable(test_rotation_convention test_rotation_convention.cpp)
+target_link_libraries(test_rotation_convention PUBLIC tomocam)
+add_test(NAME test_rotation_convention COMMAND test_rotation_convention)
+
 add_executable(test_adjoint test_adjoint.cpp)
 target_link_libraries(test_adjoint PUBLIC tomocam)
 add_test(NAME test_adjoint COMMAND test_adjoint)
@@ -51,6 +55,10 @@ if(CMAKE_CUDA_COMPILER)
     add_executable(test_gpu_alignment test_gpu_alignment.cu)
     target_link_libraries(test_gpu_alignment PUBLIC tomocam)
     add_test(NAME test_gpu_alignment COMMAND test_gpu_alignment)
+
+    add_executable(test_gpu_fft test_gpu_fft.cu)
+    target_link_libraries(test_gpu_fft PUBLIC tomocam)
+    add_test(NAME test_gpu_fft COMMAND test_gpu_fft)
 
     add_executable(test_gpu_toeplitz test_gpu_toeplitz.cu)
     target_link_libraries(test_gpu_toeplitz PUBLIC tomocam)

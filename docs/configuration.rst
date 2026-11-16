@@ -1,7 +1,7 @@
 Configuration Reference
 =======================
 
-Complete reference for TOML configuration files used by Tomocam-lamino
+Complete reference for TOML (or JSON, same keys) configuration files used by Tomocam-lamino
 
 Configuration File Structure
 -----------------------------
@@ -36,6 +36,30 @@ Parameters
 
 **gamma** (number, required)
    Orientation angle in degrees for this dataset.
+
+**beta** (number, optional, default 0)
+   Tilt of the rotation axis in degrees.
+
+**shifts** (string, optional)
+   Text file with one ``dx dy`` pair (pixels) per projection: per-projection
+   center-of-rotation shifts. Takes priority over ``cor-offset``.
+
+**cor-offset** (array of 2 numbers, optional)
+   ``[dx, dy]`` center-of-rotation shift in pixels, applied to every projection.
+
+**alignment** (string, optional)
+   TOML file written by ``alignlsq`` that overrides this dataset's angles,
+   ``gamma``, ``beta`` and shifts. Keys read: ``corrected_angles_deg`` (required),
+   ``gamma_deg``, ``beta_deg`` and ``shifts_px`` (one ``[dx, dy]`` per projection).
+
+.. note::
+   **Angle convention.** The projection rotation is
+   ``R = Rx(angle) * Ry(beta) * Rz(gamma)``, where ``Rx``, ``Ry`` and ``Rz`` are all
+   active, counter-clockwise (right-handed) positive rotations. This is the same
+   convention as ``alignlsq``, so the ``corrected_angles_deg``, ``beta_deg`` and
+   ``gamma_deg`` it writes can be used here without any sign change. ``gamma`` is
+   only defined relative to the other datasets in the same reconstruction. The
+   convention is checked by ``tests/test_rotation_convention.cpp``.
 
 Multiple Inputs
 ~~~~~~~~~~~~~~~
@@ -73,16 +97,19 @@ Specifies output file settings:
 Parameters
 ~~~~~~~~~~
 
-**filename** (string, required)
-   Base filename for output. Extension is added based on format.
+**filename** (string, default ``./recon.tiff``)
+   Output file name. For ``"tiff"`` a trailing ``.tif``/``.tiff`` is dropped and the
+   three magnetization components are written as ``<name>0.tiff``,
+   ``<name>1.tiff`` and ``<name>2.tiff``. The ``"vti"`` file is written to
+   ``filename`` as given.
 
 **formats** (array of strings, optional)
-   List of output formats to generate. Default: ``["tiff"]``
-   
+   List of output formats to generate. Default: ``["tiff", "vti"]``
+
    Available formats:
-   
-   * ``"tiff"`` - Multi-page TIFF file (32-bit float)
-   * ``"vti"`` - VTK ImageData format for ParaView/VisIt
+
+   * ``"tiff"`` - one 32-bit float TIFF stack per component
+   * ``"vti"`` - VTK ImageData format (all components) for ParaView/VisIt
 
 Reconstruction Parameters
 -------------------------
@@ -92,7 +119,7 @@ Main reconstruction settings:
 .. code-block:: toml
 
    [recon_params]
-   max_outer_iters = 100
+   max_iters = 100
    tol = 1e-5
    xtol = 1e-5
    recon_dims = [21, 511, 511]
@@ -100,16 +127,18 @@ Main reconstruction settings:
 Parameters
 ~~~~~~~~~~
 
-**max_outer_iters** (integer, required)
-   Maximum number of outer iterations. Range: 1-1000.
-   Typical values: 20-100.
+**max_iters** (integer, default 100)
+   Maximum number of iterations (CG iterations for unregularized
+   reconstruction, outer iterations for the regularized solvers).
+   Typical values: 20-100 for regularized solvers; unregularized CG on
+   ill-conditioned data should be stopped early (about 100-150).
 
-**tol** (float, required)
+**tol** (float, default 1e-5)
    Convergence tolerance for objective function.
    Reconstruction stops when relative change < tol.
    Typical values: 1e-5 to 1e-3.
 
-**xtol** (float, required)
+**xtol** (float, default 1e-5)
    Convergence tolerance for solution update.
    Reconstruction stops when relative change in x < xtol.
    Typical values: 1e-5 to 1e-3.
@@ -123,6 +152,14 @@ Parameters
    Starting from a data-fit CG solution avoids this. Default: 50. Set 0 to
    start from the backprojection instead (the behaviour before this option
    existed). Ignored by the other regularizers.
+
+**recon_double** (bool, optional)
+   Run the whole GPU reconstruction (projections, NUFFTs, FFTs and the solver)
+   in double precision. Default: false (single precision). Single-precision CG
+   on ill-conditioned problems (e.g. thin volumes with a wide detector)
+   stagnates and then diverges after a few hundred iterations because rounding
+   noise in the operator is amplified by its smallest eigenvalues; double
+   precision converges monotonically. It needs about twice the device memory.
 
 **recon_dims** (array of 3 integers, required)
    Reconstruction volume dimensions ``[thickness, height, width]``.
@@ -152,7 +189,10 @@ Parameters
 Regularization
 --------------
 
-Tomocam-lamino supports two regularization methods:
+With no ``[recon_params.regularizer]`` section the reconstruction is plain
+conjugate gradient (CG) on the normal equations, stopped by ``max_iters``,
+``tol`` and ``xtol``. Otherwise ``method`` selects one of ``"split_bregman"``,
+``"const_mag"`` or ``"combined"``.
 
 Split Bregman Method
 ~~~~~~~~~~~~~~~~~~~~
@@ -179,8 +219,29 @@ Parameters:
    Penalty parameter for split Bregman algorithm.
    Range: 1.0 - 100.0. Typical: 5.0 - 20.0.
 
-**inner_iters** (int)
-  Split-Bregman runs a CG for data-fidelity part
+**inner_iters** (int, default 1)
+   Split-Bregman runs a CG for data-fidelity part
+
+Constant Magnitude
+~~~~~~~~~~~~~~~~~~
+
+Constant-magnitude constraint :math:`|m| = M_0` without TV:
+
+.. code-block:: toml
+
+   [recon_params.regularizer]
+   method = "const_mag"
+
+   [recon_params.regularizer.const_mag]
+   mu = 10.0
+   inner_iters = 5
+   zero_outside = false
+
+Only ``mu``, ``inner_iters`` and ``zero_outside`` are read here. The ``rho``,
+``rho_growth``, ``rho_max``, ``estimate_Ms`` and ``Ms`` options exist only for
+``method = "combined"`` (use ``const_mag = true`` and ``lambda_tv = 0`` there to
+get the constant-magnitude constraint with them). The non-convex solver is
+initialised from ``warm_start_iters`` CG iterations.
 
 Combined Constant Magnitude / TV
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -209,7 +270,7 @@ Parameters:
    TV weight; 0 disables TV. Default: 0.
 
 **mu**, **inner_iters**
-   As for split Bregman. ``mu`` is the TV penalty.
+   As for split Bregman (defaults 10 and 1). ``mu`` is the TV penalty.
 
 **rho** (float)
    Penalty of the magnitude split :math:`z = m`. 0 (default) means
@@ -241,33 +302,6 @@ Parameters:
    2. Run with ``const_mag = true`` and ``rho_growth`` about 1.01 - 1.05 up to
       ``rho_max`` about 10 - 50 times ``rho``; start ``rho`` at the order of
       ``mu``.
-
-QGGMRF Regularization
-~~~~~~~~~~~~~~~~~~~~~
-
-q-Generalized Gaussian Markov Random Field:
-
-.. code-block:: toml
-
-   [recon_params.regularizer]
-   method = "qGGMRF"
-
-   [recon_params.regularizer.qGGMRF]
-   sigma = 1000.0
-   p = 1.2
-
-Parameters:
-
-**sigma** (float)
-   Scale parameter. Controls regularization strength.
-   Range: 10.0 - 10000.0. Typical: 100.0 - 2000.0.
-
-**p** (float)
-   Shape parameter. Controls edge preservation.
-   Range: 1.0 - 2.0. 
-   
-   * p = 2.0: smoothest
-   * p = 1.0: preserves edges
 
 Complete Example
 ----------------
@@ -301,7 +335,7 @@ Full configuration file example:
 
    # Reconstruction parameters
    [recon_params]
-   max_outer_iters = 100
+   max_iters = 100
    tol = 1e-5
    xtol = 1e-5
    recon_dims = [21, 511, 511]
@@ -342,17 +376,10 @@ Choosing Regularization Parameters
 3. Decrease lambda if reconstruction is over-smoothed
 4. Adjust mu if convergence is slow (increase) or unstable (decrease)
 
-**For qGGMRF:**
-
-1. Start with ``sigma = 1000.0``, ``p = 1.2``
-2. Increase sigma for more regularization
-3. Decrease p to preserve sharper edges (minimum 1.0)
-4. Increase p for smoother reconstruction (maximum 2.0)
-
 Convergence Parameters
 ~~~~~~~~~~~~~~~~~~~~~~
 
-* Set ``max_outer_iters`` high enough (50-100) for convergence
+* Set ``max_iters`` high enough (50-100) for convergence
 * Use ``tol`` and ``xtol`` around 1e-5 for good quality
 * Monitor convergence in output logs
 * Reduce tolerances if reconstruction quality is insufficient
@@ -370,13 +397,13 @@ Troubleshooting
 ---------------
 
 **Reconstruction too noisy**
-   Increase regularization (lambda or sigma)
+   Increase regularization (lambda)
 
 **Reconstruction too smooth/blurry**
    Decrease regularization
 
 **Slow convergence**
-   * Increase max_outer_iters
+   * Increase max_iters
    * Adjust mu (split Bregman)
    * Check input data quality
 

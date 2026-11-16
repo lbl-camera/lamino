@@ -11,7 +11,6 @@ Tomocam-lamino is a high-performance C++ library for tomographic reconstruction 
    installation
    usage
    configuration
-   api/index
    examples
    contributing
    license
@@ -22,8 +21,7 @@ Overview
 Tomocam-lamino provides:
 
 * **Forward/Backward Projection**: Efficient projection operators on polar grids
-* **Iterative Reconstruction**: Conjugate gradient and Nesterov accelerated gradient methods
-* **MBIR**: Model-Based Iterative Reconstruction with QGGMRF penalty
+* **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, constant-magnitude and combined constant-magnitude/TV solvers
 * **TIFF I/O**: Read and write reconstruction data
 * **GPU Acceleration**: Optional CUDA support for enhanced performance
 
@@ -43,7 +41,6 @@ Supported Platforms
 ~~~~~~~~~~~~~~~~~~~
 
 * Linux (tested on Arch Linux)
-* macOS (15.5+)
 
 Quick Start
 -----------
@@ -52,13 +49,8 @@ Build the project:
 
 .. code-block:: bash
 
-   # Linux
-   cmake --preset arch
-   cmake --build --preset arch
-
-   # macOS
-   cmake --preset macos
-   cmake --build --preset macos
+   cmake --preset linux
+   cmake --build --preset linux
 
 Run reconstruction:
 

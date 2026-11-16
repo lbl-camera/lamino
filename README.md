@@ -20,7 +20,8 @@ The library is optimized for performance using:
 ## Features
 
 - **Forward/Backward Projection**: NUFFT based projection operators
-- **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, and Nesterov accelerated gradient methods
+- **Iterative Reconstruction**: Conjugate gradient, Split-Bregman, constant-magnitude, and combined constant-magnitude/TV methods
+- **Double precision on GPU**: optional `recon_double = true` runs the whole CUDA reconstruction in double precision
 - **TIFF I/O**: Read and write reconstruction data
 - **Paraview**: Plot magnetization vectors in paraview
 
@@ -73,51 +74,59 @@ The reconstruction tool uses a TOML configuration file to specify input data and
 Create a TOML file with the following structure for vector magnetic field reconstruction:
 
 ```toml
-# Multiple input datasets with different gamma angles for vector reconstruction
+# One [[input]] per gamma orientation (two or more for a vector reconstruction)
 [[input]]
-filename = "/path/to/gamma0_stack.tiff"
-angles = "/path/to/gamma0_angles.txt"
+filename = "/path/to/gamma0_stack.tiff"     # projection stack
+angles = "/path/to/angles.txt"              # one angle per line (degrees or radians)
 gamma = 0
 
 [[input]]
 filename = "/path/to/gamma45_stack.tiff"
-angles = "/path/to/gamma45_angles.txt"
+angles = "/path/to/angles.txt"
 gamma = 45
 
 [output]
-filename = "output.tiff"                # Output filename for reconstruction
-formats = ["tiff", "vti"]              # Available: "tiff", "vti"
+filename = "output/constmag_recon.tiff"     # written as <name>0.tiff, <name>1.tiff, <name>2.tiff
+formats = ["tiff", "vti"]                   # available: "tiff", "vti"
 
 [recon_params]
-max_outer_iters = 50                    # Maximum outer iterations
-tol = 1e-5                              # Convergence tolerance
-xtol = 1e-5                             # X-tolerance for convergence
-recon_dims = [51, 511, 511]            # Reconstruction dimensions [thickness, height, width]
+max_iters = 500                             # maximum solver iterations
+tol = 1e-5                                  # convergence tolerance
+xtol = 1e-5                                 # tolerance on the solution update
+recon_dims = [9, 319, 319]                  # [thickness, height, width]
+# recon_double = true                       # CUDA build: double precision (default: false)
+# warm_start_iters = 50                     # CG iterations used to initialise const_mag (default 50)
 
+# Constant magnitude: enforce |m| = M0 (M0 is estimated)
 [recon_params.regularizer]
-method = "split_bregman"                # Regularizer: "split_bregman" or "qGGMRF"
+method = "const_mag"                        # "const_mag", "combined"; omit the section for plain CG
 
-# Parameters for split_bregman method
-[recon_params.regularizer.split_bregman]
-lambda = 0.5                            # Regularization parameter
-mu = 10.0                               # Penalty parameter
+[recon_params.regularizer.const_mag]
+inner_iters = 5                             # CG iterations per data-fidelity update
+# mu = 10.0                                 # penalty parameter (default 10)
+# zero_outside = false                      # true: m = 0 outside the mask
 
-# Alternatively, combine constant magnitude and TV; each term is
-# independent (set lambda_tv to 0 / const_mag to false to switch it off)
+# Alternatively, combine constant magnitude and TV; each term is independent
+# (set lambda_tv to 0 / const_mag to false to switch it off). Only "combined"
+# reads rho, rho_growth, rho_max, Ms and estimate_Ms.
 # [recon_params.regularizer]
 # method = "combined"
+#
 # [recon_params.regularizer.combined]
-# const_mag = true                      # enforce |m| = M0 (M0 estimated)
-# lambda_tv = 0.1                       # TV weight (0 = off)
-# mu = 10.0
 # inner_iters = 5
-
+# const_mag = true                          # enforce |m| = M0
+# lambda_tv = 0.1                           
+# mu = 10.0
+# rho = 10.0                                # magnitude penalty (0: rho = mu)
+# rho_max = 200.0                           # ... up to rho_max (0: unbounded)
+# rho_growth = 1.01                         # >1: rho grows every outer iteration ...
 ```
 
 **Notes:**
 - Use multiple `[[input]]` sections to specify datasets at different gamma angles for vector field reconstruction
 - Angles can be in degrees or radians (automatically converted)
 - The angles file should contain one angle per line
+- `recon_double = true` (CUDA builds) runs projections, NUFFTs, FFTs and the solver in double precision, needing about twice the device memory. Use it for long unregularized CG runs on ill-conditioned problems, where single-precision rounding noise makes CG diverge after a few hundred iterations. Inputs are read in single precision and the saved volume is written as float
 - Run `./build/recon` without arguments to generate a template configuration file (`config.toml`)
 - Configs may also be written as JSON (file extension `.json`) with the same keys: `[[input]]` becomes `"input": [{...}]` and `[recon_params.regularizer]` becomes nested objects. `null` values are treated as unset.
 

@@ -245,8 +245,8 @@ namespace tomocam::gpu {
 
             // cleanup plan caches; all device objects destroyed at end of this block
             // before cudaDeviceReset() is called below
-            tomocam::gpu::nufft::plans::cache<float>.clear();
-            tomocam::gpu::fft::plans::cache<float>.clear();
+            tomocam::gpu::nufft::plans::cache<T>.clear();
+            tomocam::gpu::fft::plans::cache<T>.clear();
         }
         cudaDeviceReset();
 

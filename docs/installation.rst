@@ -72,16 +72,8 @@ Configure and Build (Linux)
 
 .. code-block:: bash
 
-   cmake --preset arch
-   cmake --build --preset arch
-
-Configure and Build (macOS)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   cmake --preset macos
-   cmake --build --preset macos
+   cmake --preset linux
+   cmake --build --preset linux
 
 Custom Build Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,14 +95,9 @@ To build and run tests:
 
 .. code-block:: bash
 
-   # Linux
-   cmake --preset arch -DENABLE_TESTS=ON
-   cmake --build --preset arch
-   ctest --preset arch
-
-   # macOS
-   cmake --preset macos -DENABLE_TESTS=ON
-   cmake --build --preset macos
+   cmake --preset linux -DENABLE_TESTS=ON
+   cmake --build --preset linux
+   ctest --test-dir build/release
 
 Installation
 ------------

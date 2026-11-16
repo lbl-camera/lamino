@@ -8,17 +8,13 @@ help:
 	@echo "  html       - Build HTML documentation"
 	@echo "  pdf        - Build PDF documentation"
 	@echo "  clean      - Remove build artifacts"
-	@echo "  doxygen    - Generate Doxygen XML"
 	@echo "  serve      - Start local documentation server"
 	@echo ""
 
 clean:
-	rm -rf _build/ doxygen/
+	rm -rf _build/
 
-doxygen:
-	doxygen Doxyfile
-
-html: doxygen
+html:
 	sphinx-build -b html . _build/html
 
 pdf:

@@ -23,6 +23,7 @@
 
 #include <cuda/std/complex>
 #include <cufft.h>
+#include <type_traits>
 
 #include "gpu/utils.h"
 
@@ -87,6 +88,33 @@ namespace tomocam::gpu::fft {
         static void destroy(plan_type plan) { cufftDestroy(plan); }
     };
 
+    // The callers request a transform by kind (CUFFT_C2C, CUFFT_R2C or
+    // CUFFT_C2R); the plan must use the matching precision, otherwise a
+    // single-precision plan silently transforms only half of a double array.
+    template <typename T>
+    constexpr cufftType resolve_fft_type(cufftType kind) {
+        if constexpr (std::is_same_v<T, double>) {
+            switch (kind) {
+                case CUFFT_C2C:
+                case CUFFT_Z2Z: return CUFFT_Z2Z;
+                case CUFFT_R2C:
+                case CUFFT_D2Z: return CUFFT_D2Z;
+                case CUFFT_C2R:
+                case CUFFT_Z2D: return CUFFT_Z2D;
+            }
+        } else {
+            switch (kind) {
+                case CUFFT_C2C:
+                case CUFFT_Z2Z: return CUFFT_C2C;
+                case CUFFT_R2C:
+                case CUFFT_D2Z: return CUFFT_R2C;
+                case CUFFT_C2R:
+                case CUFFT_Z2D: return CUFFT_C2R;
+            }
+        }
+        return kind;
+    }
+
     template <typename T>
     class cuFFTPlanWrapper {
       private:
@@ -100,7 +128,7 @@ namespace tomocam::gpu::fft {
         // the leading dim). For ndim=3, n = {n1, n2, n3} (single, unbatched 3D
         // transform -- no leading batch dim).
         cuFFTPlanWrapper(int ndim, int *n, cufftType type, int gpu_id)
-            : device_id(gpu_id), fft_type(type) {
+            : device_id(gpu_id), fft_type(resolve_fft_type<T>(type)) {
             SAFE_CALL(cudaSetDevice(device_id));
             int ierr;
             if (ndim == 2) {
