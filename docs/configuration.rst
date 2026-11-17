@@ -194,6 +194,19 @@ conjugate gradient (CG) on the normal equations, stopped by ``max_iters``,
 ``tol`` and ``xtol``. Otherwise ``method`` selects one of ``"split_bregman"``,
 ``"const_mag"`` or ``"combined"``.
 
+.. note::
+   **Amplitude.** The projections are used as given; they are not normalised by
+   their maximum. Data written by the ``forward`` program reconstruct to the
+   amplitude of the magnetisation that produced them (projection = sum of
+   :math:`\mathbf{d}\cdot\mathbf{m}` along the beam divided by the padded
+   thickness, see ``projection_scale`` in ``include/padding.h``). ``Ms`` is
+   therefore in the units of the magnetisation, and the TV weights act on data
+   of their actual range: a ``lambda`` / ``lambda_tv`` tuned before this change
+   (when the data were divided by their maximum :math:`y_{max}`) corresponds to
+   ``lambda * y_max`` now. Reconstruct with the same thickness
+   (``recon_dims[0]``) as the box the data were simulated in; a thicker box
+   scales the result by the ratio of the padded thicknesses.
+
 Split Bregman Method
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -286,7 +299,8 @@ Parameters:
 **estimate_Ms** (bool), **Ms** (float)
    By default :math:`M_s` is re-estimated every iteration as the mean of
    :math:`|m + b_z|` over the region. Set ``estimate_Ms = false`` and ``Ms > 0``
-   to hold it fixed.
+   to hold it fixed. ``Ms`` is in the units of the magnetisation (e.g. 1 for
+   normalised micromagnetic data simulated with ``forward``).
 
 **zero_outside** (bool)
    Set :math:`z = 0` outside the reconstructed region instead of leaving the

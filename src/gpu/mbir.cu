@@ -52,11 +52,6 @@ namespace tomocam::gpu {
         // create logger
         Logger logger(params.logMode, params.logfile);
 
-        T proj_max = (T)0;
-        for (const auto &ds : datasets) {
-            proj_max = std::max(proj_max, tomocam::array::max(ds.projs));
-        }
-
         // pad solution and projection data
         T padfac = static_cast<T>(params.PAD_FACTOR);
         dims_t recon_dims = params.recon_dims;
@@ -86,6 +81,14 @@ namespace tomocam::gpu {
                                out_dims.n1, out_dims.n2, out_dims.n3, grid_n2,
                                grid_n3));
 
+        // bring the data to the amplitude convention of the operators, so the
+        // reconstruction has the amplitude of the magnetisation that produced
+        // the data (see projection_scale in padding.h)
+        const T data_scale =
+            projection_scale<T>(recon_dims.n1, out_dims, grid_n2, grid_n3);
+        logger.log(
+            std::format("data scale {:.6g}\n", static_cast<double>(data_scale)));
+
         // move data back to host after all GPU work is done; declared outside the
         // device scope so it survives past cudaDeviceReset()
         std::array<Array<T>, 3> recon_host;
@@ -111,9 +114,9 @@ namespace tomocam::gpu {
             for (size_t i = 0; i < n_datasets; ++i) {
                 const auto &ds = datasets[i];
 
-                // move data to device and normalize
+                // move data to device and scale (see data_scale above)
                 DeviceArray<T> y(ds.projs);
-                y /= proj_max;
+                y *= data_scale;
 
                 // zero-pad projections to the polar grid size to avoid aliasing
                 y = pad2d(y, grid_n2, grid_n3, PadType::SYMMETRIC);

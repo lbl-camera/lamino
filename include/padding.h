@@ -61,6 +61,27 @@ namespace tomocam {
         return N;
     }
 
+    // Amplitude convention of projection data. The `forward` program writes the
+    // projection of a box of (unpadded) thickness n1_box as
+    //     y = (sum of m along the beam) / padded_dim(n1_box),
+    // whereas tomocam::forward() on a volume `vol` sampled on a g2 x g3 polar grid
+    // returns  (sum of m along the beam) * g2 * g3 / (vol.n1 * vol.n2 * vol.n3)
+    // (the polar-grid ifft2 is unnormalised). Hence
+    //     y = forward(m) / projection_scale(n1_box, vol, g2, g3).
+    // `forward` divides its output by this factor, and the solvers multiply the
+    // data by it, so that a reconstruction of `forward` data has the amplitude of
+    // the original magnetisation, independent of padding, grid and data range.
+    template <typename T>
+    T projection_scale(size_t n1_box, const dims_t &vol, size_t g2, size_t g3) {
+        const double n1_conv = static_cast<double>(
+            padded_dim(n1_box, static_cast<double>(DEFAULT_PAD_FACTOR)));
+        const double voxels = static_cast<double>(vol.n1) *
+                              static_cast<double>(vol.n2) *
+                              static_cast<double>(vol.n3);
+        return static_cast<T>(static_cast<double>(g2) * static_cast<double>(g3) *
+                              n1_conv / voxels);
+    }
+
     // Largest odd size <= n. Volume n2/n3 must be odd so the NUFFT mode window
     // [-(N-1)/2, (N-1)/2] is centred on the same origin as the polar grid.
     inline size_t odd_dim(size_t n) { return n % 2 == 0 ? n - 1 : n; }

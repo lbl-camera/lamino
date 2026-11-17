@@ -290,13 +290,11 @@ int main(int argc, char **argv) {
         std::max(vol_inplane, static_cast<size_t>(output_dims[1])), PADDING);
     std::cerr << "Polar grid dimensions: [" << nrows << ", " << ncols << "]\n";
 
-    // forward() divides by the voxel count of the volume it is given. Rescale so
-    // the output keeps the convention of the earlier (padded-volume) tool, i.e.
-    // projection sum / padded_dim(n1).
-    const double vol_voxels = static_cast<double>(vol_n1 * vol_n2 * vol_n3);
-    const double legacy_scale =
-        static_cast<double>(nrows) * static_cast<double>(ncols) *
-        static_cast<double>(tomocam::padded_dim(vol_n1, PADDING)) / vol_voxels;
+    // forward() divides by the voxel count of the volume it is given. Rescale to
+    // the data convention projection sum / padded_dim(n1) (see projection_scale;
+    // the reconstruction applies the same factor to the data).
+    const double legacy_scale = tomocam::projection_scale<double>(
+        vol_n1, tomocam::dims_t{vol_n1, vol_n2, vol_n3}, nrows, ncols);
 
     // loop over projections
     for (size_t k = 0; k < projections.size(); ++k) {

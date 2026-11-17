@@ -73,3 +73,7 @@ endif()
 add_executable(test_forward_consistency test_forward_consistency.cpp)
 target_link_libraries(test_forward_consistency PUBLIC tomocam)
 add_test(NAME test_forward_consistency COMMAND test_forward_consistency)
+
+add_executable(test_recon_amplitude test_recon_amplitude.cpp)
+target_link_libraries(test_recon_amplitude PUBLIC tomocam)
+add_test(NAME test_recon_amplitude COMMAND test_recon_amplitude)

@@ -70,15 +70,15 @@ namespace tomocam {
         // start preprocessing timer
         Timer t0;
         t0.start();
-        T proj_max = 0.0;
-        for (const auto &ds : datasets) {
-            proj_max = std::max(proj_max, array::max(ds.projs));
-        }
+        // amplitude convention of the operators (see projection_scale)
+        const T data_scale =
+            projection_scale<T>(output_dims.n1, recon_dims, grid_n2, grid_n3);
 
         for (size_t j = 0; j < n_datasets; ++j) {
             const auto &ds = datasets[j];
 
-            auto y = ds.projs / proj_max;
+            auto y = ds.projs.clone();
+            y *= data_scale;
             y = pad2d(y, grid_n2, grid_n3, PadType::SYMMETRIC);
 
             size_t nrows = y.nrows();
@@ -219,10 +219,11 @@ namespace tomocam {
                                recon_dims.n1, recon_dims.n2, recon_dims.n3, grid_n2,
                                grid_n3));
 
-        T proj_max = 0.0;
-        for (const auto &ds : datasets) {
-            proj_max = std::max(proj_max, array::max(ds.projs));
-        }
+        // amplitude convention of the operators (see projection_scale)
+        const T data_scale =
+            projection_scale<T>(output_dims.n1, recon_dims, grid_n2, grid_n3);
+        logger.log(
+            std::format("data scale {:.6g}\n", static_cast<double>(data_scale)));
 
         std::vector<std::tuple<std::vector<T>, T, T>> angle_gamma_beta;
         size_t total_nangles = 0;
@@ -232,8 +233,9 @@ namespace tomocam {
         std::vector<std::array<T, 2>> shifts; // stacked in the same order as y
         bool has_shifts = false;
         for (const auto &ds : datasets) {
-            auto y =
-                pad2d(ds.projs / proj_max, grid_n2, grid_n3, PadType::SYMMETRIC);
+            auto scaled = ds.projs.clone();
+            scaled *= data_scale;
+            auto y = pad2d(scaled, grid_n2, grid_n3, PadType::SYMMETRIC);
             assert(nrows == 0 || (y.nrows() == nrows && y.ncols() == ncols));
             nrows = y.nrows();
             ncols = y.ncols();
